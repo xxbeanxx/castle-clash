@@ -1,6 +1,6 @@
 # corepack isn't reliably bundled across node:24-alpine builds (it's being
 # phased out of Node core), so pin pnpm/turbo via npm instead.
-FROM node:24-alpine AS base
+FROM docker.io/library/node:24-alpine AS base
 RUN npm install -g pnpm@12.4.1 turbo@2.10.13
 
 FROM base AS pruner
@@ -17,10 +17,21 @@ FROM base AS builder
 WORKDIR /app
 COPY --from=installer /app/ .
 COPY --from=pruner /app/out/full/ .
+# turbo prune only copies files owned by an in-scope package; tsconfig.base.json
+# is a root file each package's tsconfig extends by relative path, so it has to
+# be copied in explicitly or `tsc`/tsup's dts step fails with TS5083.
+COPY --from=pruner /app/tsconfig.base.json .
 RUN turbo build --filter=@castle-clash/client
 
-FROM nginxinc/nginx-unprivileged:1.30-alpine AS runtime
-COPY --from=builder /app/apps/client/build/client /usr/share/nginx/html
+FROM docker.io/nginxinc/nginx-unprivileged:1.30-alpine AS runtime
+# The base image already runs as USER 101 (nginx), so switch to root just for
+# these setup steps: /usr/share/nginx/html itself (not just its contents) is
+# root-owned and not group-writable, but our entrypoint script writes
+# config.js into it at startup as uid 101.
+USER root
+COPY --chown=nginx:nginx --from=builder /app/apps/client/build/client /usr/share/nginx/html
+RUN chown nginx:nginx /usr/share/nginx/html
 COPY apps/client/docker/nginx.conf /etc/nginx/conf.d/default.conf
 COPY apps/client/docker/entrypoint.sh /docker-entrypoint.d/40-render-config.sh
+USER 101
 EXPOSE 8080

@@ -263,6 +263,10 @@ importers:
         version: 5.0.0(@types/node@24.13.4)(jsdom@30.0.1)(vite@8.3.0(@types/node@24.13.4)(esbuild@0.27.7)(tsx@4.23.13))
 
   packages/shared:
+    dependencies:
+      '@colyseus/schema':
+        specifier: 5.0.32
+        version: 5.0.32(typescript@6.0.3)
     devDependencies:
       tsup:
         specifier: 8.5.1
@@ -364,6 +368,15 @@ packages:
 
   '@cacheable/utils@2.5.0':
     resolution: {integrity: sha512-buipgOVDkkPXNR5+xBpDw7Zk2n1EvU7qBJCNUcL7rhQ//kfpOXPAvQ511Os0vpLYJ1pZnvudNytkQt2hst3wqA==}
+
+  '@colyseus/schema@5.0.32':
+    resolution: {integrity: sha512-MErPVAILR6MGqhUPfrHBFoYL6tmtHdNMNtNkfEpvqwObv8sEeaCUkeVVUU5jpAFFrdeSMIhxSeCx2YcYK1m37w==}
+    hasBin: true
+    peerDependencies:
+      typescript: '>=5.0.0'
+    peerDependenciesMeta:
+      typescript:
+        optional: true
 
   '@csstools/color-helpers@6.1.1':
     resolution: {integrity: sha512-gLNsunvwf3mCi5u5o46/Z/JcJMnhbHSaZ69rkgPzNM3J4s8hWwpPUQB6/tt0EDFyCiWzxANlx+2LJwpYj4zS1w==}
@@ -2361,6 +2374,10 @@ snapshots:
     dependencies:
       hashery: 1.5.1
       keyv: 5.6.0
+
+  '@colyseus/schema@5.0.32(typescript@6.0.3)':
+    optionalDependencies:
+      typescript: 6.0.3
 
   '@csstools/color-helpers@6.1.1': {}
 

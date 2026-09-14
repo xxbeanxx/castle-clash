@@ -1,3 +1,22 @@
-import { TICK_RATE } from "@castle-clash/shared";
+import { defineRoom, defineServer, WebSocketTransport } from "colyseus";
+import { registerHealthRoutes } from "./http.js";
+import { MatchRoom } from "./rooms/MatchRoom.js";
 
-console.log(`castle-clash server starting, TICK_RATE=${TICK_RATE}`);
+export const server = defineServer({
+  rooms: {
+    match: defineRoom(MatchRoom),
+  },
+  transport: new WebSocketTransport(),
+  express: (app) => {
+    registerHealthRoutes(app);
+  },
+  greet: process.env.NODE_ENV !== "test",
+});
+
+const isEntrypoint = import.meta.url === `file://${process.argv[1]}`;
+
+if (isEntrypoint) {
+  const port = Number(process.env.PORT ?? 2567);
+  await server.listen(port);
+  console.log(`castle-clash server listening on :${port}`);
+}

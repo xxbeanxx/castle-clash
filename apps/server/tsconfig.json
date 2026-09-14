@@ -8,8 +8,7 @@
     "moduleResolution": "nodenext",
     "experimentalDecorators": true,
     "useDefineForClassFields": false,
-    "outDir": "dist",
-    "rootDir": "src"
+    "outDir": "dist"
   },
-  "include": ["src"]
+  "include": ["src", "test"]
 }

@@ -326,6 +326,34 @@ Plan line references are to `docs/IMPLEMENTATION_PLAN.md` as it stands today.
 
 ---
 
+## 10. Colyseus `Room` tick API (found while implementing Phase 2's `MatchRoom`)
+
+**Plan assumption** (Phase 2 implementation steps): "`IntervalTickDriver` in prod via `setSimulationInterval`".
+
+**(a) Current fact:** The installed `@colyseus/core@0.18.13`'s `Room.d.ts` marks `setSimulationInterval(onTickCallback?, delay?)` `@deprecated` — "Renamed to `Room.setTimestep` ... Kept for backwards compatibility — forwards to `setTimestep` unchanged." There's also a newer `setFixedTimestep(step, tickRate?, opts?)`, a framework-owned accumulator loop (passes a `StepContext` with `dt`/`tick`/`subSteps`) intended for deterministic, prediction-friendly simulation — relevant groundwork for Phase 3's `GameSimulation.step()`, not needed for Phase 2's trivial tick counter.
+
+**(b) Was the plan correct?** The method exists and behaves as described, but it's the deprecated name. `phase1-version-assumptions.md` item 2 said "`setSimulationInterval`/`setPatchRate`... unchanged" — still true in that both work, but incomplete: `setSimulationInterval` has since been renamed.
+
+**(c) Action taken:** `apps/server/src/rooms/TickDriver.ts`'s `IntervalTickDriver` calls `room.setTimestep(callback, delay)` (the current name) instead of the deprecated `setSimulationInterval`. `setFixedTimestep` is worth evaluating in Phase 3 once `GameSimulation.step()` exists and needs the accumulator/`StepContext` semantics, but `setTimestep` (measured wall-clock delta, no accumulator) is the correct minimal choice for Phase 2, which does nothing more than increment `state.tick`.
+
+**(d) Sources:** `node_modules/.pnpm/@colyseus+core@0.18.13.../build/Room.d.ts` (installed package's own `.d.ts`, read directly — `setSimulationInterval`'s and `setFixedTimestep`'s doc comments), checked 2026-09-14 while implementing `apps/server/src/rooms/MatchRoom.ts`.
+
+---
+
+## 11. `express` v5 does not ship its own types (found while implementing Phase 2's `/healthz`/`/readyz`)
+
+**Plan assumption:** Not stated explicitly — Phase 2's `index.ts` sketch passes an `express: (app) => {...}` callback to `defineServer`, implying a normal typed Express app with no separate types package needed (a common assumption for Express 5, since some other v5-era packages ship types inline).
+
+**(a) Current fact:** `express@5.2.1`'s own `package.json` (installed via `colyseus`'s peer dependency, and added directly to `apps/server`) has no `"types"`/`"exports"` field at all — `tsc` reports `TS7016: Could not find a declaration file for module 'express'` for any file that imports from it directly. `@types/express@5.0.6` (DefinitelyTyped, matching the express v5 line) is still required.
+
+**(b) Was the plan correct?** N/A — not stated, but naively skipping `@types/express` (reasonable given "v5 ships its own types" is true of some ecosystem packages) breaks `apps/server`'s typecheck immediately once a route handler is written.
+
+**(c) Action taken:** Added `@types/express@5.0.6` as an `apps/server` devDependency. Also note: `@colyseus/core`'s `ServerOptions.express` callback types its `app` parameter as the narrower `express.Application` (the namespace-merged interface), not `@types/express`'s `Express` (the `express()` factory's return type, a strict supertype with extra `request`/`response` properties) — a function meant to be passed as that callback, like `apps/server/src/http.ts`'s `registerHealthRoutes`, must type its own parameter as `Application`, not `Express`, or TS rejects the assignment (`Application` is not assignable to the more specific `Express`).
+
+**(d) Sources:** This session's own `tsc --noEmit` output against the installed `express@5.2.1` and `@types/express@5.0.6` packages, and `@colyseus/core@0.18.13`'s `Server.d.ts` (`express?: (app: express.Application) => ...`), checked 2026-09-14.
+
+---
+
 ## Summary table
 
 | #   | Library            | Plan assumed                                                                           | Current reality                                                                                                                                                                                                                                                                                                                                                                                                       | Plan status                                                                                                   |
@@ -339,3 +367,5 @@ Plan line references are to `docs/IMPLEMENTATION_PLAN.md` as it stands today.
 | 7   | Vitest             | `vitest.workspace.ts`, browser mode + Playwright                                       | vitest 5.0.0; workspace file deprecated in favor of `projects` in `vitest.config.ts`; Playwright provider is now the separate `@vitest/browser-playwright` package                                                                                                                                                                                                                                                    | Needs update (workspace file + provider package name)                                                         |
 | 8   | TypeScript         | not stated explicitly; plan implies a normal `tsc`/programmatic-API toolchain          | `typescript@latest` on npm is **7.0.2**, the Go-native ("Corsa"/`tsgo`) compiler (GA July 2026). Same type-checking/emit as 6.0, still supports `experimentalDecorators`, `bundler`/`nodenext` resolution, `verbatimModuleSyntax`. But 7.0 ships **no programmatic compiler API** until 7.1 (~Oct 2026), and `typescript-eslint@8.70.0`'s peer range is `typescript: ">=4.8.4 <6.1.0"` — it does not support 7.x yet. | **Pin to `typescript@6.0.3`**, not `latest`, until `typescript-eslint`/`tsup` confirm 7.1 support.            |
 | 9   | corepack           | plan's Dockerfile step assumes `node:24-alpine` + `corepack enable` gets a pinned pnpm | This session's own Node 24 (distro-packaged) has no `corepack` binary at all; whether `node:24-alpine` itself ships corepack is still unverified, but `npm install -g` was confirmed end-to-end by actually building and running both containerfiles with `podman`                                                                                                                                                    | containerfiles install pnpm/turbo via `npm install -g` instead, to avoid depending on corepack's availability |
+| 10  | Colyseus `Room` tick API | plan says `IntervalTickDriver` uses `setSimulationInterval`                      | Still present but `@deprecated`, forwarding to the renamed `setTimestep`; a newer `setFixedTimestep` (accumulator + `StepContext`) exists for Phase 3's deterministic sim                                                                                                                                                                                                                                            | `IntervalTickDriver` uses `setTimestep` instead                                                               |
+| 11  | `express` v5 types | not stated; implicitly assumed typed out of the box                                    | `express@5.2.1` ships no types at all; `@types/express@5.0.6` is still required, and Colyseus's `express` callback types `app` as the narrower `express.Application`, not `@types/express`'s `Express`                                                                                                                                                                                                              | Added `@types/express` devDependency; typed callback params as `Application`                                 |

@@ -3,6 +3,12 @@ packages:
   - "packages/*"
 allowBuilds:
   esbuild: true
+  msgpackr-extract: true
+# colyseus's uWebSockets.js transport dependency is a legitimate package Colyseus
+# itself ships, git-hosted only because its license terms don't allow npm
+# publishing (not a trust signal) — pnpm's default exotic-subdep block would
+# otherwise refuse it as a transitive dependency.
+blockExoticSubdeps: false
 minimumReleaseAgeExclude:
   - '@turbo/darwin-64@2.10.13'
   - '@turbo/darwin-arm64@2.10.13'

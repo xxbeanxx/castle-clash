@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "main": "dist/index.js",
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "dev": "tsx watch src/index.ts",
@@ -14,10 +16,16 @@
     "lint": "eslint ."
   },
   "dependencies": {
-    "@castle-clash/shared": "workspace:*"
+    "@castle-clash/shared": "workspace:*",
+    "colyseus": "0.18.5",
+    "express": "5.2.1"
   },
   "devDependencies": {
+    "@colyseus/testing": "^0.18.5",
+    "@types/express": "5.0.6",
     "@types/node": "^24.0.0",
+    "@types/supertest": "^7.2.1",
+    "supertest": "^7.2.2",
     "tsx": "^4.19.0",
     "typescript": "6.0.3",
     "vitest": "5.0.0"

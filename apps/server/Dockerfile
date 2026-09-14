@@ -1,0 +1,39 @@
+# syntax=docker/dockerfile:1
+
+# corepack isn't reliably bundled across node:24-alpine builds (it's being
+# phased out of Node core), so pin pnpm/turbo via npm instead.
+FROM node:24-alpine AS base
+RUN npm install -g pnpm@12.4.1 turbo@2.10.13
+
+FROM base AS pruner
+WORKDIR /app
+COPY . .
+RUN turbo prune @castle-clash/server --docker
+
+FROM base AS installer
+WORKDIR /app
+COPY --from=pruner /app/out/json/ .
+RUN pnpm install --frozen-lockfile
+
+FROM base AS builder
+WORKDIR /app
+COPY --from=installer /app/ .
+COPY --from=pruner /app/out/full/ .
+# turbo prune only copies files owned by an in-scope package; tsconfig.base.json
+# is a root file each package's tsconfig extends by relative path, so it has to
+# be copied in explicitly or `tsc` fails with TS5083 (file not found).
+COPY --from=pruner /app/tsconfig.base.json .
+RUN turbo build --filter=@castle-clash/server
+
+FROM base AS deployer
+WORKDIR /app
+COPY --from=builder /app/ .
+RUN pnpm deploy --filter=@castle-clash/server --prod /out
+
+FROM node:24-alpine AS runtime
+RUN addgroup -S app && adduser -S app -G app
+WORKDIR /app
+COPY --from=deployer --chown=app:app /out .
+USER app
+ENV NODE_ENV=production
+CMD ["node", "dist/index.js"]

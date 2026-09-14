@@ -134,11 +134,26 @@ client's static `build/client` output gets copied into `nginx-unprivileged`, wit
 `GAME_SERVER_URL`/`SUPABASE_URL`/`SUPABASE_PUBLISHABLE_KEY` env vars at container start, and
 refuses to start if any are missing).
 
-One easy-to-miss gotcha if you touch these: `turbo prune` only copies files owned by an in-scope
-workspace package into `out/full` — a root-level file like `tsconfig.base.json`, which every
-package's tsconfig `extends` by relative path, has to be `COPY`'d in explicitly in the `builder`
-stage or `tsc` fails with `TS5083` inside the container even though the exact same build works
-fine outside one.
+Both have been built and run for real with `podman` (not just typechecked/dry-run), including
+hitting `/config.js`, `/`, and an arbitrary SPA route on the running client container. Gotchas
+found that way, in case you touch these files:
+
+- `turbo prune` only copies files owned by an in-scope workspace package into `out/full` — a
+  root-level file like `tsconfig.base.json`, which every package's tsconfig `extends` by relative
+  path, has to be `COPY`'d in explicitly in the `builder` stage (both containerfiles do this) or
+  `tsc`/tsup's dts step fails with `TS5083` inside the container even though the exact same build
+  works fine outside one.
+- Base images are fully-qualified (`docker.io/library/node:...`, `docker.io/nginxinc/...`), not
+  short names. This machine's podman has `short-name-mode = "enforcing"` in
+  `/etc/containers/registries.conf`; a short name with no cached alias fails the build with
+  "short-name resolution enforced but cannot prompt without a TTY" the first time it's pulled.
+  Fully-qualifying sidesteps the local registries.conf entirely.
+- The client's `USER root` / `RUN chown nginx:nginx /usr/share/nginx/html` / `USER 101` bracket
+  around the final `COPY`s is required, not decorative: `nginx-unprivileged` runs as `USER 101`
+  and `COPY --chown=nginx:nginx` only chowns the newly-copied _files_, not the pre-existing
+  `/usr/share/nginx/html` _directory_ itself (still root-owned, not group-writable) — without the
+  explicit `chown` of the directory, the `entrypoint.sh`/`docker-entrypoint.d` script that renders
+  `config.js` into it at container start fails with `Permission denied`.
 
 pnpm/turbo are installed into the container via `npm install -g` rather than `corepack enable` —
 `corepack` isn't reliably present across `node:24-alpine` builds (confirmed missing on this

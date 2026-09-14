@@ -261,6 +261,28 @@ Plan line references are to `docs/IMPLEMENTATION_PLAN.md` as it stands today.
 
 ---
 
+## 8. TypeScript (added after initial research — discovered while pinning `package.json`)
+
+**Plan assumption:** Not stated explicitly as a version; the plan assumes a normal `tsc` toolchain compatible with `typescript-eslint`, `tsup`, and Vitest's type-aware tooling.
+
+**(a) Current fact:**
+- `typescript@latest` on npm is **7.0.2** — this is the Go-native compiler (codename "Corsa", CLI `tsgo`), GA'd 8 Jul 2026. It type-checks and emits identically to TypeScript 6.0, and still supports `experimentalDecorators`, `emitDecoratorMetadata`, `bundler`/`nodenext` module resolution, and `verbatimModuleSyntax`. Sources: https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/, community coverage (InfoQ, InfoWorld) corroborating the GA date and scope.
+- **7.0 ships with no programmatic compiler API** (`ts.createProgram`, `ts.transform`, `ts.factory`, etc.) — that returns in 7.1, expected around October 2026. Tools that call into the TS API directly (`typescript-eslint`, `ts-jest`, `ts-morph`, `@angular/compiler-cli`, `@vue/compiler-sfc`) cannot run against 7.0.
+- `typescript-eslint@8.70.0`'s own `peerDependencies` pins `"typescript": ">=4.8.4 <6.1.0"` — confirmed directly via `npm view typescript-eslint peerDependencies`. It does not merely "not support" 7.x; its declared peer range excludes it outright.
+- The `@typescript/typescript6` compatibility package exists specifically so projects that need the legacy API can keep running `tsc6` (a rebadged 6.x compiler) side-by-side with the `typescript` 7.x package.
+
+**(b) Was the plan correct?** N/A — the plan didn't pin a version. But naively installing `typescript@latest` (as this session initially did in `package.json`) would have pulled 7.0.2 and broken `typescript-eslint` outright, since 7.0's peer-incompatible with any current type-aware ESLint setup.
+
+**(c) Replacement/action taken:** Pinned `typescript` to `6.0.3` (latest stable 6.x, within `typescript-eslint`'s supported range) in the root `package.json`, and added a note to the plan's "Version notes" section. Revisit once `typescript-eslint` and `tsup`'s `.d.ts` bundling publish confirmed TypeScript 7.1 support.
+
+**(d) Sources:**
+- https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/
+- https://registry.npmjs.org/typescript (dist-tags: `latest` 7.0.2, `rc` 7.0.1-rc)
+- `npm view typescript-eslint peerDependencies` (npm registry metadata, checked 2026-09-14)
+- Community coverage corroborating the missing-API timeline: InfoQ ("Microsoft Releases TypeScript 7.0 with a Native Go Compiler"), Microsoft for Developers blog ("TypeScript 7 native preview in Visual Studio 2026")
+
+---
+
 ## Summary table
 
 | # | Library | Plan assumed | Current reality | Plan status |
@@ -272,3 +294,4 @@ Plan line references are to `docs/IMPLEMENTATION_PLAN.md` as it stands today.
 | 5 | Supabase | publishable/secret keys, JWKS path, anonymous sign-in, `setup-cli` | All confirmed current; legacy `anon`/`service_role` keys deprecating by end of 2026 | Correct (already ahead of the curve on key naming) |
 | 6 | Turborepo/pnpm | `turbo prune --docker` layout, pnpm 10 | turbo 2.10.13, layout unchanged; pnpm is actually 12.4.1, and `injectWorkspacePackages` no longer required as of pnpm 12.2 | Needs pnpm version update |
 | 7 | Vitest | `vitest.workspace.ts`, browser mode + Playwright | vitest 5.0.0; workspace file deprecated in favor of `projects` in `vitest.config.ts`; Playwright provider is now the separate `@vitest/browser-playwright` package | Needs update (workspace file + provider package name) |
+| 8 | TypeScript | not stated explicitly; plan implies a normal `tsc`/programmatic-API toolchain | `typescript@latest` on npm is **7.0.2**, the Go-native ("Corsa"/`tsgo`) compiler (GA July 2026). Same type-checking/emit as 6.0, still supports `experimentalDecorators`, `bundler`/`nodenext` resolution, `verbatimModuleSyntax`. But 7.0 ships **no programmatic compiler API** until 7.1 (~Oct 2026), and `typescript-eslint@8.70.0`'s peer range is `typescript: ">=4.8.4 <6.1.0"` — it does not support 7.x yet. | **Pin to `typescript@6.0.3`**, not `latest`, until `typescript-eslint`/`tsup` confirm 7.1 support. |

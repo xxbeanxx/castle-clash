@@ -1,5 +1,3 @@
-# syntax=docker/dockerfile:1
-
 # corepack isn't reliably bundled across node:24-alpine builds (it's being
 # phased out of Node core), so pin pnpm/turbo via npm instead.
 FROM node:24-alpine AS base

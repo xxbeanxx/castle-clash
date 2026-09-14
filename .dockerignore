@@ -1,3 +1,7 @@
+# Keep this in sync with containerfile.containerignore (identical content,
+# different name): docker buildx (used in CI) only auto-discovers
+# .dockerignore; podman only auto-discovers .containerignore/.dockerignore
+# or an explicit --ignorefile.
 **/node_modules
 **/dist
 **/build

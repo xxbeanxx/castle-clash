@@ -1,0 +1,11 @@
+# Keep this in sync with .dockerignore (identical content, different name):
+# podman only auto-discovers .containerignore/.dockerignore or an explicit
+# --ignorefile; docker buildx (used in CI) only auto-discovers .dockerignore.
+**/node_modules
+**/dist
+**/build
+**/.turbo
+**/.react-router
+**/coverage
+.git
+*.log

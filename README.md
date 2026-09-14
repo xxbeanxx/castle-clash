@@ -48,15 +48,19 @@ docs/
   research/
 ```
 
-## Docker
+## Containers
 
-Each app has its own `Dockerfile`, but the build context is the **repo root** (both Dockerfiles
-run `turbo prune` against the full workspace):
+Each app has its own `containerfile`, but the build context is the **repo root** (both
+containerfiles run `turbo prune` against the full workspace). Locally, build with `podman`:
 
 ```sh
-docker build -f apps/server/Dockerfile -t castle-clash-server .
-docker build -f apps/client/Dockerfile -t castle-clash-client .
+podman build --ignorefile=containerfile.containerignore -f apps/server/containerfile -t castle-clash-server .
+podman build --ignorefile=containerfile.containerignore -f apps/client/containerfile -t castle-clash-client .
 ```
+
+`--ignorefile` is explicit because podman only auto-discovers `.containerignore`/`.dockerignore`,
+not `containerfile.containerignore`; a `.dockerignore` with identical content also exists (kept in
+sync) so CI's `docker buildx`, which only auto-discovers `.dockerignore`, doesn't need the flag.
 
 The client image needs `GAME_SERVER_URL`, `SUPABASE_URL`, and `SUPABASE_PUBLISHABLE_KEY` at
 container start; it renders them into `config.js` and refuses to start if any are missing.

@@ -8,19 +8,20 @@ A 2D Renaissance knight arena brawler. TypeScript monorepo with an authoritative
 
 ### 0.1 Guiding decisions
 
-| # | Decision | Rationale |
-|---|----------|-----------|
-| D1 | **Gameplay rules live in `shared` as pure, deterministic functions.** Physics, the combat state machine, hazards, and power-up modifiers do no I/O and use no DOM, Node, or wall-clock APIs. | The server runs them authoritatively and the client runs the same code for prediction, so most tests need no network, canvas, or database. |
-| D2 | **Colyseus rooms stay thin.** `MatchRoom` converts network messages into `GameSimulation` calls and projects the result into Schema. It holds no gameplay rules. | Room tests only need to cover wiring, auth, and phase transitions. |
-| D3 | **The sim model is separate from the network schema.** The sim runs on plain objects (`SimState`). `projectToSchema()` copies them into `@colyseus/schema` classes once per tick. | Plain objects are cheap to clone for prediction and replay, and easy to hash in determinism tests. With ≤ 8 players the copy cost doesn't matter. |
-| D4 | **React owns the app shell; Pixi runs imperatively.** React Router handles routes (auth, lobby, loadout, stats). A single `<GameCanvas>` mounts a vanilla `GameClient` (Pixi `Application`, room connection, prediction loop). | The game loop never causes React re-renders. The HUD reads a throttled external store through `useSyncExternalStore`. |
-| D5 | **Only the server writes competitive data.** The client can write only its own loadout, and RLS enforces that. The server records match results with the Supabase secret key through a single transactional SQL function. | Players can't forge stats, and the secret key never reaches the client. |
-| D6 | **Each deployable ships as one immutable image, promoted by digest.** `castle-clash-server` (Node) and `castle-clash-client` (static files served by nginx, with config injected at runtime). | The same image runs in CI smoke tests, staging, and production. |
-| D7 | **Fixed timestep.** The sim ticks at 60 Hz, and state patches go out at 20 Hz (configurable). Frame data is counted in ticks. | Fighting-game frame data maps directly to ticks, and patch bandwidth stays bounded. |
+| #   | Decision                                                                                                                                                                                                                       | Rationale                                                                                                                                         |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D1  | **Gameplay rules live in `shared` as pure, deterministic functions.** Physics, the combat state machine, hazards, and power-up modifiers do no I/O and use no DOM, Node, or wall-clock APIs.                                   | The server runs them authoritatively and the client runs the same code for prediction, so most tests need no network, canvas, or database.        |
+| D2  | **Colyseus rooms stay thin.** `MatchRoom` converts network messages into `GameSimulation` calls and projects the result into Schema. It holds no gameplay rules.                                                               | Room tests only need to cover wiring, auth, and phase transitions.                                                                                |
+| D3  | **The sim model is separate from the network schema.** The sim runs on plain objects (`SimState`). `projectToSchema()` copies them into `@colyseus/schema` classes once per tick.                                              | Plain objects are cheap to clone for prediction and replay, and easy to hash in determinism tests. With ≤ 8 players the copy cost doesn't matter. |
+| D4  | **React owns the app shell; Pixi runs imperatively.** React Router handles routes (auth, lobby, loadout, stats). A single `<GameCanvas>` mounts a vanilla `GameClient` (Pixi `Application`, room connection, prediction loop). | The game loop never causes React re-renders. The HUD reads a throttled external store through `useSyncExternalStore`.                             |
+| D5  | **Only the server writes competitive data.** The client can write only its own loadout, and RLS enforces that. The server records match results with the Supabase secret key through a single transactional SQL function.      | Players can't forge stats, and the secret key never reaches the client.                                                                           |
+| D6  | **Each deployable ships as one immutable image, promoted by digest.** `castle-clash-server` (Node) and `castle-clash-client` (static files served by nginx, with config injected at runtime).                                  | The same image runs in CI smoke tests, staging, and production.                                                                                   |
+| D7  | **Fixed timestep.** The sim ticks at 60 Hz, and state patches go out at 20 Hz (configurable). Frame data is counted in ticks.                                                                                                  | Fighting-game frame data maps directly to ticks, and patch bandwidth stays bounded.                                                               |
 
 **Version notes:** Target Node 24 LTS, pnpm 12, and **TypeScript 6.0.x** (not the `latest` 7.0 tag — see below), with versions pinned through `packageManager` and `.nvmrc`. Use Colyseus 0.18+ with `@colyseus/schema` v5, PixiJS v8, and React Router v8 in SPA mode (`ssr: false`; PixiJS is client-only). Check API names against the pinned versions' docs when you implement each phase. Versions confirmed 2026-09-14; see `docs/research/phase1-version-assumptions.md` for sources and detail.
 
 **Corrections from version research (see `docs/research/phase1-version-assumptions.md`):**
+
 - **Colyseus server bootstrap:** use `defineServer({ rooms, transport, express })` / `defineRoom(MatchRoom).filterBy([...])` from the `colyseus` package, not the older `new Server()`/`gameServer.define(...).filterBy(...)` (`@colyseus/tools` `config()`) shape — that's soft-deprecated as of 0.17.
 - **`onAuth` signature:** static `onAuth(token, options, context)`, where the client's auth token is `context.token` (not a positional `token`/`req` pair).
 - **`@colyseus/schema` decorators:** unchanged — `experimentalDecorators: true` and `useDefineForClassFields: false` are still required for the legacy `@type()` decorator API in v5. (v5 also adds an optional decorator-free `schema()`/`t.*` builder needing no special tsconfig; the plan uses the decorator API throughout, so no config change is needed unless that changes.)
@@ -28,6 +29,7 @@ A 2D Renaissance knight arena brawler. TypeScript monorepo with an authoritative
 - **Vitest workspace config:** use a `projects: [...]` array inside a root `vitest.config.ts` instead of a separate `vitest.workspace.ts` file, which is deprecated since Vitest 3.2.
 - **Vitest browser mode:** install `@vitest/browser-playwright` as a dev dependency and set `test.browser.provider: playwright()` (imported from that package) in the client's `vitest.config.ts` — the Playwright provider is no longer bundled with `vitest`/`@vitest/browser`.
 - **TypeScript version — pin to 6.x, not the `latest` 7.0 tag:** `typescript@latest` (npm) is now 7.0.2, the Go-native ("Corsa"/`tsgo`) compiler. It type-checks and emits identically to 6.0, and still supports `experimentalDecorators`/`emitDecoratorMetadata`, `bundler`/`nodenext` module resolution, and `verbatimModuleSyntax`. But 7.0 ships **no programmatic compiler API** (`ts.createProgram`, `ts.transform`, etc.) until 7.1, which is expected around October 2026 — and `typescript-eslint` (needed for Phase 1 lint config) depends on that API and pins its own peer range to `typescript: ">=4.8.4 <6.1.0"`, i.e. it doesn't support 7.x at all yet. Pin the workspace to `typescript@6.0.3` (the current latest 6.x) everywhere; revisit once `typescript-eslint` and `tsup`'s `.d.ts` bundling confirm 7.1 support.
+- **Containers: `podman` + `containerfile` naming, not `Dockerfile`.** Every phase that adds or touches a container build file should name it `containerfile` (lowercase, at the same paths the plan otherwise calls "`Dockerfile`"), and the ignore file `containerfile.containerignore` at the repo root — the user builds locally with `podman build --ignorefile=containerfile.containerignore -f apps/<app>/containerfile ...`. CI keeps using `docker buildx` (via `docker/build-push-action`) since GitHub-hosted runners have Docker preinstalled and the containerfiles carry no BuildKit-only syntax, so the same file builds under either engine; docker buildx only auto-discovers `.dockerignore`, so a `.dockerignore` with content identical to `containerfile.containerignore` also lives at the repo root — keep both in sync by hand, since there's no single name both engines auto-discover.
 
 ### 0.2 Repository layout (target end state)
 
@@ -49,7 +51,7 @@ castle-clash/
 │  │  ├─ public/assets/            # spritesheets, audio, manifest.json
 │  │  ├─ e2e/                      # Playwright specs
 │  │  ├─ docker/nginx.conf, docker/entrypoint.sh
-│  │  └─ Dockerfile
+│  │  └─ containerfile
 │  └─ server/                      # Colyseus authoritative server
 │     ├─ src/
 │     │  ├─ index.ts               # bootstrap, /healthz, /readyz, /metrics
@@ -60,7 +62,7 @@ castle-clash/
 │     │  ├─ persistence/           # PlayerRepository interface, Supabase + InMemory impls
 │     │  └─ observability/         # pino logger, prom metrics
 │     ├─ test/                     # @colyseus/testing integration specs
-│     └─ Dockerfile
+│     └─ containerfile
 ├─ packages/
 │  └─ shared/                      # isomorphic: no DOM, no Node
 │     └─ src/
@@ -121,17 +123,17 @@ sequenceDiagram
 
 ### 0.4 Test pyramid and boundaries
 
-| Layer | Tool | Location | What it covers | CI job |
-|-------|------|----------|----------------|--------|
-| Pure unit | Vitest (+ fast-check) | `packages/shared/**/*.test.ts` | Physics, FSM, hit resolution, power-ups, arenas, RNG | `ci / verify` |
-| Server unit | Vitest | `apps/server/src/**/*.test.ts` | InputQueue, MatchDirector, token verification, repository fakes | `ci / verify` |
-| Room integration | Vitest + `@colyseus/testing` | `apps/server/test/` | Join/auth, input → patch, phases, draft messages | `ci / verify` |
-| Client unit | Vitest + React Testing Library (jsdom) | `apps/client/app/**/*.test.tsx` | Routes, HUD, view-models, reconciler | `ci / verify` |
-| Render | Vitest browser mode (Playwright Chromium) | `apps/client/app/game/render/*.browser.test.ts` | PixiJS scene graph, textures, tints | `ci / browser` |
-| DB | pgTAP via `supabase test db` | `supabase/tests/` | RLS policies, SQL functions | `integration` |
-| Repository contract | Vitest | `apps/server/test/contract/` | One suite run against both InMemory and Supabase (local) | `integration` |
-| E2E | Playwright | `apps/client/e2e/` | Full stack in docker compose with multiple browser contexts | `e2e` |
-| Load | `@colyseus/loadtest` + bot inputs | `apps/server/loadtest/` | Tick duration and memory under N rooms | manual / nightly |
+| Layer               | Tool                                      | Location                                        | What it covers                                                  | CI job           |
+| ------------------- | ----------------------------------------- | ----------------------------------------------- | --------------------------------------------------------------- | ---------------- |
+| Pure unit           | Vitest (+ fast-check)                     | `packages/shared/**/*.test.ts`                  | Physics, FSM, hit resolution, power-ups, arenas, RNG            | `ci / verify`    |
+| Server unit         | Vitest                                    | `apps/server/src/**/*.test.ts`                  | InputQueue, MatchDirector, token verification, repository fakes | `ci / verify`    |
+| Room integration    | Vitest + `@colyseus/testing`              | `apps/server/test/`                             | Join/auth, input → patch, phases, draft messages                | `ci / verify`    |
+| Client unit         | Vitest + React Testing Library (jsdom)    | `apps/client/app/**/*.test.tsx`                 | Routes, HUD, view-models, reconciler                            | `ci / verify`    |
+| Render              | Vitest browser mode (Playwright Chromium) | `apps/client/app/game/render/*.browser.test.ts` | PixiJS scene graph, textures, tints                             | `ci / browser`   |
+| DB                  | pgTAP via `supabase test db`              | `supabase/tests/`                               | RLS policies, SQL functions                                     | `integration`    |
+| Repository contract | Vitest                                    | `apps/server/test/contract/`                    | One suite run against both InMemory and Supabase (local)        | `integration`    |
+| E2E                 | Playwright                                | `apps/client/e2e/`                              | Full stack in docker compose with multiple browser contexts     | `e2e`            |
+| Load                | `@colyseus/loadtest` + bot inputs         | `apps/server/loadtest/`                         | Tick duration and memory under N rooms                          | manual / nightly |
 
 Browser-mode tests (Render row) need `@vitest/browser-playwright` installed as a dev dependency, with `test.browser.provider: playwright()` (imported from that package) set in the client's `vitest.config.ts` — the Playwright provider is a separate package, not bundled with `vitest`/`@vitest/browser`.
 
@@ -146,10 +148,11 @@ Browser-mode tests (Render row) need `@vitest/browser-playwright` installed as a
 **Monorepo impact:** `shared` (created), `server` (scaffold), `client` (scaffold), root tooling.
 
 ### Implementation steps
+
 1. **Workspace**
    - `pnpm-workspace.yaml` covering `apps/*` and `packages/*`. Package names are `@castle-clash/{shared,server,client}`.
    - `turbo.json` tasks: `build` (`dependsOn: ["^build"]`, `outputs: ["dist/**","build/**"]`), `typecheck` and `test` (`dependsOn: ["^build"]`), `lint`, and `dev` (`persistent: true`, `cache: false`).
-   - Root `package.json` with a `packageManager` pin, `.nvmrc`, `.editorconfig`, and `.dockerignore`.
+   - Root `package.json` with a `packageManager` pin, `.nvmrc`, `.editorconfig`, and `.dockerignore`/`containerfile.containerignore` (identical content, kept in sync — see Version notes).
 2. **TypeScript**
    - `tsconfig.base.json` with `strict`, `noUncheckedIndexedAccess`, `verbatimModuleSyntax`, and `moduleResolution: "bundler"` (client) or `"nodenext"` (server).
    - `shared` and `server` set `experimentalDecorators: true` and `useDefineForClassFields: false`, as required by `@colyseus/schema` decorators.
@@ -163,23 +166,25 @@ Browser-mode tests (Render row) need `@vitest/browser-playwright` installed as a
    - `math/vec.ts` and `math/aabb.ts`.
 5. **`apps/server` scaffold:** a Node entry point using `defineServer({ rooms, transport, express })` from the `colyseus` package (not the older `new Server()`/`.define()` shape) that imports and logs `TICK_RATE` from shared, built with `tsc`, run with `tsx watch` in dev.
 6. **`apps/client` scaffold:** a React Router v8 SPA with one route that renders `TICK_RATE`, built with Vite.
-7. **Dockerfiles**
+7. **Containerfiles** (see Version notes: `containerfile`, not `Dockerfile` — the user builds locally with `podman`)
    - **Server** (multi-stage): `node:24-alpine` + corepack → `turbo prune @castle-clash/server --docker` → `pnpm install --frozen-lockfile` from `out/json` → copy `out/full` → `turbo build --filter=@castle-clash/server` → `pnpm deploy --filter=@castle-clash/server --prod /out` (no `injectWorkspacePackages`/`--legacy` needed under pnpm 12.2+) → slim runtime stage running as a non-root user.
    - **Client:** prune and build the same way, then copy into an `nginx-unprivileged` image with an SPA fallback. `entrypoint.sh` renders `config.js` from env vars (`GAME_SERVER_URL`, `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`), so one image works in every environment.
 8. **Docs:** `README.md` quickstart and `docs/adr/0001-shared-deterministic-sim.md` (records D1–D3).
 
 ### Testing strategy (gate to Phase 2)
+
 - `shared/input/bitmask.test.ts`: all 2⁹ bit combinations round-trip through `encode`/`decode`, and unknown bits are rejected.
 - `shared/math/rng.test.ts`: the same seed yields the same 1,000-value sequence, different seeds diverge, and a coarse bucket-distribution check passes.
 - `shared/math/aabb.test.ts`: overlap, touching edges, and penetration-vector cases.
 - `shared/config/game.test.ts`: invariants hold (`TICK_RATE % PATCH_RATE === 0`, `MAX_PLAYERS >= 2`).
 - `server/src/smoke.test.ts` and `client/app/smoke.test.tsx`: import from `@castle-clash/shared` to prove workspace resolution works under Vitest.
-- **Gate:** `pnpm turbo run lint typecheck test build` passes locally and in CI, and both `docker build` commands succeed.
+- **Gate:** `pnpm turbo run lint typecheck test build` passes locally and in CI, and both images build (locally with `podman build`, in CI with `docker buildx` against the same `containerfile`s — see Version notes).
 
 ### CI/CD integration
+
 - **`.github/workflows/ci.yml`** runs on `pull_request` and `push: main`. Job `verify`: checkout → `pnpm/action-setup` → `actions/setup-node` (cache `pnpm`) → `pnpm install --frozen-lockfile` → `pnpm turbo run lint typecheck test build`. Add `concurrency: ci-${{ github.ref }}` with `cancel-in-progress`. Turbo remote cache is optional (`TURBO_TOKEN`/`TURBO_TEAM` secrets).
 - **`.github/workflows/docker.yml`** uses a matrix over `[server, client]` with `docker/setup-buildx-action`, `docker/metadata-action`, and `docker/build-push-action` (cache `type=gha`).
-  - PRs build only (`push: false`) to validate the Dockerfiles.
+  - PRs build only (`push: false`) to validate the containerfiles.
   - Pushes to `main` log in to GHCR with `GITHUB_TOKEN` (`permissions: packages: write`) and push `ghcr.io/${{ github.repository_owner }}/castle-clash-{server,client}` tagged `sha-<short>` and `main`.
   - `v*` tags push semver tags.
 - Branch protection requires `verify`, `docker (server)`, and `docker (client)`.
@@ -194,6 +199,7 @@ Browser-mode tests (Render row) need `@vitest/browser-playwright` installed as a
 **Monorepo impact:** `shared` (schema, protocol), `server` (room, HTTP), `client` (GameCanvas, Pixi bootstrap).
 
 ### Implementation steps
+
 1. **shared/schema:** `PlayerState { id, x, y, colorSeed }` and `MatchState { tick, players: MapSchema<PlayerState> }`.
 2. **shared/protocol:** `MessageType` const object (`input`, `fx`, `draft:offer`, `draft:pick`, …) plus hand-rolled payload guards (`isInputFrame(u): u is InputFrame`). No zod in the hot path.
 3. **server**
@@ -207,6 +213,7 @@ Browser-mode tests (Render row) need `@vitest/browser-playwright` installed as a
 5. **Local stack:** `docker-compose.yml` runs `server` (port 2567) and `client` (port 8080, `GAME_SERVER_URL=ws://localhost:2567`). `pnpm dev` runs both through turbo.
 
 ### Testing strategy (gate to Phase 3)
+
 - `server/test/MatchRoom.join.test.ts` (`@colyseus/testing`): boot the server, connect two clients, and check that `state.players.size === 2` after `waitForNextPatch()`. When one leaves, the size drops to 1.
 - `server/src/http.test.ts`: `/healthz` returns 200 (supertest against the Express app).
 - `client/app/game/viewmodel/playersToRects.test.ts`: deterministic tint from `colorSeed`, and removed players disappear.
@@ -215,6 +222,7 @@ Browser-mode tests (Render row) need `@vitest/browser-playwright` installed as a
 - **Gate:** two browser tabs see each other's rectangles when connected to the compose stack.
 
 ### CI/CD integration
+
 - `ci.yml`: add job `browser` (install Playwright Chromium with cache, then `pnpm --filter client test:browser`).
 - `docker.yml`: add job `smoke` (`needs: build`). It loads the built images (`outputs: type=docker` on PRs), runs `docker compose up -d --wait`, curls `/healthz` and the client `/`, and runs `apps/server/scripts/smoke-join.ts`, a headless `colyseus.js` client that joins a room and asserts that state arrives. **On `main`, the GHCR push job needs `smoke`**, so only images that pass the smoke test get published.
 
@@ -227,6 +235,7 @@ Browser-mode tests (Render row) need `@vitest/browser-playwright` installed as a
 **Monorepo impact:** `shared` (sim core, testing harness), `server` (input queue, tick loop), `client` (input capture, reconciler, interpolator).
 
 ### Implementation steps
+
 1. **shared/sim**
    - `SimState { tick, players: Record<PlayerId, SimPlayer>, arena: ArenaRuntime }`, where `SimPlayer = { pos, vel, facing, grounded, coyoteTicks, jumpBufferTicks, lastInputSeq }`.
    - `physics.ts`: gravity, axis-separated AABB sweep against solids, one-way platforms (collide only when falling and previously above), and terminal velocity.
@@ -249,6 +258,7 @@ Browser-mode tests (Render row) need `@vitest/browser-playwright` installed as a
    - `GameClient` loop: fixed 60 Hz sim accumulator, with rendering interpolated between sim steps by `alpha`.
 
 ### Testing strategy (gate to Phase 4)
+
 - `sim/physics.test.ts`: lands on solids, never tunnels at max velocity (sweep test), passes up through one-way platforms and lands on them from above, walls stop horizontal movement.
 - `sim/movement.test.ts`: a jump inside the coyote window succeeds and outside it fails, a jump buffered 5 ticks before landing fires on landing, and short-hop height is less than full-jump height.
 - `sim/determinism.test.ts`: the same seed and input script run twice produce identical `hashState` at every tick. A fast-check property test does the same with random input scripts.
@@ -259,6 +269,7 @@ Browser-mode tests (Render row) need `@vitest/browser-playwright` installed as a
 - **Gate:** at 150 ms simulated latency (Chrome DevTools or `NetSim`), local movement feels immediate and remote players move smoothly.
 
 ### CI/CD integration
+
 - `ci.yml`: turn on Vitest coverage for `packages/shared` with thresholds (`sim/**` ≥ 90% lines), and upload the `coverage/` artifact.
 - Property tests print the failing seed. CI sets `FC_SEED` from `github.run_id` so failures can be reproduced.
 
@@ -271,19 +282,21 @@ Browser-mode tests (Render row) need `@vitest/browser-playwright` installed as a
 **Monorepo impact:** `shared` (combat), `server` (fx events), `client` (KnightView, animation, Fx).
 
 ### Implementation steps
+
 1. **shared/combat/fsm.ts:** the player action state machine is data-driven.
    - States: `Idle, Run, Airborne, AttackStartup, AttackActive, AttackRecovery, Block, BlockStun, Dodge, HitStun, GuardBroken, Dead`.
    - `transitions: Record<ActionState, (ctx) => ActionState | null>`. Cancel rules: recovery can cancel into dodge only on hit, and an airborne light attack has its own frame data.
    - `SimPlayer` gains `action, actionTick, attackKind, hp, stamina, hitstunTicks, invulnTicks`.
 2. **shared/combat/weapons.ts:** frame data in ticks at 60 Hz. The values below are starting points for tuning.
 
-   | Weapon | Light (startup/active/recovery) | Heavy | Reach (px) | Trait |
-   |--------|----------------------------|-------|-----------|-------|
-   | Sword | 6 / 4 / 12 | 16 / 5 / 22 | 70 | Balanced; light chains ×2 |
-   | Mace | 9 / 4 / 16 | 24 / 6 / 30 | 55 | Heavy breaks guard and deals big stamina damage |
-   | Spear | 8 / 3 / 14 | 18 / 4 / 26 | 110 | Long poke with a sweet spot at the tip |
+   | Weapon | Light (startup/active/recovery) | Heavy       | Reach (px) | Trait                                           |
+   | ------ | ------------------------------- | ----------- | ---------- | ----------------------------------------------- |
+   | Sword  | 6 / 4 / 12                      | 16 / 5 / 22 | 70         | Balanced; light chains ×2                       |
+   | Mace   | 9 / 4 / 16                      | 24 / 6 / 30 | 55         | Heavy breaks guard and deals big stamina damage |
+   | Spear  | 8 / 3 / 14                      | 18 / 4 / 26 | 110        | Long poke with a sweet spot at the tip          |
 
    Each attack defines `damage, staminaDamage, knockback: Vec, hitstun, hitboxes: {tickOffset, box: AABB}[]` (relative to facing).
+
 3. **shared/combat/resolve.ts:** `GameSimulation.step` runs these stages in a fixed order.
    1. Apply inputs to the FSM.
    2. Integrate physics.
@@ -303,6 +316,7 @@ Browser-mode tests (Render row) need `@vitest/browser-playwright` installed as a
    - HUD: HP and stamina bars in React, fed by the throttled store.
 
 ### Testing strategy (gate to Phase 5)
+
 - `combat/fsm.test.ts`: a table-driven test over every `(state × input)` pair checks the expected next state and blocked transitions (can't attack during HitStun, can't block while airborne).
 - `combat/weapons.test.ts`: every attack has startup, active, and recovery ≥ 1, hitboxes appear only during active ticks, and reach ordering is Spear > Sword > Mace.
 - `combat/resolve.test.ts`:
@@ -320,6 +334,7 @@ Browser-mode tests (Render row) need `@vitest/browser-playwright` installed as a
 - **Gate:** a two-player local duel is playable, and all combat invariants pass.
 
 ### CI/CD integration
+
 - `ci.yml`: add an asset validation step, `pnpm --filter client assets:check`, which verifies that every clip referenced in the animation map exists in `manifest.json` and that spritesheets stay within the size budget.
 - The `browser` job now covers the KnightView tests. Its Playwright cache key includes the lockfile hash.
 
@@ -332,6 +347,7 @@ Browser-mode tests (Render row) need `@vitest/browser-playwright` installed as a
 **Monorepo impact:** `shared` (match phase FSM, config), `server` (MatchDirector, matchmaking), `client` (lobby, results UI).
 
 ### Implementation steps
+
 1. **shared/match/phase.ts:** a pure FSM: `Waiting → Countdown → RoundActive → RoundOver → Draft → Countdown … → MatchOver`. `Draft` is a pass-through stub until Phase 7. Transition inputs: `playerCount`, `aliveCount`, `ticksInPhase`, and `roundsWon`. Config: `MIN_PLAYERS = 2`, `COUNTDOWN_TICKS`, `ROUND_OVER_TICKS`, `ROUNDS_TO_WIN`, and `ROUND_TIME_LIMIT` (sudden death shrinks the arena or ramps up damage).
 2. **Elimination sources:** HP reaching 0, entering a kill zone, or disconnecting during `RoundActive` all count as an elimination. `SimEvent` `eliminated { victim, by?, cause }` credits the last attacker within 3 s for ring-outs.
 3. **server**
@@ -343,6 +359,7 @@ Browser-mode tests (Render row) need `@vitest/browser-playwright` installed as a
 4. **client:** routes `lobby` (quick play, create or join by code), `play.$roomId` (HUD with phase banner and countdown), and a results overlay. On disconnect the client reconnects with the stored `reconnectionToken`.
 
 ### Testing strategy (gate to Phase 6)
+
 - `match/phase.test.ts`: covers every transition and edge case. Countdown aborts if a player leaves and the count drops below minimum, a 1v1 double KO resolves as a draw round with no points, `ROUNDS_TO_WIN` ends the match, and the time limit triggers sudden death.
 - `server/src/match/MatchDirector.test.ts` (pure, with `SimHarness`): a scripted 3-round match produces the expected `MatchResult` aggregates, and ring-out credit goes to the last attacker.
 - `server/test/MatchRoom.flow.test.ts`: two clients go Waiting → Countdown → RoundActive. Force a KO; after a patch the phase is `RoundOver`, then a new round starts with full HP.
@@ -351,6 +368,7 @@ Browser-mode tests (Render row) need `@vitest/browser-playwright` installed as a
 - **Gate:** a full best-of-5 plays end to end across two browsers with a results screen.
 
 ### CI/CD integration
+
 - **`.github/workflows/e2e.yml`** runs on PRs to `main` (path-filtered to `apps/**`, `packages/**`) and nightly. It builds images, starts `docker compose up -d --wait`, and runs Playwright in the `mcr.microsoft.com/playwright` container.
   - `e2e/private-match.spec.ts`: context A creates a private room and reads the code. Context B joins. Both see the countdown, and holding RIGHT in A changes A's position as seen through `window.__CC_DEBUG__` (a debug hook compiled in only when `VITE_E2E=1`).
 - The job uploads the Playwright trace and video on failure. `docker.yml` also publishes a `:e2e`-flavored client build argument, or E2E builds locally with the debug flag. Production images never include the debug hook.
@@ -364,6 +382,7 @@ Browser-mode tests (Render row) need `@vitest/browser-playwright` installed as a
 **Monorepo impact:** `shared` (arenas, hazards, validator), `server` (hazard state sync, arena rotation), `client` (ArenaView, HazardView, Camera, asset bundles).
 
 ### Implementation steps
+
 1. **shared/hazards:** a closed union `HazardDef`, where each kind is a pure `step` function over `HazardState`.
    - `FireZone { box, dps, cycle?: {onTicks, offTicks} }`: damage over time plus a small hitstun-free knockback.
    - `BreakableFloor { box, hp, breakOn: "heavy" | "any" | "landing", respawnPerRound }`: acts as a solid while `hp > 0`.
@@ -372,14 +391,14 @@ Browser-mode tests (Render row) need `@vitest/browser-playwright` installed as a
    - `CollapsingPlatform { box, delayTicks }`: falls after being stood on.
 2. **shared/arenas:** one file per arena. Geometry is authored in Tiled and exported to JSON, then turned into typed definitions by `scripts/import-tiled.ts`. Hand-written TS is fine to start.
 
-   | Arena | Layout highlights | Hazards |
-   |-------|-------------------|---------|
-   | Pit | Two ledges around a central drop | KillZone pit, CollapsingPlatform bridge pieces |
-   | Castle Room | Chandelier one-way platforms, throne dais | FireZone braziers (cycled) |
-   | Colosseum | Wide flat floor, raised stands | TimedTrap floor spikes |
-   | Bridge | Long and narrow, open sides | BreakableFloor planks, side KillZones |
-   | Wooden Hall | Multi-level balconies | BreakableFloor sections (heavy), one-way stairs |
-   | Dungeon | Low ceiling, tight corridors | FireZone pits, TimedTrap portcullis |
+   | Arena       | Layout highlights                         | Hazards                                         |
+   | ----------- | ----------------------------------------- | ----------------------------------------------- |
+   | Pit         | Two ledges around a central drop          | KillZone pit, CollapsingPlatform bridge pieces  |
+   | Castle Room | Chandelier one-way platforms, throne dais | FireZone braziers (cycled)                      |
+   | Colosseum   | Wide flat floor, raised stands            | TimedTrap floor spikes                          |
+   | Bridge      | Long and narrow, open sides               | BreakableFloor planks, side KillZones           |
+   | Wooden Hall | Multi-level balconies                     | BreakableFloor sections (heavy), one-way stairs |
+   | Dungeon     | Low ceiling, tight corridors              | FireZone pits, TimedTrap portcullis             |
 
 3. **Arena validator** `arenas/validate.ts`: spawns are in bounds and not overlapping solids, every spawn is above ground reachable by gravity, hazards stay in bounds, at least one KillZone or solid floor exists below all platforms, and IDs are unique.
 4. **server:** arena rotation per round or match (config: `random | vote | fixed`). `MatchState.hazards: MapSchema<HazardState {id, kind, active, hp, phase}>` syncs only dynamic state. Static geometry is never sent, because the client loads it from `shared` by `arenaId`. Breakable floors reset between rounds.
@@ -390,6 +409,7 @@ Browser-mode tests (Render row) need `@vitest/browser-playwright` installed as a
    - Fixed-step physics with collision against dynamic solids (breakable floors) uses the same shared code, so the client predicts local collisions correctly.
 
 ### Testing strategy (gate to Phase 7)
+
 - `arenas/validate.test.ts`: a table-driven `describe.each(ALL_ARENAS)` runs the validator. It also spawns a `SimPlayer` at every spawn point and runs gravity for 120 ticks, asserting that each player is grounded and alive.
 - `hazards/*.test.ts`: fire cycles on and off at exact ticks, standing in fire for 60 ticks deals `dps` ± 1, a heavy attack breaks a floor of matching HP but a light attack doesn't (`breakOn: "heavy"`), a player on a broken floor falls, a KillZone eliminates in one tick, and a TimedTrap warns before it activates.
 - `sim/determinism.test.ts` extended: determinism holds with hazards active on every arena.
@@ -399,6 +419,7 @@ Browser-mode tests (Render row) need `@vitest/browser-playwright` installed as a
 - **Gate:** all six arenas pass validation and have been playtested, and visual baselines are approved.
 
 ### CI/CD integration
+
 - `e2e.yml`: the visual regression spec runs in the pinned Playwright container, which renders consistently. Adding the `update-snapshots` label to a PR triggers a job that regenerates the baselines and commits them back.
 - `ci.yml`: add a client bundle budget (`size-limit` on the initial JS chunk; arena bundles are lazy) and extend `assets:check` to cover the arena bundles.
 
@@ -411,6 +432,7 @@ Browser-mode tests (Render row) need `@vitest/browser-playwright` installed as a
 **Monorepo impact:** `shared` (power-up defs, stat computation, offer generation), `server` (DraftService, private messages), `client` (draft UI).
 
 ### Implementation steps
+
 1. **shared/powerups/types.ts:** `PowerUpDef { id, rarity, tags, maxStacks, modifiers: StatModifier[], effects?: EffectDef[] }`.
    - `StatModifier { stat, op: "add" | "mul", value }` covers `moveSpeed, jumpVelocity, maxHp, staminaMax, staminaRegen, lightDamage, heavyDamage, reach, attackSpeed, dodgeIFrames, blockStaminaCost, knockbackResist`.
    - `EffectDef` is a **closed, serializable union**: `lifesteal {pct}`, `thorns {pct}`, `doubleJump`, `fireImmune`, `ringOutArmor {charges}`. Each one is implemented in the sim (no arbitrary callbacks), so it stays deterministic and testable.
@@ -420,6 +442,7 @@ Browser-mode tests (Render row) need `@vitest/browser-playwright` installed as a
 5. **client:** a `DraftOverlay` React component with three cards, a timer, and the opponents' current builds. `GameClient` uses `computeStats` so local prediction uses derived stats.
 
 ### Testing strategy (gate to Phase 8)
+
 - `powerups/computeStats.test.ts`: example-based ordering (add before mul) plus fast-check properties. For any combination of stacks, every derived stat stays within its clamp, attack ticks stay ≥ 1, and zero stacks equals the base weapon stats.
 - `powerups/offers.test.ts`: the same seed gives the same offers, offers contain three unique IDs, none are at `maxStacks`, and a 10k-sample rarity distribution stays within tolerance of the weights. The pool-exhaustion edge case falls back to common stat boosts.
 - `powerups/effects.test.ts`: lifesteal heals by the correct amount on hit and never above maxHp, doubleJump allows exactly one extra jump before landing, fireImmune ignores FireZone damage, and ringOutArmor consumes a charge instead of eliminating.
@@ -429,6 +452,7 @@ Browser-mode tests (Render row) need `@vitest/browser-playwright` installed as a
 - **Gate:** a full match with drafts is playable, and power-ups visibly change feel without breaking invariants.
 
 ### CI/CD integration
+
 - Add a scheduled workflow job `balance-report` (nightly): `pnpm --filter shared sim:balance` runs thousands of bot matches with random drafts and uploads a Markdown/CSV artifact (win rate by weapon and power-up). Nothing blocks on it; it tracks trends for tuning.
 
 ---
@@ -440,6 +464,7 @@ Browser-mode tests (Render row) need `@vitest/browser-playwright` installed as a
 **Monorepo impact:** `shared` (DB types, cosmetics catalog types), `server` (auth, repository), `client` (auth flows, protected routes), plus `supabase/`.
 
 ### Implementation steps
+
 1. **Supabase project and local dev:** `supabase init` and `supabase start` locally. All schema changes go through `supabase/migrations/*.sql`, never through the dashboard.
 2. **Schema (migrations)**
    - `profiles (id uuid pk → auth.users, display_name citext unique, created_at)`, created by an `on auth.users insert` trigger.
@@ -467,6 +492,7 @@ Browser-mode tests (Render row) need `@vitest/browser-playwright` installed as a
    - A route-level `clientLoader` guard on `lobby`, `play`, `loadout`, and `stats`. The access token is passed when joining the room and refreshed before reconnecting.
 
 ### Testing strategy (gate to Phase 9)
+
 - `supabase/tests/rls.test.sql` (pgTAP):
   - User A can't select or update B's loadout.
   - A loadout with a locked `helmet_id` is rejected.
@@ -480,6 +506,7 @@ Browser-mode tests (Render row) need `@vitest/browser-playwright` installed as a
 - **Gate:** a signed-in player finishes a match and their `player_stats` row updates, and a guest's stats persist after linking an account.
 
 ### CI/CD integration
+
 - **`.github/workflows/integration.yml`** runs on PRs touching `supabase/**`, `apps/server/**`, or `packages/shared/**`:
   1. `supabase/setup-cli`, then `supabase start` (excluding unneeded services such as studio).
   2. `supabase db reset`, which applies all migrations from scratch.
@@ -499,16 +526,18 @@ Browser-mode tests (Render row) need `@vitest/browser-playwright` installed as a
 **Monorepo impact:** `shared` (cosmetics catalog, unlock rules), `server` (loadout on join, unlock evaluation), `client` (loadout route, KnightView layers, stats pages), plus a `supabase/` migration for unlock seeding if needed.
 
 ### Implementation steps
+
 1. **shared/cosmetics/catalog.ts:** a versioned catalog `{ id, slot: "helmet" | "cape" | "weaponStyle", textureKey, unlock: UnlockRule }`. `UnlockRule` is a closed union: `default`, `wins {n}`, `eliminations {n}`, `matchesPlayed {n}`, `winWithWeapon {weapon, n}`. `evaluateUnlocks(stats, owned) → newlyUnlocked[]` is a pure function.
 2. **Rendering:** knight art is drawn in greyscale with a separate mask layer per tint channel.
    - `KnightView` layers: `cape` (behind), `body` (tint primary), `trim` (tint secondary), `helmet`, `weapon` (style texture keyed by `weaponId + styleId`). All layers share the animation clip and frame.
    - The cape gets a lightweight secondary motion: a `MeshRope` driven by velocity, rendered only on the client.
-3. **server:** `onJoin` loads the loadout with `repo.getLoadout`, re-validates it against `repo.getUnlocks` and the catalog (invalid → default), and writes `PlayerState.cosmetics` (schema `CosmeticsState`). Client-supplied cosmetics are never trusted. Weapon *selection* (gameplay) comes from the lobby choice, bounded to `WeaponId`. After `recordMatch` succeeds, the server runs `evaluateUnlocks` and inserts new unlocks through the repository. A `profile:unlocks` message notifies the player.
+3. **server:** `onJoin` loads the loadout with `repo.getLoadout`, re-validates it against `repo.getUnlocks` and the catalog (invalid → default), and writes `PlayerState.cosmetics` (schema `CosmeticsState`). Client-supplied cosmetics are never trusted. Weapon _selection_ (gameplay) comes from the lobby choice, bounded to `WeaponId`. After `recordMatch` succeeds, the server runs `evaluateUnlocks` and inserts new unlocks through the repository. A `profile:unlocks` message notifies the player.
 4. **client**
    - `routes/loadout.tsx`: React form controls (color pickers limited to the palette, slot carousels with lock badges) plus a `<KnightPreview>` that mounts a small Pixi app reusing `KnightView` with an idle animation. It saves via supabase-js upsert, and RLS enforces ownership.
    - `routes/stats.tsx`: the player's counters and the last 20 matches from `match_participants`. `routes/leaderboard.tsx` reads the `leaderboard` view with pagination.
 
 ### Testing strategy (gate to Phase 10)
+
 - `cosmetics/catalog.test.ts`: IDs are unique, every `textureKey` exists in the client asset manifest (via a generated key list in shared), and every slot has a `default` item.
 - `cosmetics/unlocks.test.ts`: covers threshold boundaries (n−1 doesn't unlock, n does), already-owned items are never re-emitted, and `winWithWeapon` counts only that weapon.
 - `client/.../viewmodel/knightLayers.test.ts`: `(cosmetics, action, frame) → layer list` gives the correct order, texture keys, and tints, and a missing texture falls back to the default.
@@ -519,6 +548,7 @@ Browser-mode tests (Render row) need `@vitest/browser-playwright` installed as a
 - **Gate:** cosmetics persist across sessions, all players see them, and they can't be spoofed.
 
 ### CI/CD integration
+
 - `ci.yml`: `assets:check` now cross-validates `shared` catalog texture keys against `apps/client/public/assets/manifest.json`.
 - The E2E customization spec joins the required checks for `main`.
 
@@ -531,6 +561,7 @@ Browser-mode tests (Render row) need `@vitest/browser-playwright` installed as a
 **Monorepo impact:** `server` (shutdown, observability, limits), `client` (runtime config, CSP, error reporting), plus infra and workflows.
 
 ### Implementation steps
+
 1. **Server operability**
    - Structured logs with `pino` (roomId, matchId, userId), and a `/metrics` endpoint via `prom-client`: CCU, rooms by phase, tick duration histogram, patch bytes per second, input drops, and `recordMatch` failures.
    - Graceful shutdown: on `SIGTERM` the server stops accepting new rooms, lets running matches finish up to a `DRAIN_TIMEOUT` (for example 10 min), then disposes. `/readyz` returns 503 while draining.
@@ -542,6 +573,7 @@ Browser-mode tests (Render row) need `@vitest/browser-playwright` installed as a
 5. **Load test:** `apps/server/loadtest/bots.ts` uses `@colyseus/loadtest` with scripted bot inputs from `shared/testing`. Target budget: tick p95 < 8 ms with 20 concurrent 6-player rooms on a single 2 vCPU instance. Tune after measuring.
 
 ### Testing strategy (gate to launch)
+
 - `server/src/shutdown.test.ts`: while SIGTERM draining is in progress, `/readyz` is 503, new `create` calls are rejected, and an in-progress match (manual tick) completes and calls `recordMatch` before exit.
 - `server/src/observability/metrics.test.ts`: tick histogram and CCU gauge update with simulated ticks and joins.
 - `server/test/MatchRoom.abuse.test.ts`: oversized messages are rejected, flooding past the rate limit triggers a kick, and join rate limiting returns an error.
@@ -550,6 +582,7 @@ Browser-mode tests (Render row) need `@vitest/browser-playwright` installed as a
 - `deploy smoke`: a post-deploy script checks `/healthz`, loads the client, does an anonymous sign-in against the environment's Supabase, has headless clients join and leave a room, and confirms a test match write (flagged `mode: "smoke"`, excluded from leaderboards).
 
 ### CI/CD integration
+
 - **`docker.yml` on `v*` tags:** builds multi-arch images (`linux/amd64,linux/arm64`) with `provenance: true` and `sbom: true`. A Trivy scan fails on CRITICAL vulnerabilities. Tags: `vX.Y.Z`, `X.Y`, `sha-<short>`. The job outputs **image digests**.
 - **`.github/workflows/deploy.yml`** (`workflow_run` after a successful tag build, or `workflow_dispatch` with a version input):
   1. `staging` environment (auto): `supabase db push --db-url ${{ secrets.SUPABASE_DB_URL }}` (migrations are forward-compatible, following expand/contract), then deploy the server image **by digest** and wait for `/readyz`, then deploy the client image by digest, then run `deploy smoke`.
@@ -562,14 +595,14 @@ Browser-mode tests (Render row) need `@vitest/browser-playwright` installed as a
 
 ## Appendix A — Workflow Summary
 
-| Workflow | Trigger | Jobs | Introduced |
-|----------|---------|------|-----------|
-| `ci.yml` | PR, push main | `verify` (lint/typecheck/test/build + coverage), `browser` (Pixi render tests), asset/bundle checks | P1, P2, P4, P6 |
-| `docker.yml` | PR (build only), main (push), `v*` (release) | matrix build → `smoke` (compose) → push GHCR → scan/SBOM on tags | P1, P2, P10 |
-| `e2e.yml` | PR to main (path filter), nightly | compose stack + Playwright (+ visual regression, local Supabase) | P5, P6, P8 |
-| `integration.yml` | PR touching server/shared/supabase | Supabase local: migrations, lint, pgTAP, repo contract, types freshness | P8 |
-| `nightly.yml` | cron | balance report, full E2E, image re-scan | P7, P10 |
-| `deploy.yml` | after tag build / manual | staging → prod (approval) → smoke; rollback | P10 |
+| Workflow          | Trigger                                      | Jobs                                                                                                | Introduced     |
+| ----------------- | -------------------------------------------- | --------------------------------------------------------------------------------------------------- | -------------- |
+| `ci.yml`          | PR, push main                                | `verify` (lint/typecheck/test/build + coverage), `browser` (Pixi render tests), asset/bundle checks | P1, P2, P4, P6 |
+| `docker.yml`      | PR (build only), main (push), `v*` (release) | matrix build → `smoke` (compose) → push GHCR → scan/SBOM on tags                                    | P1, P2, P10    |
+| `e2e.yml`         | PR to main (path filter), nightly            | compose stack + Playwright (+ visual regression, local Supabase)                                    | P5, P6, P8     |
+| `integration.yml` | PR touching server/shared/supabase           | Supabase local: migrations, lint, pgTAP, repo contract, types freshness                             | P8             |
+| `nightly.yml`     | cron                                         | balance report, full E2E, image re-scan                                                             | P7, P10        |
+| `deploy.yml`      | after tag build / manual                     | staging → prod (approval) → smoke; rollback                                                         | P10            |
 
 ## Appendix B — Open Decisions (resolve before the relevant phase)
 

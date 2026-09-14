@@ -8,11 +8,14 @@
     "dev": "react-router dev",
     "typecheck": "react-router typegen && tsc",
     "test": "vitest run",
+    "test:browser": "vitest run --config vitest.browser.config.ts",
     "lint": "eslint ."
   },
   "dependencies": {
     "@castle-clash/shared": "workspace:*",
+    "@colyseus/sdk": "0.18.2",
     "isbot": "^5",
+    "pixi.js": "8.20.1",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-router": "^8"
@@ -23,7 +26,10 @@
     "@types/node": "^24.0.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "@vitest/browser": "5.0.0",
+    "@vitest/browser-playwright": "5.0.0",
     "jsdom": "^30.0.1",
+    "playwright": "1.56.0",
     "typescript": "6.0.3",
     "vite": "^8.0.3",
     "vitest": "5.0.0"

@@ -1,0 +1,30 @@
+{
+  "name": "@castle-clash/client",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "react-router build",
+    "dev": "react-router dev",
+    "typecheck": "react-router typegen && tsc",
+    "test": "vitest run",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@castle-clash/shared": "workspace:*",
+    "isbot": "^5",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "react-router": "^8"
+  },
+  "devDependencies": {
+    "@react-router/dev": "^8",
+    "@testing-library/react": "^16.3.3",
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "jsdom": "^30.0.1",
+    "typescript": "6.0.3",
+    "vite": "^8.0.3",
+    "vitest": "5.0.0"
+  }
+}

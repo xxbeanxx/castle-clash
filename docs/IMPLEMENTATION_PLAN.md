@@ -18,7 +18,15 @@ A 2D Renaissance knight arena brawler. TypeScript monorepo with an authoritative
 | D6 | **Each deployable ships as one immutable image, promoted by digest.** `castle-clash-server` (Node) and `castle-clash-client` (static files served by nginx, with config injected at runtime). | The same image runs in CI smoke tests, staging, and production. |
 | D7 | **Fixed timestep.** The sim ticks at 60 Hz, and state patches go out at 20 Hz (configurable). Frame data is counted in ticks. | Fighting-game frame data maps directly to ticks, and patch bandwidth stays bounded. |
 
-**Version notes:** Target Node 24 LTS and pnpm 10, with versions pinned through `packageManager` and `.nvmrc`. Use Colyseus 0.16+ with `@colyseus/schema` v3, PixiJS v8, and React Router v8 in SPA mode (`ssr: false`; PixiJS is client-only). Check API names against the pinned versions' docs when you implement each phase.
+**Version notes:** Target Node 24 LTS and pnpm 12, with versions pinned through `packageManager` and `.nvmrc`. Use Colyseus 0.18+ with `@colyseus/schema` v5, PixiJS v8, and React Router v8 in SPA mode (`ssr: false`; PixiJS is client-only). Check API names against the pinned versions' docs when you implement each phase. Versions confirmed 2026-09-14; see `docs/research/phase1-version-assumptions.md` for sources and detail.
+
+**Corrections from version research (see `docs/research/phase1-version-assumptions.md`):**
+- **Colyseus server bootstrap:** use `defineServer({ rooms, transport, express })` / `defineRoom(MatchRoom).filterBy([...])` from the `colyseus` package, not the older `new Server()`/`gameServer.define(...).filterBy(...)` (`@colyseus/tools` `config()`) shape — that's soft-deprecated as of 0.17.
+- **`onAuth` signature:** static `onAuth(token, options, context)`, where the client's auth token is `context.token` (not a positional `token`/`req` pair).
+- **`@colyseus/schema` decorators:** unchanged — `experimentalDecorators: true` and `useDefineForClassFields: false` are still required for the legacy `@type()` decorator API in v5. (v5 also adds an optional decorator-free `schema()`/`t.*` builder needing no special tsconfig; the plan uses the decorator API throughout, so no config change is needed unless that changes.)
+- **`pnpm deploy`:** under pnpm 12.2+, `injectWorkspacePackages`/`--legacy` are no longer required for `pnpm deploy --filter ... --prod` against workspace-linked packages. (They would be required under pnpm 10/11.)
+- **Vitest workspace config:** use a `projects: [...]` array inside a root `vitest.config.ts` instead of a separate `vitest.workspace.ts` file, which is deprecated since Vitest 3.2.
+- **Vitest browser mode:** install `@vitest/browser-playwright` as a dev dependency and set `test.browser.provider: playwright()` (imported from that package) in the client's `vitest.config.ts` — the Playwright provider is no longer bundled with `vitest`/`@vitest/browser`.
 
 ### 0.2 Repository layout (target end state)
 
@@ -76,7 +84,7 @@ castle-clash/
 │  └─ tests/                       # pgTAP (RLS + functions)
 ├─ .github/workflows/              # ci.yml, docker.yml, integration.yml, e2e.yml, deploy.yml
 ├─ docker-compose.yml              # local stack: server + client (+ supabase via CLI)
-├─ turbo.json, pnpm-workspace.yaml, tsconfig.base.json, vitest.workspace.ts
+├─ turbo.json, pnpm-workspace.yaml, tsconfig.base.json, vitest.config.ts (root, `projects` array)
 └─ docs/ (this plan, ADRs)
 ```
 
@@ -124,6 +132,8 @@ sequenceDiagram
 | E2E | Playwright | `apps/client/e2e/` | Full stack in docker compose with multiple browser contexts | `e2e` |
 | Load | `@colyseus/loadtest` + bot inputs | `apps/server/loadtest/` | Tick duration and memory under N rooms | manual / nightly |
 
+Browser-mode tests (Render row) need `@vitest/browser-playwright` installed as a dev dependency, with `test.browser.provider: playwright()` (imported from that package) set in the client's `vitest.config.ts` — the Playwright provider is a separate package, not bundled with `vitest`/`@vitest/browser`.
+
 **Rule:** Anything that can be tested in `shared` gets tested there. Higher layers only check that the pieces are wired together correctly.
 
 ---
@@ -150,10 +160,10 @@ sequenceDiagram
    - `input/bitmask.ts`: `InputFrame { seq: number; bits: number }`, with bits `LEFT RIGHT UP DOWN JUMP LIGHT HEAVY BLOCK DODGE`, and `encode`/`decode`/`has`.
    - `math/rng.ts`: seeded `mulberry32` plus `hashSeed(...parts)`.
    - `math/vec.ts` and `math/aabb.ts`.
-5. **`apps/server` scaffold:** a Node entry point that imports and logs `TICK_RATE` from shared, built with `tsc`, run with `tsx watch` in dev.
+5. **`apps/server` scaffold:** a Node entry point using `defineServer({ rooms, transport, express })` from the `colyseus` package (not the older `new Server()`/`.define()` shape) that imports and logs `TICK_RATE` from shared, built with `tsc`, run with `tsx watch` in dev.
 6. **`apps/client` scaffold:** a React Router v8 SPA with one route that renders `TICK_RATE`, built with Vite.
 7. **Dockerfiles**
-   - **Server** (multi-stage): `node:24-alpine` + corepack → `turbo prune @castle-clash/server --docker` → `pnpm install --frozen-lockfile` from `out/json` → copy `out/full` → `turbo build --filter=@castle-clash/server` → `pnpm deploy --filter=@castle-clash/server --prod /out` → slim runtime stage running as a non-root user.
+   - **Server** (multi-stage): `node:24-alpine` + corepack → `turbo prune @castle-clash/server --docker` → `pnpm install --frozen-lockfile` from `out/json` → copy `out/full` → `turbo build --filter=@castle-clash/server` → `pnpm deploy --filter=@castle-clash/server --prod /out` (no `injectWorkspacePackages`/`--legacy` needed under pnpm 12.2+) → slim runtime stage running as a non-root user.
    - **Client:** prune and build the same way, then copy into an `nginx-unprivileged` image with an SPA fallback. `entrypoint.sh` renders `config.js` from env vars (`GAME_SERVER_URL`, `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`), so one image works in every environment.
 8. **Docs:** `README.md` quickstart and `docs/adr/0001-shared-deterministic-sim.md` (records D1–D3).
 
@@ -186,7 +196,7 @@ sequenceDiagram
 1. **shared/schema:** `PlayerState { id, x, y, colorSeed }` and `MatchState { tick, players: MapSchema<PlayerState> }`.
 2. **shared/protocol:** `MessageType` const object (`input`, `fx`, `draft:offer`, `draft:pick`, …) plus hand-rolled payload guards (`isInputFrame(u): u is InputFrame`). No zod in the hot path.
 3. **server**
-   - `index.ts`: Colyseus server (WebSocket transport) with Express routes `GET /healthz` (liveness) and `GET /readyz`. `@colyseus/monitor` is mounted only when `NODE_ENV !== "production"`.
+   - `index.ts`: `defineServer({ rooms: { match: defineRoom(MatchRoom) }, transport: new WebSocketTransport(), express: (app) => {...} })`, with Express routes `GET /healthz` (liveness) and `GET /readyz`. `@colyseus/monitor` is mounted only when `NODE_ENV !== "production"`.
    - `rooms/MatchRoom.ts`: `onCreate` sets state; `onJoin` adds a `PlayerState` at a spawn point; `onLeave` removes it.
    - Design for testability: tick scheduling goes through an injected `TickDriver` (`IntervalTickDriver` in prod via `setSimulationInterval`, `ManualTickDriver` in tests with `step(n)`).
 4. **client**
@@ -325,7 +335,7 @@ sequenceDiagram
 2. **Elimination sources:** HP reaching 0, entering a kill zone, or disconnecting during `RoundActive` all count as an elimination. `SimEvent` `eliminated { victim, by?, cause }` credits the last attacker within 3 s for ring-outs.
 3. **server**
    - `match/MatchDirector.ts` runs the phase FSM on each tick. It resets `SimState` between rounds (respawns, HP and stamina), accumulates `MatchStats` (eliminations, deaths, rounds won, damage dealt), and emits a `MatchResult` DTO at `MatchOver`.
-   - Matchmaking: `gameServer.define("match", MatchRoom).filterBy(["mode","code"])`. Quick play uses `joinOrCreate("match", {mode:"quick"})`. Private rooms use `create("match", {mode:"private", code})`, where a 6-character code is generated server-side and stored in metadata.
+   - Matchmaking: `defineRoom(MatchRoom).filterBy(["mode","code"])` inside the server's `defineServer({ rooms })` config. Quick play uses `joinOrCreate("match", {mode:"quick"})`. Private rooms use `create("match", {mode:"private", code})`, where a 6-character code is generated server-side and stored in metadata.
    - Rooms lock during `RoundActive`, so late joiners wait or spectate.
    - `onLeave(client, consented)`: if the leave wasn't consented, `allowReconnection(client, 20)`. The player counts as eliminated for the current round but keeps their seat for the match.
    - Schema adds `phase, round, phaseEndsAtTick, roundsWon, alive, spectator`.
@@ -443,10 +453,11 @@ sequenceDiagram
    - `player_loadouts`: select and upsert only your own row, with a policy check that any cosmetic ID is `null`, a default, or present in `player_unlocks` for that user.
    - `player_unlocks`, `matches`, `match_participants`: select only, with no insert policies (writes happen only through the service role).
    - `player_stats`: public read through a `leaderboard` view exposing `display_name` and counters only.
+   - Note: `service_role`/`anon`/`authenticated` above are Postgres/RLS role names, distinct from the `SUPABASE_SECRET_KEY`/`SUPABASE_PUBLISHABLE_KEY` API keys used elsewhere in this doc to authenticate as those roles — Supabase's 2026 key rename affects only the API keys, not these role names.
 4. **Types:** `supabase gen types typescript --local > packages/shared/src/db/database.types.ts`.
 5. **server**
    - `auth/verifyToken.ts`: `jose` `createRemoteJWKSet(SUPABASE_URL/auth/v1/.well-known/jwks.json)`, then `jwtVerify` checks issuer and audience and returns `{ userId, isAnonymous }`. The JWKS response is cached.
-   - `MatchRoom.onAuth` rejects missing or invalid tokens. The Colyseus `PlayerId` is mapped to the Supabase `userId`, and the same user can't hold two seats.
+   - `MatchRoom.onAuth` is the current static three-argument form, `static async onAuth(token, options, context)`, where the client's auth token is `context.token`. It rejects missing or invalid tokens. The Colyseus `PlayerId` is mapped to the Supabase `userId`, and the same user can't hold two seats.
    - `persistence/PlayerRepository.ts` interface: `getLoadout(userId)`, `recordMatch(result: MatchResult)`, `getUnlocks(userId)`. Implementations: `SupabasePlayerRepository` (supabase-js with the **secret key**, server-only env) and `InMemoryPlayerRepository`.
    - `MatchOver` → `recordMatch` goes through a retry-with-backoff queue. Failures are logged and exported as a metric and never crash the room. The match ID is generated at room creation for idempotency.
 6. **client**

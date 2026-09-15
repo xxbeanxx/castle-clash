@@ -41,6 +41,13 @@ function neutralExit(ctx: FsmContext): ActionState {
   return has(ctx.bits, "LEFT") || has(ctx.bits, "RIGHT") ? "Run" : "Idle";
 }
 
+/** Shared by HitStun and GuardBroken: recover to neutral once
+ *  `hitstunTicksRemaining` (set by `resolve.ts` to each state's own stun
+ *  duration) runs out. */
+function stunRecovery(ctx: FsmContext): ActionState | null {
+  return ctx.hitstunTicksRemaining <= 0 ? neutralExit(ctx) : null;
+}
+
 /** The actions available from any grounded, un-committed state — shared by
  *  Idle and Run so both offer the same attack/block/dodge options. */
 function neutralActions(ctx: FsmContext): ActionState | null {
@@ -136,13 +143,13 @@ export const TRANSITIONS: Record<ActionState, (ctx: FsmContext) => ActionState |
     return ctx.actionTick + 1 >= DODGE_TOTAL_TICKS ? neutralExit(ctx) : null;
   },
 
-  HitStun(ctx) {
-    return ctx.hitstunTicksRemaining <= 0 ? neutralExit(ctx) : null;
-  },
-
-  GuardBroken(ctx) {
-    return ctx.hitstunTicksRemaining <= 0 ? neutralExit(ctx) : null;
-  },
+  // HitStun and GuardBroken share the same rule today (recover once
+  // hitstunTicksRemaining runs out) — kept as two entries, not merged, since
+  // `resolve.ts` sets a different stun duration for each and they're
+  // expected to diverge in behavior once combat gets more states to recover
+  // into (e.g. GuardBroken staying un-cancellable where HitStun isn't).
+  HitStun: stunRecovery,
+  GuardBroken: stunRecovery,
 
   Dead() {
     return null;
@@ -208,8 +215,11 @@ export function applyFsm(player: SimPlayer, bits: number, weapon: WeaponDef): Fs
       if (player.action === "AttackRecovery") {
         attackKind = "light";
         comboCount = player.comboCount + 1;
+      } else if (has(bits, "HEAVY")) {
+        attackKind = "heavy";
+        comboCount = 0;
       } else {
-        attackKind = has(bits, "HEAVY") ? "heavy" : "light";
+        attackKind = player.grounded ? "light" : "airLight";
         comboCount = 0;
       }
     }

@@ -234,6 +234,13 @@ describe("applyFsm", () => {
     expect(applyFsm(p, bits("HEAVY"), SWORD).attackKind).toBe("heavy");
   });
 
+  it("picks airLight instead of light for a fresh attack while airborne", () => {
+    const p = player({ action: "Airborne", grounded: false });
+    expect(applyFsm(p, bits("LIGHT"), SWORD).attackKind).toBe("airLight");
+    // Heavy has no aerial variant — reuses the grounded heavy per weapons.ts.
+    expect(applyFsm(p, bits("HEAVY"), SWORD).attackKind).toBe("heavy");
+  });
+
   it("clears attackKind and comboCount when leaving the attack pipeline", () => {
     const p = player({
       action: "AttackRecovery",

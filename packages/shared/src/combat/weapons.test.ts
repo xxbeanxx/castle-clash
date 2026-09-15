@@ -6,6 +6,7 @@ const ALL_WEAPONS = Object.values(WEAPONS);
 const ALL_ATTACKS = ALL_WEAPONS.flatMap((weapon) => [
   { weapon, kind: "light" as const, attack: weapon.light },
   { weapon, kind: "heavy" as const, attack: weapon.heavy },
+  { weapon, kind: "airLight" as const, attack: weapon.airLight },
 ]);
 
 describe("weapons", () => {
@@ -28,11 +29,20 @@ describe("weapons", () => {
     expect(WEAPONS[WEAPON_IDS.SWORD]!.reach).toBeGreaterThan(WEAPONS[WEAPON_IDS.MACE]!.reach);
   });
 
-  it("getAttack returns light or heavy by kind", () => {
+  it("getAttack returns light, heavy, or airLight by kind", () => {
     const sword = WEAPONS[WEAPON_IDS.SWORD]!;
     expect(getAttack(sword, "light")).toBe(sword.light);
     expect(getAttack(sword, "heavy")).toBe(sword.heavy);
+    expect(getAttack(sword, "airLight")).toBe(sword.airLight);
   });
+
+  it.each(ALL_WEAPONS)(
+    "$id's airLight has its own frame data distinct from its grounded light",
+    (weapon) => {
+      expect(weapon.airLight).not.toEqual(weapon.light);
+      expect(weapon.airLight.recovery).toBeLessThan(weapon.light.recovery);
+    },
+  );
 
   describe("hitboxWorldBox", () => {
     it("places the box in front of the player when facing right", () => {

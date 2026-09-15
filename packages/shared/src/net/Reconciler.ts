@@ -28,6 +28,18 @@ export interface ReconcilerOptions {
  * one-player `SimState` — produces the same trajectory `GameSimulation.step`
  * would over the full multiplayer state. A later phase that adds
  * player-vs-player collision will need to revisit this.
+ *
+ * Phase 4 (combat) deliberately does NOT revisit it for hit resolution: the
+ * plan's own spec is "the local player's action and animation start are
+ * predicted, but HP changes only on server confirmation." Replaying in
+ * isolation means `combat/resolve.ts` never sees an opponent locally, so a
+ * predicted attack always resolves as a whiff on this client and any
+ * incoming hit/block/dodge outcome only ever arrives via `reconcile()` from
+ * the server — which is exactly the "HP only on server confirmation" rule,
+ * not a gap this class still owes Phase 4. What Phase 4 *does* get for
+ * free here is local FSM prediction (attack windup, block, dodge, hitstun
+ * countdown) for the local player's own action state, since none of that
+ * depends on the opponent being present.
  */
 export class Reconciler {
   readonly #arena: ArenaRuntime;

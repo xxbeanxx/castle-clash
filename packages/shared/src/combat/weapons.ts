@@ -28,6 +28,13 @@ export interface WeaponDef {
   reach: number;
   light: AttackDef;
   heavy: AttackDef;
+  /** An airborne light attack's own frame data (plan Phase 4 step 1's
+   *  cancel-rules bullet) — derived from `light` by `deriveAirLight`, not
+   *  hand-authored per weapon: shorter recovery (you're already committed
+   *  to falling, less landing lag) and a downward-angled hitbox/knockback
+   *  (striking down at an airborne target from above). Only light attacks
+   *  get an aerial variant; an airborne heavy reuses the grounded `heavy`. */
+  airLight: AttackDef;
   /** How many lights can chain back-to-back from AttackRecovery before it
    *  must return to a neutral state (the Sword's "light chains x2" trait). */
   lightChainLimit: number;
@@ -41,12 +48,27 @@ function activeEveryTick(active: number, box: AABB): AttackHitbox[] {
 
 /** The swing box for a weapon of `reach`, facing right (`facing === 1`):
  *  starts at the player's leading edge and extends `reach` further, full
- *  player height. */
-function reachBox(reach: number): AABB {
-  return { x: PLAYER_WIDTH, y: 0, w: reach, h: PLAYER_HEIGHT };
+ *  player height. `yOffset` angles it up/down (used by `deriveAirLight`). */
+function reachBox(reach: number, yOffset = 0): AABB {
+  return { x: PLAYER_WIDTH, y: yOffset, w: reach, h: PLAYER_HEIGHT };
 }
 
-export const WEAPONS: Readonly<Record<WeaponId, WeaponDef>> = {
+const AIR_LIGHT_RECOVERY_FRACTION = 0.6;
+const AIR_LIGHT_HITBOX_Y_OFFSET = 10;
+
+function deriveAirLight(light: AttackDef, reach: number): AttackDef {
+  const recovery = Math.max(1, Math.round(light.recovery * AIR_LIGHT_RECOVERY_FRACTION));
+  return {
+    ...light,
+    recovery,
+    knockback: { x: light.knockback.x, y: Math.abs(light.knockback.y) },
+    hitboxes: activeEveryTick(light.active, reachBox(reach, AIR_LIGHT_HITBOX_Y_OFFSET)),
+  };
+}
+
+type GroundedWeaponDef = Omit<WeaponDef, "airLight">;
+
+const GROUNDED_WEAPONS: Readonly<Record<WeaponId, GroundedWeaponDef>> = {
   [WEAPON_IDS.SWORD]: {
     id: WEAPON_IDS.SWORD,
     reach: 70,
@@ -124,12 +146,25 @@ export const WEAPONS: Readonly<Record<WeaponId, WeaponDef>> = {
   },
 };
 
+export const WEAPONS: Readonly<Record<WeaponId, WeaponDef>> = Object.fromEntries(
+  Object.entries(GROUNDED_WEAPONS).map(([id, weapon]) => [
+    id,
+    { ...weapon, airLight: deriveAirLight(weapon.light, weapon.reach) },
+  ]),
+) as Record<WeaponId, WeaponDef>;
+
 export function getWeapon(id: WeaponId): WeaponDef {
   return WEAPONS[id];
 }
 
 export function getAttack(weapon: WeaponDef, kind: AttackKind): AttackDef {
-  return kind === "light" ? weapon.light : weapon.heavy;
+  if (kind === "light") {
+    return weapon.light;
+  }
+  if (kind === "airLight") {
+    return weapon.airLight;
+  }
+  return weapon.heavy;
 }
 
 /** Mirrors a facing-relative hitbox box into world space at `origin`. */

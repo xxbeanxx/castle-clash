@@ -14,7 +14,9 @@ export type ActionState =
   | "GuardBroken"
   | "Dead";
 
-export type AttackKind = "light" | "heavy";
+/** `airLight` is a light attack thrown while airborne — its own frame data
+ *  (plan Phase 4 step 1), not just `light` reused mid-air. */
+export type AttackKind = "light" | "heavy" | "airLight";
 
 export const ACTION_STATES: readonly ActionState[] = [
   "Idle",
@@ -36,5 +38,5 @@ export function isActionState(value: string): value is ActionState {
 }
 
 export function isAttackKind(value: string): value is AttackKind {
-  return value === "light" || value === "heavy";
+  return value === "light" || value === "heavy" || value === "airLight";
 }

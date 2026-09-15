@@ -21,22 +21,29 @@ import { playersToRects } from "./viewmodel/playersToRects.js";
 
 const FIXED_DT_MS = 1000 / TICK_RATE;
 
-export class GameClient {
-  #app: Application | undefined;
-  #room: Room<unknown, MatchState> | undefined;
-  #keyboard: KeyboardInput | undefined;
-  // React StrictMode double-invokes the mount effect in dev: the first
-  // start() can still be awaiting app.init()/joinOrCreate() when its own
-  // cleanup calls destroy() before the second mount's start() begins. Without
-  // this guard, the first start() resumes after destroy() already ran and
-  // finishes setup anyway — two Applications, two room connections, one
-  // container (this is how the bug was actually found: two canvases stacked
-  // in the real browser, invisible to unit tests that mock GameClient
-  // entirely). Checked after every await in start().
-  #destroyed = false;
+interface Resources {
+  readonly app: Application;
+  readonly room: Room<unknown, MatchState>;
+  readonly keyboard: KeyboardInput;
+  readonly view: PlayerRectsView;
+  readonly localId: PlayerId;
+  readonly rngSeed: number;
+}
 
-  #localId: PlayerId | undefined;
-  #reconciler: Reconciler | undefined;
+// Every lifecycle bug fixed in 0c5e721 was a resource used after it should no
+// longer exist. Making the phase a type (checked after every await, and by
+// every ticker/state callback) turns "is this call stale?" from a
+// hand-placed check into something the compiler forces at each access.
+type Phase =
+  | { readonly tag: "idle" }
+  | { readonly tag: "starting" }
+  | { readonly tag: "connected"; readonly resources: Resources }
+  | { readonly tag: "predicting"; readonly resources: Resources; readonly reconciler: Reconciler }
+  | { readonly tag: "destroyed" };
+
+export class GameClient {
+  #phase: Phase = { tag: "idle" };
+
   #prevLocalPos: Vec = { x: 0, y: 0 };
   readonly #remoteInterpolators = new Map<PlayerId, Interpolator>();
 
@@ -46,9 +53,18 @@ export class GameClient {
   #lastKnownAtLocalMs = 0;
 
   async start(container: HTMLElement, roomUrl: string): Promise<void> {
+    this.#phase = { tag: "starting" };
+
     const app = new Application();
     await app.init({ resizeTo: container, backgroundColor: 0x1a1a1a });
-    if (this.#destroyed) {
+    // React StrictMode double-invokes the mount effect in dev: destroy() can
+    // run while this await was pending. Nothing was in `resources` yet for
+    // destroy() to tear down, so this continuation tears down what it just
+    // acquired itself. (Read through #getPhase(), not the field directly:
+    // tsc's control-flow narrowing doesn't know destroy() can mutate #phase
+    // during this await, and will flag a direct post-await field comparison
+    // as an impossible literal comparison.)
+    if (this.#getPhase().tag === "destroyed") {
       app.destroy(true, { children: true });
       return;
     }
@@ -57,42 +73,50 @@ export class GameClient {
     const view = new PlayerRectsView(app.stage);
     const client = new Client(roomUrl);
     const room = await client.joinOrCreate<MatchState>(MATCH_ROOM_NAME, undefined, MatchState);
-    if (this.#destroyed) {
+    if (this.#getPhase().tag === "destroyed") {
       await room.leave();
       app.destroy(true, { children: true });
       return;
     }
 
-    this.#app = app;
-    this.#room = room;
-    this.#localId = playerId(room.sessionId);
-    const rngSeed = hashSeed(room.roomId);
+    const keyboard = new KeyboardInput();
+    keyboard.attach();
 
-    this.#keyboard = new KeyboardInput();
-    this.#keyboard.attach();
+    const resources: Resources = {
+      app,
+      room,
+      keyboard,
+      view,
+      localId: playerId(room.sessionId),
+      rngSeed: hashSeed(room.roomId),
+    };
+    this.#phase = { tag: "connected", resources };
 
     // The local player's schema entry can still be undefined right here even
     // though onJoin already ran server-side: joinOrCreate() can resolve
     // before the first full-state patch has decoded. Seed the reconciler now
-    // if it's already there, but onStateChange below also seeds it lazily on
-    // whichever patch first carries it — without that fallback, a client
-    // that lost this race predicts nothing and silently never sends input,
-    // forever (found by actually loading the page, not by a unit test: every
-    // existing test mocks either GameClient or a state object that already
-    // has the local player in it).
+    // if it's already there; onStateChange below also seeds it lazily on
+    // whichever patch first carries it, so a client that lost this race still
+    // predicts once its own entry shows up instead of never sending input.
     const initialEntry = room.state.players.get(room.sessionId);
     if (initialEntry) {
-      this.#ensureReconciler(initialEntry, rngSeed);
+      this.#ensureReconciler(initialEntry);
     }
 
     room.onStateChange((state) => {
+      if (this.#getPhase().tag === "destroyed") {
+        return;
+      }
       this.#lastKnownServerTimeMs = state.tick * FIXED_DT_MS;
       this.#lastKnownAtLocalMs = performance.now();
 
       state.players.forEach((schemaPlayer, sessionId) => {
         if (sessionId === room.sessionId) {
-          this.#ensureReconciler(schemaPlayer, rngSeed);
-          this.#reconciler?.reconcileFromSchema(schemaPlayer);
+          this.#ensureReconciler(schemaPlayer);
+          const phase = this.#getPhase();
+          if (phase.tag === "predicting") {
+            phase.reconciler.reconcileFromSchema(schemaPlayer);
+          }
           return;
         }
         const id = playerId(sessionId);
@@ -103,13 +127,17 @@ export class GameClient {
     });
 
     app.ticker.add((ticker: Ticker) => {
+      if (this.#getPhase().tag === "destroyed") {
+        return;
+      }
       this.#accumulatorMs += ticker.deltaMS;
 
       while (this.#accumulatorMs >= FIXED_DT_MS) {
-        if (this.#reconciler) {
-          this.#prevLocalPos = { ...this.#reconciler.visualPosition };
+        const phase = this.#getPhase();
+        if (phase.tag === "predicting") {
+          this.#prevLocalPos = { ...phase.reconciler.visualPosition };
         }
-        this.#fixedUpdate(room);
+        this.#fixedUpdate();
         this.#accumulatorMs -= FIXED_DT_MS;
       }
 
@@ -119,45 +147,63 @@ export class GameClient {
   }
 
   async destroy(): Promise<void> {
-    this.#destroyed = true;
-    this.#keyboard?.detach();
-    this.#keyboard = undefined;
+    const phase = this.#getPhase();
+    this.#phase = { tag: "destroyed" };
 
-    await this.#room?.leave();
-    this.#room = undefined;
-
-    this.#app?.destroy(true, { children: true });
-    this.#app = undefined;
-  }
-
-  #ensureReconciler(schemaPlayer: PlayerState, rngSeed: number): void {
-    if (this.#reconciler || !this.#localId) {
+    if (phase.tag !== "connected" && phase.tag !== "predicting") {
+      // idle/starting: nothing acquired yet, or start()'s own continuation
+      // will tear down whatever it acquires once its pending await settles.
+      // destroyed: already torn down.
       return;
     }
-    this.#reconciler = new Reconciler(schemaToSimPlayer(schemaPlayer), {
+    await this.#teardown(phase.resources);
+  }
+
+  async #teardown(resources: Resources): Promise<void> {
+    resources.keyboard.detach();
+    await resources.room.leave();
+    resources.app.destroy(true, { children: true });
+  }
+
+  #getPhase(): Phase {
+    return this.#phase;
+  }
+
+  #ensureReconciler(schemaPlayer: PlayerState): void {
+    const phase = this.#getPhase();
+    if (phase.tag !== "connected") {
+      return;
+    }
+    const { resources } = phase;
+    const reconciler = new Reconciler(schemaToSimPlayer(schemaPlayer), {
       arena: TESTBED_ARENA,
-      rngSeed,
-      localId: this.#localId,
+      rngSeed: resources.rngSeed,
+      localId: resources.localId,
     });
-    this.#prevLocalPos = { ...this.#reconciler.visualPosition };
+    this.#prevLocalPos = { ...reconciler.visualPosition };
+    this.#phase = { tag: "predicting", resources, reconciler };
   }
 
-  #fixedUpdate(room: Room<unknown, MatchState>): void {
-    if (!this.#keyboard || !this.#reconciler) {
+  #fixedUpdate(): void {
+    const phase = this.#getPhase();
+    if (phase.tag !== "predicting") {
       return;
     }
+    const { resources, reconciler } = phase;
     this.#seq += 1;
-    const frame = { seq: this.#seq, bits: this.#keyboard.sample() };
-    this.#reconciler.predict(frame);
-    this.#reconciler.tick();
-    room.send(MESSAGE_TYPES.INPUT, frame);
+    const frame = { seq: this.#seq, bits: resources.keyboard.sample() };
+    reconciler.predict(frame);
+    reconciler.tick();
+    resources.room.send(MESSAGE_TYPES.INPUT, frame);
   }
 
   #renderOverrides(alpha: number): Partial<Record<string, Vec>> {
     const overrides: Partial<Record<string, Vec>> = {};
 
-    if (this.#localId && this.#reconciler) {
-      overrides[this.#localId] = lerp(this.#prevLocalPos, this.#reconciler.visualPosition, alpha);
+    const phase = this.#getPhase();
+    if (phase.tag === "predicting") {
+      const { resources, reconciler } = phase;
+      overrides[resources.localId] = lerp(this.#prevLocalPos, reconciler.visualPosition, alpha);
     }
 
     const serverTimeNow =

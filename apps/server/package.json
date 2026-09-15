@@ -2,11 +2,11 @@
   "name": "@castle-clash/server",
   "version": "0.0.0",
   "private": true,
-  "type": "module",
-  "main": "dist/index.js",
   "files": [
     "dist"
   ],
+  "type": "module",
+  "main": "dist/index.js",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "dev": "tsx watch src/index.ts",
@@ -14,7 +14,7 @@
     "smoke-join": "tsx scripts/smoke-join.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "lint": "eslint ."
+    "lint": "oxlint ."
   },
   "dependencies": {
     "@castle-clash/shared": "workspace:*",

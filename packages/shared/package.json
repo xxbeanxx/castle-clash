@@ -2,6 +2,9 @@
   "name": "@castle-clash/shared",
   "version": "0.0.0",
   "private": true,
+  "files": [
+    "dist"
+  ],
   "type": "module",
   "exports": {
     ".": {
@@ -13,21 +16,18 @@
       "default": "./dist/testing/index.js"
     }
   },
-  "files": [
-    "dist"
-  ],
   "scripts": {
     "build": "tsup",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "lint": "eslint ."
+    "lint": "oxlint ."
+  },
+  "dependencies": {
+    "@colyseus/schema": "5.0.32"
   },
   "devDependencies": {
     "tsup": "8.5.1",
     "typescript": "6.0.3",
     "vitest": "5.0.0"
-  },
-  "dependencies": {
-    "@colyseus/schema": "5.0.32"
   }
 }

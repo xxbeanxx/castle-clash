@@ -9,7 +9,7 @@
     "typecheck": "react-router typegen && tsc",
     "test": "vitest run",
     "test:browser": "vitest run --config vitest.browser.config.ts",
-    "lint": "eslint ."
+    "lint": "oxlint ."
   },
   "dependencies": {
     "@castle-clash/shared": "workspace:*",

@@ -30,8 +30,19 @@ Run from the repo root; `turbo` scopes each task to the packages that need it an
 pnpm install
 pnpm dev                                    # apps/server + apps/client together
 pnpm lint / typecheck / test / build         # across the whole workspace
+pnpm format / format:check                   # oxfmt across the whole workspace (not wired into verify/CI yet)
 pnpm verify                                  # lint + typecheck + test + build, in that order
 ```
+
+Linting is `oxlint` (`oxlint.config.ts` at the repo root — a `.ts` config, not `.oxlintrc.json`;
+each package's `lint` script is just `oxlint .`, and oxlint walks up from a package's own directory
+to find the root config the same way ESLint's flat config did, so `pnpm --filter <pkg> run lint`
+still gets the root rules). Formatting is `oxfmt` (`oxfmt.config.ts`, same `.ts`-config convention).
+Both replaced ESLint/`typescript-eslint`/`eslint-plugin-react-hooks` and Prettier outright — see
+`docs/research/toolchain-ts7-oxc-migration.md` for why, and for the isomorphic-boundary
+`no-restricted-imports` rules' exact translation into oxlint's `overrides[].files`. **`oxfmt` is
+self-described beta** (versioned `0.x`, no GA yet as of that research) — pinned to an exact version
+in root `package.json`, not a caret range, for that reason.
 
 Scope to one package with `--filter`:
 
@@ -49,9 +60,15 @@ cd packages/shared && npx vitest run -t "penetration"
 ```
 
 **pnpm is pinned to 12.x and TypeScript to 6.0.x — don't bump either to "latest" without
-checking first.** `typescript@latest` on npm is 7.0, a native compiler with no programmatic
-compiler API until 7.1; `typescript-eslint` can't run against it yet (its own peer range is
-`<6.1.0`). This is recorded in `docs/research/phase1-version-assumptions.md`, item 8.
+checking first.** `typescript@latest` on npm is still 7.0.x, a native compiler with no
+programmatic compiler API until a 7.1 release that (as of the last check) exists only as an
+unstable dev prerelease, not on the `latest`/stable dist-tag. Switching to oxlint removed the
+`typescript-eslint` peer-range blocker this was originally pinned against (recorded in
+`docs/research/phase1-version-assumptions.md`, item 8), but a **second, independent blocker
+remains**: `tsup@8.5.1` (used by `packages/shared` for its `.d.ts` bundle) crashes on TS 7.0.x in
+its `dts` step — open upstream issue `egoist/tsup#1408`, unmerged fix. Don't bump `typescript`
+until that's resolved upstream _and_ a stable 7.1+ ships; full detail and exactly what to watch for
+in `docs/research/toolchain-ts7-oxc-migration.md` §1.
 
 If `corepack` isn't available (it isn't bundled with every Node 24 build — it wasn't on this
 project's own dev machine), install pnpm directly: `npm install -g pnpm@12.4.1`.
@@ -111,11 +128,11 @@ decision (D1–D3 in the plan), and it's checked mechanically in two places:
 
 - `packages/shared/tsconfig.json` sets `types: []`, so any reference to `window`, `document`, or
   `process` fails typecheck.
-- The root `eslint.config.js` has a `no-restricted-imports` rule scoped to `packages/shared/**`
-  blocking imports of `react`, `pixi.js`, `@supabase/*`, `@castle-clash/server`, and
-  `@castle-clash/client`. A second rule, scoped to `apps/client/app/game/**` (a directory that
-  doesn't exist yet — it's Phase 3's `GameClient` layer), blocks `react` imports the same way: Pixi
-  runs imperatively there, and React never re-renders on the game loop.
+- The root `oxlint.config.ts` has a `no-restricted-imports` override scoped (via `overrides[].files`)
+  to `packages/shared/**` blocking imports of `react`, `pixi.js`, `@supabase/*`,
+  `@castle-clash/server`, and `@castle-clash/client`. A second override, scoped to
+  `apps/client/app/game/**` (the `GameClient` layer, landed in Phase 2), blocks `react` imports the
+  same way: Pixi runs imperatively there, and React never re-renders on the game loop.
 
 When Colyseus/`@colyseus/schema` land in Phase 2+, the sim will run on plain objects (`SimState`),
 separate from the `@colyseus/schema` network classes — a `projectToSchema()` step copies sim state

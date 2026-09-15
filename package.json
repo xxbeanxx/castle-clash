@@ -2,28 +2,25 @@
   "name": "castle-clash",
   "private": true,
   "type": "module",
-  "packageManager": "pnpm@12.4.1",
-  "engines": {
-    "node": ">=24"
-  },
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
+    "format": "oxfmt .",
+    "format:check": "oxfmt --check .",
     "verify": "turbo run lint typecheck test build"
   },
   "devDependencies": {
-    "@eslint/js": "10.0.1",
-    "eslint": "10.10.0",
-    "eslint-config-prettier": "10.1.8",
-    "eslint-plugin-react-hooks": "7.1.1",
-    "globals": "17.12.0",
-    "prettier": "3.9.6",
+    "oxfmt": "0.68.0",
+    "oxlint": "1.83.0",
     "turbo": "2.10.13",
     "typescript": "6.0.3",
-    "typescript-eslint": "8.70.0",
     "vitest": "5.0.0"
-  }
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "packageManager": "pnpm@12.4.1"
 }

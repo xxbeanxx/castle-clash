@@ -16,7 +16,7 @@ docs.colyseus.io); anything from a search-engine synopsis is marked as such belo
 
 - `colyseus.js`'s `src/Protocol.ts` (GitHub `colyseus/colyseus.js`, `master`) defines a `Protocol`
   enum of message type byte-codes (0–127), including `HANDSHAKE = 9`, `JOIN_ROOM = 10`,
-  `LEAVE_ROOM = 12`, and the room state-sync codes `13`–`17`. There is no protocol *version number*
+  `LEAVE_ROOM = 12`, and the room state-sync codes `13`–`17`. There is no protocol _version number_
   field in this enum — the codes themselves are the protocol, not a negotiated version.
 - `colyseus.js`'s `src/Connection.ts` (same repo/branch) contains no version-check or
   handshake-negotiation logic — it's a thin transport-selection wrapper (`WebSocketTransport` vs.
@@ -49,6 +49,7 @@ question entirely by matching versions instead of relying on graceful rejection.
 
 > Byte-identical to 4.x except for these three, which **every SDK decoder must implement** for the
 > 0.18 line:
+>
 > - **`ADD` at an occupied array index means insert**, shifting items up (previously only
 >   `index === 0` was special-cased)...
 > - **`ArraySchema` deletes of Schema children are always `DELETE_BY_REFID`.** Decoders must skip
@@ -73,7 +74,7 @@ real but is **API-surface**, not wire-format — it doesn't bear on this questio
 that it means a v3 client couldn't even use the v5-only `StateView`/callback APIs the server-side
 schema classes may rely on, on top of the raw decode-corruption risk above.
 
-**(b) Verdict:** **No, this is not version-agnostic.** The wire format is *mostly* stable across
+**(b) Verdict:** **No, this is not version-agnostic.** The wire format is _mostly_ stable across
 majors, but v5.0.11 (needed for the 0.18 server line) made three targeted, breaking decode changes
 that the vendor explicitly says every SDK decoder must implement, plus a further breaking field-encoding
 change in v5.0.27. A `@colyseus/schema` v3 decoder bundled inside `colyseus.js@0.16.22` will
@@ -133,7 +134,7 @@ Schema-child array deletes, and quantized/angle fields are all specifically name
   v3-schema/0.16-server era, consistent with it having been superseded rather than paused.
 - npm's `colyseus.js` package itself is **not** npm-deprecated (`npm view colyseus.js@0.16.22 deprecated`
   returns nothing/empty — no deprecation notice is set), and its README doesn't self-describe as
-  deprecated either. So this conclusion rests on the *docs and migration guide* recommending the
+  deprecated either. So this conclusion rests on the _docs and migration guide_ recommending the
   successor package, not on an npm-level deprecation flag or README notice — worth knowing if
   someone later greps npm metadata and finds no deprecation warning and assumes `colyseus.js` is
   still the sanctioned choice.
@@ -179,7 +180,7 @@ dependency on `@colyseus/schema@^5.0.8` and its home in the `colyseus/colyseus` 
   `@colyseus/schema@^5.0.8`, which matches the server's already-pinned `5.0.32`
   (`packages/shared/package.json`) with no downgrade needed anywhere.
 
-**(b) Does the client need `@colyseus/schema` as a *direct* dependency of `apps/client`?**
+**(b) Does the client need `@colyseus/schema` as a _direct_ dependency of `apps/client`?**
 
 Per ADR 0001 / the isomorphic-sim boundary already documented in `CLAUDE.md`, the `PlayerState`/
 `MatchState` `@colyseus/schema` classes live in `packages/shared` (see the new, uncommitted
@@ -190,7 +191,7 @@ function through `@colyseus/sdk`. Neither of those requires `apps/client` itself
 `import ... from "@colyseus/schema"` directly — `@colyseus/sdk`'s own re-export of `getStateCallbacks`
 and `Callbacks` covers the typed-callback API surface a client normally needs
 (`const $ = getStateCallbacks(room); $(room.state).players.onAdd(...)`), and the concrete schema
-*classes* to type `room.state` against come from `@castle-clash/shared`, not from importing
+_classes_ to type `room.state` against come from `@castle-clash/shared`, not from importing
 `@colyseus/schema` a second time. pnpm will still resolve a single deduped `@colyseus/schema@5.0.x`
 instance in `node_modules` for the whole workspace, since `@colyseus/sdk`'s `^5.0.8` range and
 `packages/shared`'s pinned `5.0.32` overlap — so there's no risk of two different schema class
@@ -208,12 +209,12 @@ identities floating around causing `instanceof` mismatches.
 
 ## Summary table
 
-| # | Question | Answer |
-| --- | --- | --- |
-| 1 | Handshake rejects mismatched client? | No confirmed hard version-reject in `Protocol.ts`/`Connection.ts`; risk is silent decode corruption, not a clean refusal (full `Room.ts` join path not exhaustively checked) |
-| 2 | Is schema decode wire-format version-agnostic across majors? | **No.** `@colyseus/schema` v5.0.11's own CHANGELOG names three decode behaviors "every SDK decoder must implement... for the 0.18 line"; v5.0.27 changed quantized-field wire mapping too. A v3-based decoder implements none of this. |
-| 3 | What does docs.colyseus.io currently recommend for a 0.18.x server? | **`@colyseus/sdk`**, not `colyseus.js` — stated on the current TS client page and the 0.17 migration guide; `colyseus.js` has no 0.17/0.18 branch/tag/release anywhere |
-| 4 | Correct fix | Use `@colyseus/sdk@0.18.2`; it depends on `@colyseus/schema@^5.0.8`, already compatible with the server's pinned `5.0.32`; no server downgrade needed |
+| #   | Question                                                            | Answer                                                                                                                                                                                                                                 |
+| --- | ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Handshake rejects mismatched client?                                | No confirmed hard version-reject in `Protocol.ts`/`Connection.ts`; risk is silent decode corruption, not a clean refusal (full `Room.ts` join path not exhaustively checked)                                                           |
+| 2   | Is schema decode wire-format version-agnostic across majors?        | **No.** `@colyseus/schema` v5.0.11's own CHANGELOG names three decode behaviors "every SDK decoder must implement... for the 0.18 line"; v5.0.27 changed quantized-field wire mapping too. A v3-based decoder implements none of this. |
+| 3   | What does docs.colyseus.io currently recommend for a 0.18.x server? | **`@colyseus/sdk`**, not `colyseus.js` — stated on the current TS client page and the 0.17 migration guide; `colyseus.js` has no 0.17/0.18 branch/tag/release anywhere                                                                 |
+| 4   | Correct fix                                                         | Use `@colyseus/sdk@0.18.2`; it depends on `@colyseus/schema@^5.0.8`, already compatible with the server's pinned `5.0.32`; no server downgrade needed                                                                                  |
 
 ---
 

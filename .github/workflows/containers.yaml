@@ -61,9 +61,44 @@ jobs:
       - run: |
           podman load -i /tmp/images/server.tar
           podman load -i /tmp/images/client.tar
-      # compose.yaml's `image:` fields match the tags loaded above, so `up`
-      # runs those images as-is instead of rebuilding from source.
-      - run: podman compose up -d --wait
+      # `podman compose` shells out to the docker-compose CLI plugin already on
+      # this runner (for Docker), which expects a running Docker-API-compatible
+      # daemon and errors against podman's (inactive) socket. Neither
+      # `podman-compose` nor `podman compose` has ever been validated for this
+      # project (see CLAUDE.md's compose.yaml section) — run the two images
+      # directly instead, mirroring compose.yaml's ports/env by hand, the same
+      # way it's been hand-validated locally.
+      # The containerfiles carry no baked-in HEALTHCHECK (only compose.yaml
+      # defines one), so it's passed here explicitly, matching compose.yaml's
+      # test/interval/timeout/retries exactly.
+      - name: Start containers
+        run: |
+          podman network create cc-net
+          podman run -d --name server --network cc-net -p 2567:2567 \
+            --health-cmd 'wget -q --spider http://127.0.0.1:2567/healthz' \
+            --health-interval 2s --health-timeout 2s --health-retries 15 \
+            castle-clash-server:local
+          podman run -d --name client --network cc-net -p 8080:8080 \
+            -e GAME_SERVER_URL=ws://localhost:2567 \
+            -e SUPABASE_URL=http://localhost:0 \
+            -e SUPABASE_PUBLISHABLE_KEY=local-dev-placeholder \
+            --health-cmd 'wget -q --spider http://127.0.0.1:8080/' \
+            --health-interval 2s --health-timeout 2s --health-retries 15 \
+            castle-clash-client:local
+      - name: Wait for containers to be healthy
+        run: |
+          for name in server client; do
+            echo "waiting for $name..."
+            for i in $(seq 1 30); do
+              status="$(podman inspect -f '{{.State.Health.Status}}' "$name")"
+              [ "$status" = "healthy" ] && { echo "$name is healthy"; break; }
+              if [ "$i" = 30 ]; then
+                echo "$name did not become healthy in time (status: $status)" >&2
+                exit 1
+              fi
+              sleep 2
+            done
+          done
       - run: curl -sf http://localhost:2567/healthz
       - run: curl -sf http://localhost:8080/
       - uses: pnpm/action-setup@v6
@@ -84,9 +119,11 @@ jobs:
         env:
           GAME_SERVER_URL: ws://localhost:2567
       - if: always()
-        run: podman compose logs
+        run: podman logs server; podman logs client
       - if: always()
-        run: podman compose down --volumes
+        run: |
+          podman rm -f server client
+          podman network rm cc-net
 
   # Only images that passed `smoke` get published — loads the pre-built
   # image artifact, tags with GHCR metadata, and pushes.

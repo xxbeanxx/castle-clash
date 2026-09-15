@@ -10,27 +10,30 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "dev": "tsx watch src/index.ts",
-    "start": "node dist/index.js",
+    "format:check": "oxfmt --check",
+    "format:fix": "oxfmt",
+    "lint:check": "oxlint",
+    "lint:fix": "oxlint --fix",
     "smoke-join": "tsx scripts/smoke-join.ts",
-    "typecheck": "tsc --noEmit",
+    "start": "node dist/index.js",
     "test": "vitest run",
-    "lint": "oxlint ."
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@castle-clash/shared": "workspace:*",
-    "@colyseus/monitor": "0.18.3",
-    "colyseus": "0.18.5",
-    "express": "5.2.1"
+    "@colyseus/monitor": "0.18",
+    "colyseus": "0.18",
+    "express": "5.2"
   },
   "devDependencies": {
-    "@colyseus/sdk": "0.18.2",
-    "@colyseus/testing": "^0.18.5",
-    "@types/express": "5.0.6",
-    "@types/node": "^24.0.0",
-    "@types/supertest": "^7.2.1",
-    "supertest": "^7.2.2",
-    "tsx": "^4.19.0",
-    "typescript": "6.0.3",
-    "vitest": "5.0.0"
+    "@colyseus/sdk": "0.18",
+    "@colyseus/testing": "^0.18",
+    "@types/express": "5.0",
+    "@types/node": "^24.0",
+    "@types/supertest": "^7.2",
+    "supertest": "^7.2",
+    "tsx": "^4.23",
+    "typescript": "6.0",
+    "vitest": "5.0"
   }
 }

@@ -13,11 +13,11 @@
     "verify": "turbo run lint typecheck test build"
   },
   "devDependencies": {
-    "oxfmt": "0.68.0",
-    "oxlint": "1.83.0",
-    "turbo": "2.10.13",
-    "typescript": "6.0.3",
-    "vitest": "5.0.0"
+    "oxfmt": "^0.68",
+    "oxlint": "^1.83",
+    "turbo": "^2.10",
+    "typescript": "^6.0",
+    "vitest": "^5.0"
   },
   "engines": {
     "node": ">=24"

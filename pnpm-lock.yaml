@@ -167,19 +167,19 @@ importers:
   .:
     devDependencies:
       oxfmt:
-        specifier: 0.68.0
+        specifier: ^0.68
         version: 0.68.0
       oxlint:
-        specifier: 1.83.0
+        specifier: ^1.83
         version: 1.83.0
       turbo:
-        specifier: 2.10.13
+        specifier: ^2.10
         version: 2.10.13
       typescript:
-        specifier: 6.0.3
+        specifier: ^6.0
         version: 6.0.3
       vitest:
-        specifier: 5.0.0
+        specifier: ^5.0
         version: 5.0.0(@types/node@24.13.4)(@vitest/browser-playwright@5.0.0)(@vitest/coverage-v8@5.0.0)(@vitest/ui@5.0.0)(jsdom@30.0.1(@noble/hashes@1.8.0))(vite@8.3.0(@types/node@24.13.4)(esbuild@0.27.7)(tsx@4.23.13))
 
   apps/client:
@@ -188,59 +188,59 @@ importers:
         specifier: workspace:*
         version: link:../../packages/shared
       '@colyseus/sdk':
-        specifier: 0.18.2
+        specifier: '0.18'
         version: 0.18.2(@colyseus/core@0.18.13)(typescript@6.0.3)(zod@4.6.4)
       isbot:
-        specifier: ^5
+        specifier: ^5.2
         version: 5.2.2
       pixi.js:
-        specifier: 8.20.1
+        specifier: '8.20'
         version: 8.20.1
       react:
-        specifier: ^19.2.7
+        specifier: ^19.3
         version: 19.3.0
       react-dom:
-        specifier: ^19.2.7
+        specifier: ^19.3
         version: 19.3.0(react@19.3.0)
       react-router:
-        specifier: ^8
+        specifier: ^8.3
         version: 8.3.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
     devDependencies:
       '@react-router/dev':
-        specifier: ^8
+        specifier: ^8.3
         version: 8.3.1(react-router@8.3.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(typescript@6.0.3)(vite@8.3.0(@types/node@24.13.4)(esbuild@0.27.7)(tsx@4.23.13))
       '@testing-library/react':
-        specifier: ^16.3.3
+        specifier: ^16.3
         version: 16.3.3(@testing-library/dom@10.4.2)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       '@types/node':
-        specifier: ^24.0.0
+        specifier: ^24.0
         version: 24.13.4
       '@types/react':
-        specifier: ^19.2.14
+        specifier: ^19.3
         version: 19.3.0
       '@types/react-dom':
-        specifier: ^19.2.3
+        specifier: ^19.3
         version: 19.3.0(@types/react@19.3.0)
       '@vitest/browser':
-        specifier: 5.0.0
+        specifier: '5.0'
         version: 5.0.0(vite@8.3.0(@types/node@24.13.4)(esbuild@0.27.7)(tsx@4.23.13))(vitest@5.0.0)
       '@vitest/browser-playwright':
-        specifier: 5.0.0
-        version: 5.0.0(playwright@1.56.0)(vite@8.3.0(@types/node@24.13.4)(esbuild@0.27.7)(tsx@4.23.13))(vitest@5.0.0)
+        specifier: '5.0'
+        version: 5.0.0(playwright@1.63.0)(vite@8.3.0(@types/node@24.13.4)(esbuild@0.27.7)(tsx@4.23.13))(vitest@5.0.0)
       jsdom:
-        specifier: ^30.0.1
+        specifier: ^30.0
         version: 30.0.1(@noble/hashes@1.8.0)
       playwright:
-        specifier: 1.56.0
-        version: 1.56.0
+        specifier: '1.63'
+        version: 1.63.0
       typescript:
-        specifier: 6.0.3
+        specifier: '6.0'
         version: 6.0.3
       vite:
-        specifier: ^8.0.3
+        specifier: ^8.3
         version: 8.3.0(@types/node@24.13.4)(esbuild@0.27.7)(tsx@4.23.13)
       vitest:
-        specifier: 5.0.0
+        specifier: '5.0'
         version: 5.0.0(@types/node@24.13.4)(@vitest/browser-playwright@5.0.0)(@vitest/coverage-v8@5.0.0)(@vitest/ui@5.0.0)(jsdom@30.0.1(@noble/hashes@1.8.0))(vite@8.3.0(@types/node@24.13.4)(esbuild@0.27.7)(tsx@4.23.13))
 
   apps/server:
@@ -249,63 +249,63 @@ importers:
         specifier: workspace:*
         version: link:../../packages/shared
       '@colyseus/monitor':
-        specifier: 0.18.3
+        specifier: '0.18'
         version: 0.18.3(@colyseus/auth@0.18.2)(@colyseus/better-call@1.3.3(zod@4.6.4))(@colyseus/schema@5.0.32(typescript@6.0.3))(@colyseus/ws-transport@0.18.2)(@pm2/io@6.1.0)(express@5.2.1)
       colyseus:
-        specifier: 0.18.5
+        specifier: '0.18'
         version: 0.18.5(@colyseus/auth@0.18.2)(@colyseus/better-call@1.3.3(zod@4.6.4))(@colyseus/core@0.18.13)(@colyseus/redis-driver@0.18.2(@colyseus/auth@0.18.2)(@colyseus/better-call@1.3.3(zod@4.6.4))(@colyseus/schema@5.0.32(typescript@6.0.3))(@colyseus/ws-transport@0.18.2)(@pm2/io@6.1.0)(express@5.2.1)(zod@4.6.4))(@colyseus/redis-presence@0.18.4(@colyseus/auth@0.18.2)(@colyseus/better-call@1.3.3(zod@4.6.4))(@colyseus/schema@5.0.32(typescript@6.0.3))(@colyseus/ws-transport@0.18.2)(@pm2/io@6.1.0)(express@5.2.1)(zod@4.6.4))(@colyseus/schema@5.0.32(typescript@6.0.3))(@colyseus/uwebsockets-transport@0.18.2(@colyseus/core@0.18.13))(@colyseus/ws-transport@0.18.2)(@pm2/io@6.1.0)(express@5.2.1)(vite@8.3.0(@types/node@24.13.4)(esbuild@0.27.7)(tsx@4.23.13))(zod@4.6.4)
       express:
-        specifier: 5.2.1
+        specifier: '5.2'
         version: 5.2.1
     devDependencies:
       '@colyseus/sdk':
-        specifier: 0.18.2
+        specifier: '0.18'
         version: 0.18.2(@colyseus/core@0.18.13)(typescript@6.0.3)(zod@4.6.4)
       '@colyseus/testing':
-        specifier: ^0.18.5
+        specifier: ^0.18
         version: 0.18.5(@colyseus/core@0.18.13)(@colyseus/sdk@0.18.2(@colyseus/core@0.18.13)(typescript@6.0.3)(zod@4.6.4))(@colyseus/tools@0.18.3(@colyseus/core@0.18.13)(@colyseus/ws-transport@0.18.2))
       '@types/express':
-        specifier: 5.0.6
+        specifier: '5.0'
         version: 5.0.6
       '@types/node':
-        specifier: ^24.0.0
+        specifier: ^24.0
         version: 24.13.4
       '@types/supertest':
-        specifier: ^7.2.1
+        specifier: ^7.2
         version: 7.2.1
       supertest:
-        specifier: ^7.2.2
+        specifier: ^7.2
         version: 7.2.2
       tsx:
-        specifier: ^4.19.0
+        specifier: ^4.23
         version: 4.23.13
       typescript:
-        specifier: 6.0.3
+        specifier: '6.0'
         version: 6.0.3
       vitest:
-        specifier: 5.0.0
+        specifier: '5.0'
         version: 5.0.0(@types/node@24.13.4)(@vitest/browser-playwright@5.0.0)(@vitest/coverage-v8@5.0.0)(@vitest/ui@5.0.0)(jsdom@30.0.1(@noble/hashes@1.8.0))(vite@8.3.0(@types/node@24.13.4)(esbuild@0.27.7)(tsx@4.23.13))
 
   packages/shared:
     dependencies:
       '@colyseus/schema':
-        specifier: 5.0.32
+        specifier: '5.0'
         version: 5.0.32(typescript@6.0.3)
     devDependencies:
       '@vitest/coverage-v8':
-        specifier: 5.0.0
+        specifier: '5.0'
         version: 5.0.0(@vitest/browser@5.0.0)(vitest@5.0.0)
       fast-check:
-        specifier: 4.10.0
+        specifier: '4.10'
         version: 4.10.0
       tsup:
-        specifier: 8.5.1
+        specifier: '8.5'
         version: 8.5.1(postcss@8.5.28)(tsx@4.23.13)(typescript@6.0.3)
       typescript:
-        specifier: 6.0.3
+        specifier: '6.0'
         version: 6.0.3
       vitest:
-        specifier: 5.0.0
+        specifier: '5.0'
         version: 5.0.0(@types/node@24.13.4)(@vitest/browser-playwright@5.0.0)(@vitest/coverage-v8@5.0.0)(@vitest/ui@5.0.0)(jsdom@30.0.1(@noble/hashes@1.8.0))(vite@8.3.0(@types/node@24.13.4)(esbuild@0.27.7)(tsx@4.23.13))
 
 packages:
@@ -2088,11 +2088,6 @@ packages:
     resolution: {integrity: sha512-Rx/WycZ60HOaqLKAi6cHRKKI7zxWbJ31MhntmtwMoaTeF7XFH9hhBp8vITaMidfljRQ6eYWCKkaTK+ykVJHP2A==}
     engines: {node: '>= 0.8'}
 
-  fsevents@2.3.2:
-    resolution: {integrity: sha512-xiqMQR4xAeHTuB9uWm+fFRcIOgKBMiOBP+eXiyT7jsgVCq1bkVygt00oASowB7EdtpOHaaPgKt812P9ab+DDKA==}
-    engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
-    os: [darwin]
-
   fsevents@2.3.3:
     resolution: {integrity: sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw==}
     engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
@@ -2552,14 +2547,14 @@ packages:
   pkg-types@2.3.3:
     resolution: {integrity: sha512-j/lCFdcppV0JxWpCEITdbDltBxPP6cHT+yNJ6Go2OgoSA9518X847X9z0p6LtA4Nc16+eQzCZjRrWanTGvHJ5w==}
 
-  playwright-core@1.56.0:
-    resolution: {integrity: sha512-1SXl7pMfemAMSDn5rkPeZljxOCYAmQnYLBTExuh6E8USHXGSX3dx6lYZN/xPpTz1vimXmPA9CDnILvmJaB8aSQ==}
-    engines: {node: '>=18'}
+  playwright-core@1.63.0:
+    resolution: {integrity: sha512-rYCsBF/M5HjUch52bbtVONEFjv6Xu8sm8h72dNlR5bzIE1fvC/bxgspzkjSfU+MweEMmPM8KJebG6nnyxo5mCg==}
+    engines: {node: '>=20'}
     hasBin: true
 
-  playwright@1.56.0:
-    resolution: {integrity: sha512-X5Q1b8lOdWIE4KAoHpW3SE8HvUB+ZZsUoN64ZhjnN8dOb1UpujxBtENGiZFE+9F/yhzJwYa+ca3u43FeLbboHA==}
-    engines: {node: '>=18'}
+  playwright@1.63.0:
+    resolution: {integrity: sha512-+7ziBLidS4NaNCdt57SUDT+wYmmd5fmiQejUic/kb+YsYSCPyOOE9sebzMjNmQrsnNpDJqd4WHvV/8lfKfUDUg==}
+    engines: {node: '>=20'}
     hasBin: true
 
   pngjs@7.0.0:
@@ -4055,11 +4050,11 @@ snapshots:
     dependencies:
       '@types/node': 24.13.4
 
-  '@vitest/browser-playwright@5.0.0(playwright@1.56.0)(vite@8.3.0(@types/node@24.13.4)(esbuild@0.27.7)(tsx@4.23.13))(vitest@5.0.0)':
+  '@vitest/browser-playwright@5.0.0(playwright@1.63.0)(vite@8.3.0(@types/node@24.13.4)(esbuild@0.27.7)(tsx@4.23.13))(vitest@5.0.0)':
     dependencies:
       '@vitest/browser': 5.0.0(vite@8.3.0(@types/node@24.13.4)(esbuild@0.27.7)(tsx@4.23.13))(vitest@5.0.0)
       '@vitest/mocker': 5.0.0(vite@8.3.0(@types/node@24.13.4)(esbuild@0.27.7)(tsx@4.23.13))
-      playwright: 1.56.0
+      playwright: 1.63.0
       tinyrainbow: 3.1.1
       vitest: 5.0.0(@types/node@24.13.4)(@vitest/browser-playwright@5.0.0)(@vitest/coverage-v8@5.0.0)(@vitest/ui@5.0.0)(jsdom@30.0.1(@noble/hashes@1.8.0))(vite@8.3.0(@types/node@24.13.4)(esbuild@0.27.7)(tsx@4.23.13))
     transitivePeerDependencies:
@@ -4596,9 +4591,6 @@ snapshots:
 
   fresh@2.0.0: {}
 
-  fsevents@2.3.2:
-    optional: true
-
   fsevents@2.3.3:
     optional: true
 
@@ -5071,13 +5063,11 @@ snapshots:
       exsolve: 1.1.1
       pathe: 2.0.3
 
-  playwright-core@1.56.0: {}
+  playwright-core@1.63.0: {}
 
-  playwright@1.56.0:
+  playwright@1.63.0:
     dependencies:
-      playwright-core: 1.56.0
-    optionalDependencies:
-      fsevents: 2.3.2
+      playwright-core: 1.63.0
 
   pngjs@7.0.0: {}
 
@@ -5541,7 +5531,7 @@ snapshots:
       why-is-node-running: 2.3.0
     optionalDependencies:
       '@types/node': 24.13.4
-      '@vitest/browser-playwright': 5.0.0(playwright@1.56.0)(vite@8.3.0(@types/node@24.13.4)(esbuild@0.27.7)(tsx@4.23.13))(vitest@5.0.0)
+      '@vitest/browser-playwright': 5.0.0(playwright@1.63.0)(vite@8.3.0(@types/node@24.13.4)(esbuild@0.27.7)(tsx@4.23.13))(vitest@5.0.0)
       '@vitest/coverage-v8': 5.0.0(@vitest/browser@5.0.0)(vitest@5.0.0)
       '@vitest/ui': 5.0.0(vitest@5.0.0)
       jsdom: 30.0.1(@noble/hashes@1.8.0)

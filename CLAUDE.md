@@ -10,12 +10,17 @@ client, and Supabase for auth/persistence, in a pnpm + Turborepo monorepo.
 **`docs/IMPLEMENTATION_PLAN.md` is the source of truth** for architecture and the phase-by-phase
 build order — read it before making structural changes. It's being implemented phase by phase;
 check its "Phase N" sections against what actually exists in the tree to see how far the build has
-gotten (as of this writing: Phase 1, Foundation, is done — `packages/shared` only has
-`config/`, `types/`, `input/`, `math/`, and a placeholder `testing/`; no Colyseus room, schema, or
-sim code exists yet). `docs/adr/` records specific decisions (currently just ADR 0001, the
-isomorphic-sim boundary); `docs/research/` records version/API facts verified against live docs
-mid-implementation — check it before trusting a version number stated in the plan's prose, since
-several were wrong when written (pnpm "10" vs the actual 12, Colyseus's server bootstrap API, etc.).
+gotten (as of this writing: Phase 2, Walking Skeleton, is done — a browser joins the `match` room
+over a real WebSocket and every connected player syncs as `PlayerState` in `MatchState`; no sim,
+combat, arenas, or auth exist yet, so `MatchRoom` only tracks join/leave and an incrementing tick).
+`docs/adr/` records specific decisions (currently just ADR 0001, the isomorphic-sim boundary);
+`docs/research/` records version/API facts verified against live docs mid-implementation — check it
+before trusting a version number stated in the plan's prose, since several were wrong when written
+(pnpm "10" vs the actual 12, Colyseus's server bootstrap API, etc.). `docs/research/phase2-colyseus-
+client-compat.md` matters for anyone touching the client's Colyseus connection: the plan's
+`colyseus.js` assumption is stale — the browser client dependency is `@colyseus/sdk`, not
+`colyseus.js` (which tops out at 0.16.x with an incompatible `@colyseus/schema` v3 decoder against
+this server's v5 schema).
 
 ## Commands
 
@@ -69,6 +74,32 @@ at the root (kept in sync by hand) because CI's `docker buildx` only auto-discov
 — there's no single ignore-file name both engines auto-discover. The `containerfile`s themselves
 carry no BuildKit-only syntax, so the same file builds under either engine.
 
+### Local stack (`compose.yaml`)
+
+`compose.yaml` at the repo root runs `server` (port 2567) and `client` (port 8080,
+`GAME_SERVER_URL=ws://localhost:2567` — the browser connects to this directly, so it has to be
+host-reachable, not the compose network's internal `server` hostname). **Neither `podman-compose`
+nor a `podman compose` subcommand is installed on this dev machine**, so the file has only ever
+been validated by hand: build both images with the `podman build` commands above (they tag
+`castle-clash-{server,client}:local`, which `compose.yaml`'s `image:` fields reference), then
+`podman network create cc-net` and `podman run` each image on that network with the same ports/env
+`compose.yaml` declares, and curl `/healthz` and `/`. CI's `docker.yml` `smoke` job runs the real
+`docker compose up -d --wait` (Docker is preinstalled on GitHub-hosted runners), so that path does
+get exercised for real on every PR — just not locally on this machine yet.
+
+`healthcheck:` in `compose.yaml` uses `http://127.0.0.1:...`, not `localhost` — found by hand-running
+the containers: this machine's Alpine images resolve `localhost` to `::1` first, and neither
+nginx (see `apps/client/docker/nginx.conf`'s IPv6 setup failing silently against the read-only
+config mount — `docker-entrypoint.d`'s `10-listen-on-ipv6-by-default.sh` logs "can not modify
+...default.conf") nor the plain Node server actually accept IPv6 connections in this image, so a
+`localhost`-based `wget --spider` inside either container gets "Connection refused" even though the
+service is up and the exact same URL is reachable from the host.
+
+A headless join smoke test lives at `apps/server/scripts/smoke-join.ts` (`pnpm --filter server run
+smoke-join`, reads `GAME_SERVER_URL` from the env): it connects with `@colyseus/sdk`, joins `match`,
+and asserts state arrives with the expected player count. CI's `docker.yml` `smoke` job runs this
+against the compose stack before the `push` job (gated on `smoke`) publishes to GHCR.
+
 ## Architecture
 
 ### The isomorphic boundary is enforced by tooling, not just convention
@@ -90,6 +121,38 @@ When Colyseus/`@colyseus/schema` land in Phase 2+, the sim will run on plain obj
 separate from the `@colyseus/schema` network classes — a `projectToSchema()` step copies sim state
 into schema once per tick, rather than gameplay code touching schema instances directly. See ADR
 0001 for why.
+
+### The walking skeleton (Phase 2)
+
+`packages/shared/src/schema/state.ts` has `PlayerState`/`MatchState` (`@colyseus/schema` v5, legacy
+decorator API — same classes run in both `apps/server` and `apps/client`, since schema is
+isomorphic-safe: no DOM/Node APIs). `apps/server/src/rooms/MatchRoom.ts` is the thin room described
+in D2: `onJoin`/`onLeave` add/remove a `PlayerState`, and an injected `TickDriver`
+(`apps/server/src/rooms/TickDriver.ts`) increments `state.tick` — `IntervalTickDriver` wraps the
+room's `setTimestep` in prod (not `setSimulationInterval`, which the plan's prose names but which
+`@colyseus/core@0.18.13` marks deprecated in favor of `setTimestep`; same behavior), and
+`ManualTickDriver.step(n)` drives it synchronously in tests, ahead of Phase 3 actually needing a
+real per-tick sim. `apps/client/app/game/GameClient.ts` (no React below `app/game/**`, enforced by
+ESLint) owns the Pixi `Application` and the room connection; `game/viewmodel/playersToRects.ts` is
+the pure `MatchState -> {id,x,y,tint}[]` mapping Pixi code draws from, and
+`game/render/PlayerRects.ts` syncs one tinted `Sprite` per player against a real `Container` —
+tested against a real Pixi `Application` in Vitest browser mode (`@vitest/browser-playwright` +
+a locally-installed Chromium; see `apps/client/vitest.browser.config.ts` and the `test:browser`
+script), since jsdom can't drive Pixi's canvas/WebGL renderer.
+
+**The client's Colyseus SDK is `@colyseus/sdk`, not `colyseus.js`** — the plan's Phase 2 prose
+assumes the latter, but `colyseus.js` has no 0.17/0.18 release anywhere (npm, GitHub branches, or
+tags) and bundles an incompatible `@colyseus/schema` v3 decoder against this server's v5 schema.
+`@colyseus/sdk` version-tracks the `colyseus` server package and is the pairing
+`docs.colyseus.io` documents today. See `docs/research/phase2-colyseus-client-compat.md` for the
+full check (wire-format evidence, migration-guide citation, etc.) before changing either dependency.
+
+`express@5.2.1` ships no types of its own — `apps/server` has `@types/express` as a real
+devDependency, not an assumption to skip. Colyseus's own `express?:` server-config callback types
+its `app` parameter as the narrower `express.Application`, not `@types/express`'s `Express` (the
+`express()` factory's return type); a function meant to be passed there, like
+`apps/server/src/http.ts`'s `registerHealthRoutes`, has to type its own parameter as `Application`
+or TS rejects the assignment.
 
 ### Workspace layout and package boundaries
 

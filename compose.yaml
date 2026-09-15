@@ -3,7 +3,7 @@ services:
     build:
       context: .
       dockerfile: apps/server/containerfile
-    # CI's smoke job loads a pre-built image under this tag (see docker.yml) so
+    # CI's smoke job loads a pre-built image under this tag (see containers.yaml) so
     # `up` runs it as-is instead of rebuilding; `podman build -t
     # castle-clash-server .` (see CLAUDE.md) tags a local build the same way.
     image: castle-clash-server:local

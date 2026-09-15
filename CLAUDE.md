@@ -78,21 +78,18 @@ project's own dev machine), install pnpm directly: `npm install -g pnpm@12.4.1`.
 
 ### Containers
 
-Container build files are named `containerfile` (not `Dockerfile`) and the ignore file
-`containerfile.containerignore` (not `.containerignore`) — this project builds locally with
-`podman`, not `docker`. Build context is the **repo root** for both apps (they run `turbo prune`
-against the full workspace):
+Container build files are named `containerfile` (not `Dockerfile`) and the ignore files
+`containerfile.containerignore` (not `.containerignore`) live alongside them in `apps/server/` and
+`apps/client/` — this project builds locally with `podman`, not `docker`. Build context is the
+**repo root** for both apps (they run `turbo prune` against the full workspace):
 
 ```sh
-podman build --ignorefile=containerfile.containerignore -f apps/server/containerfile -t castle-clash-server .
-podman build --ignorefile=containerfile.containerignore -f apps/client/containerfile -t castle-clash-client .
+podman build -f apps/server/containerfile -t castle-clash-server:local .
+podman build -f apps/client/containerfile -t castle-clash-client:local .
 ```
 
-`--ignorefile` is required because podman only auto-discovers `.containerignore`/`.dockerignore`,
-not the `containerfile.containerignore` name. A `.dockerignore` with identical content also exists
-at the root (kept in sync by hand) because CI's `docker buildx` only auto-discovers `.dockerignore`
-— there's no single ignore-file name both engines auto-discover. The `containerfile`s themselves
-carry no BuildKit-only syntax, so the same file builds under either engine.
+When using podman, `containerfile.containerignore` in each folder is automatically used, so no
+special flags are required.
 
 ### Local stack (`compose.yaml`)
 
@@ -103,9 +100,8 @@ nor a `podman compose` subcommand is installed on this dev machine**, so the fil
 been validated by hand: build both images with the `podman build` commands above (they tag
 `castle-clash-{server,client}:local`, which `compose.yaml`'s `image:` fields reference), then
 `podman network create cc-net` and `podman run` each image on that network with the same ports/env
-`compose.yaml` declares, and curl `/healthz` and `/`. CI's `docker.yml` `smoke` job runs the real
-`docker compose up -d --wait` (Docker is preinstalled on GitHub-hosted runners), so that path does
-get exercised for real on every PR — just not locally on this machine yet.
+`compose.yaml` declares, and curl `/healthz` and `/`. CI's `containers.yaml` `smoke` job runs
+`podman compose up -d --wait`, exercising the stack in GitHub Actions.
 
 `healthcheck:` in `compose.yaml` uses `http://127.0.0.1:...`, not `localhost` — found by hand-running
 the containers: this machine's Alpine images resolve `localhost` to `::1` first, and neither
@@ -117,7 +113,7 @@ service is up and the exact same URL is reachable from the host.
 
 A headless join smoke test lives at `apps/server/scripts/smoke-join.ts` (`pnpm --filter server run
 smoke-join`, reads `GAME_SERVER_URL` from the env): it connects with `@colyseus/sdk`, joins `match`,
-and asserts state arrives with the expected player count. CI's `docker.yml` `smoke` job runs this
+and asserts state arrives with the expected player count. CI's `containers.yaml` `smoke` job runs this
 against the compose stack before the `push` job (gated on `smoke`) publishes to GHCR. `smoke-join`
 runs via `tsx` against checked-out source, not the built container images, but it still imports
 `@castle-clash/shared`, which resolves through the workspace symlink to `packages/shared/dist` — a

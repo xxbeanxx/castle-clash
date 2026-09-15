@@ -1,4 +1,4 @@
-name: docker
+name: containers
 
 on:
   pull_request:
@@ -7,7 +7,7 @@ on:
     tags: ["v*"]
 
 concurrency:
-  group: docker-${{ github.ref }}
+  group: containers-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -18,9 +18,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-
-      - uses: docker/setup-buildx-action@v4
-
       - id: meta
         uses: docker/metadata-action@v6
         with:
@@ -29,24 +26,22 @@ jobs:
             type=raw,value=sha-{{sha}},enable={{is_default_branch}}
             type=raw,value=main,enable={{is_default_branch}}
             type=semver,pattern={{version}}
+      # Build the image locally; only the `push` job (gated on `smoke`
+      # passing) publishes to GHCR.
+      - name: Build image
+        run: |
+          build_args=()
+          while IFS= read -r label || [ -n "$label" ]; do
+            [ -n "$label" ] && build_args+=(--label "$label")
+          done <<< "${{ steps.meta.outputs.labels }}"
+          while IFS= read -r tag || [ -n "$tag" ]; do
+            [ -n "$tag" ] && build_args+=(-t "$tag")
+          done <<< "${{ steps.meta.outputs.tags }}"
 
-      # push:false/load:true here regardless of branch — only the `push` job
-      # (gated on `smoke` passing) publishes to GHCR.
-      - uses: docker/build-push-action@v7
-        with:
-          context: .
-          file: apps/${{ matrix.app }}/containerfile
-          push: false
-          load: true
-          tags: |
-            ${{ steps.meta.outputs.tags }}
-            castle-clash-${{ matrix.app }}:local
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=${{ matrix.app }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.app }}
-
-      - run: docker save castle-clash-${{ matrix.app }}:local -o /tmp/${{ matrix.app }}.tar
-
+          podman build "${build_args[@]}" \
+            -t castle-clash-${{ matrix.app }}:local \
+            -f apps/${{ matrix.app }}/containerfile .
+      - run: podman save castle-clash-${{ matrix.app }}:local -o /tmp/${{ matrix.app }}.tar
       - uses: actions/upload-artifact@v4
         with:
           name: image-${{ matrix.app }}
@@ -58,54 +53,43 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-
       - uses: actions/download-artifact@v4
         with:
           pattern: image-*
           path: /tmp/images
           merge-multiple: true
-
       - run: |
-          docker load -i /tmp/images/server.tar
-          docker load -i /tmp/images/client.tar
-
+          podman load -i /tmp/images/server.tar
+          podman load -i /tmp/images/client.tar
       # compose.yaml's `image:` fields match the tags loaded above, so `up`
       # runs those images as-is instead of rebuilding from source.
-      - run: docker compose up -d --wait
-
+      - run: podman compose up -d --wait
       - run: curl -sf http://localhost:2567/healthz
       - run: curl -sf http://localhost:8080/
-
       - uses: pnpm/action-setup@v6
-
       - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
           cache: pnpm
-
       - run: pnpm install --frozen-lockfile
-
       # smoke-join runs via tsx (no server build needed) but imports
       # @castle-clash/shared, which resolves through the workspace symlink to
       # packages/shared/dist — that only exists after a build, which `pnpm
       # install` doesn't do.
       - run: pnpm --filter @castle-clash/shared run build
-
       # A headless @colyseus/sdk client joins the "match" room through the
       # running client-facing port and asserts that room state actually
       # arrives — the same round trip a browser tab makes.
       - run: pnpm --filter @castle-clash/server run smoke-join
         env:
           GAME_SERVER_URL: ws://localhost:2567
-
       - if: always()
-        run: docker compose logs
-
+        run: podman compose logs
       - if: always()
-        run: docker compose down --volumes
+        run: podman compose down --volumes
 
-  # Only images that passed `smoke` get published — this rebuild is a cache
-  # hit against the `build` job's `cache-to: type=gha`, so it's fast.
+  # Only images that passed `smoke` get published — loads the pre-built
+  # image artifact, tags with GHCR metadata, and pushes.
   push:
     needs: [build, smoke]
     if: github.event_name != 'pull_request'
@@ -118,15 +102,16 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@v7
-
-      - uses: docker/setup-buildx-action@v4
-
-      - uses: docker/login-action@v4
+      - uses: redhat-actions/podman-login@v1
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
+      - uses: actions/download-artifact@v4
+        with:
+          name: image-${{ matrix.app }}
+          path: /tmp
+      - run: podman load -i /tmp/${{ matrix.app }}.tar
       - id: meta
         uses: docker/metadata-action@v6
         with:
@@ -135,13 +120,11 @@ jobs:
             type=raw,value=sha-{{sha}},enable={{is_default_branch}}
             type=raw,value=main,enable={{is_default_branch}}
             type=semver,pattern={{version}}
-
-      - uses: docker/build-push-action@v7
-        with:
-          context: .
-          file: apps/${{ matrix.app }}/containerfile
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=${{ matrix.app }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.app }}
+      - name: Push image
+        run: |
+          while IFS= read -r tag || [ -n "$tag" ]; do
+            if [ -n "$tag" ]; then
+              podman tag castle-clash-${{ matrix.app }}:local "$tag"
+              podman push "$tag"
+            fi
+          done <<< "${{ steps.meta.outputs.tags }}"

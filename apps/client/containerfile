@@ -23,7 +23,7 @@ COPY --from=pruner /app/out/full/ .
 COPY --from=pruner /app/tsconfig.base.json .
 RUN turbo build --filter=@castle-clash/client
 
-FROM docker.io/nginxinc/nginx-unprivileged:1.30-alpine AS runtime
+FROM docker.io/nginxinc/nginx-unprivileged:1.31-alpine AS runtime
 # The base image already runs as USER 101 (nginx), so switch to root just for
 # these setup steps: /usr/share/nginx/html itself (not just its contents) is
 # root-owned and not group-writable, but our entrypoint script writes

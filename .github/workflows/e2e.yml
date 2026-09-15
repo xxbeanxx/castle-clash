@@ -1,0 +1,100 @@
+name: e2e
+
+on:
+  pull_request:
+    paths:
+      - "apps/**"
+      - "packages/**"
+      - "e2e/**"
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 7 * * *"
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  private-match:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # Neither `podman-compose` nor a `podman compose` subcommand is
+      # available here (see CLAUDE.md / containers.yaml's `smoke` job,
+      # which hit the same gap) — the plan's "docker compose up -d --wait"
+      # is stale for this project; build and run both images directly,
+      # mirroring compose.yaml's ports/env by hand the same proven way.
+      - name: Build server image
+        run: podman build -f apps/server/containerfile -t castle-clash-server:local .
+      - name: Build e2e-flavored client image
+        run: |
+          podman build -f apps/client/containerfile \
+            --build-arg VITE_E2E=1 \
+            -t castle-clash-client:e2e .
+
+      - name: Start containers
+        run: |
+          podman network create cc-net
+          podman run -d --name server --network cc-net -p 2567:2567 \
+            --health-cmd 'wget -q --spider http://127.0.0.1:2567/healthz' \
+            --health-interval 2s --health-timeout 2s --health-retries 15 \
+            castle-clash-server:local
+          podman run -d --name client --network cc-net -p 8080:8080 \
+            -e GAME_SERVER_URL=ws://localhost:2567 \
+            -e SUPABASE_URL=http://localhost:0 \
+            -e SUPABASE_PUBLISHABLE_KEY=local-dev-placeholder \
+            --health-cmd 'wget -q --spider http://127.0.0.1:8080/' \
+            --health-interval 2s --health-timeout 2s --health-retries 15 \
+            castle-clash-client:e2e
+      - name: Wait for containers to be healthy
+        run: |
+          for name in server client; do
+            echo "waiting for $name..."
+            for i in $(seq 1 30); do
+              status="$(podman inspect -f '{{.State.Health.Status}}' "$name")"
+              [ "$status" = "healthy" ] && { echo "$name is healthy"; break; }
+              if [ "$i" = 30 ]; then
+                echo "$name did not become healthy in time (status: $status)" >&2
+                exit 1
+              fi
+              sleep 2
+            done
+          done
+
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - id: playwright-version
+        run: echo "version=$(pnpm --filter @castle-clash/e2e exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v6
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ steps.playwright-version.outputs.version }}-${{ runner.os }}
+      - if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: pnpm --filter @castle-clash/e2e exec playwright install --with-deps chromium
+      - if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: pnpm --filter @castle-clash/e2e exec playwright install-deps chromium
+
+      - run: pnpm --filter @castle-clash/e2e run test:e2e
+        env:
+          CLIENT_URL: http://localhost:8080
+
+      - if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: e2e/playwright-report/
+          retention-days: 7
+      - if: always()
+        run: podman logs server; podman logs client
+      - if: always()
+        run: |
+          podman rm -f server client
+          podman network rm cc-net

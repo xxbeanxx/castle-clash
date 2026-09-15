@@ -100,6 +100,15 @@ export class GameClient {
     return () => this.#matchResultListeners.delete(listener);
   }
 
+  /** The local player's current predicted/visual position — `null` before
+   *  the reconciler is seeded. Exists for `game/debug.ts`'s `VITE_E2E`
+   *  hook, so an e2e test can assert real movement happened without
+   *  inspecting canvas pixels. */
+  get localPosition(): Vec | null {
+    const phase = this.#getPhase();
+    return phase.tag === "predicting" ? phase.reconciler.visualPosition : null;
+  }
+
   /** The connected room's id, once known — `null` before `start()` resolves. */
   get roomId(): string | null {
     const phase = this.#getPhase();

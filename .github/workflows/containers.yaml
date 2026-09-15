@@ -42,7 +42,7 @@ jobs:
             -t castle-clash-${{ matrix.app }}:local \
             -f apps/${{ matrix.app }}/containerfile .
       - run: podman save castle-clash-${{ matrix.app }}:local -o /tmp/${{ matrix.app }}.tar
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: image-${{ matrix.app }}
           path: /tmp/${{ matrix.app }}.tar

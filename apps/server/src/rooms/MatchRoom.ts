@@ -115,7 +115,15 @@ export class MatchRoom extends Room<{ state: MatchState }> {
       lastProcessedSeq[sessionId] = frame.seq;
     }
 
-    this.#sim = simulationStep(this.#sim, inputs).state;
+    const result = simulationStep(this.#sim, inputs);
+    this.#sim = result.state;
     projectToSchema(this.#sim, this.state, lastProcessedSeq);
+
+    // Transient combat/movement feedback (hit, blocked, guardBreak, ko,
+    // whiff, jump, land) — never stored in schema (plan Phase 4 step 4), so
+    // it's only sent when there's something to say.
+    if (result.events.length > 0) {
+      this.broadcast(MESSAGE_TYPES.FX, result.events);
+    }
   }
 }

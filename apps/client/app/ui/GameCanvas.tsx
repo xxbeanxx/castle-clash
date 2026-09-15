@@ -21,5 +21,7 @@ export function GameCanvas() {
     };
   }, []);
 
-  return <div ref={containerRef} data-testid="game-canvas" />;
+  return (
+    <div ref={containerRef} data-testid="game-canvas" style={{ width: "100%", height: "100%" }} />
+  );
 }

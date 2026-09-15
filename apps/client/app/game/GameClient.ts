@@ -4,6 +4,8 @@ import {
   MatchState,
   MESSAGE_TYPES,
   playerId,
+  type PlayerState,
+  schemaToSimPlayer,
   TESTBED_ARENA,
   TICK_RATE,
   type PlayerId,
@@ -23,6 +25,15 @@ export class GameClient {
   #app: Application | undefined;
   #room: Room<unknown, MatchState> | undefined;
   #keyboard: KeyboardInput | undefined;
+  // React StrictMode double-invokes the mount effect in dev: the first
+  // start() can still be awaiting app.init()/joinOrCreate() when its own
+  // cleanup calls destroy() before the second mount's start() begins. Without
+  // this guard, the first start() resumes after destroy() already ran and
+  // finishes setup anyway — two Applications, two room connections, one
+  // container (this is how the bug was actually found: two canvases stacked
+  // in the real browser, invisible to unit tests that mock GameClient
+  // entirely). Checked after every await in start().
+  #destroyed = false;
 
   #localId: PlayerId | undefined;
   #reconciler: Reconciler | undefined;
@@ -37,36 +48,41 @@ export class GameClient {
   async start(container: HTMLElement, roomUrl: string): Promise<void> {
     const app = new Application();
     await app.init({ resizeTo: container, backgroundColor: 0x1a1a1a });
+    if (this.#destroyed) {
+      app.destroy(true, { children: true });
+      return;
+    }
     container.appendChild(app.canvas);
 
     const view = new PlayerRectsView(app.stage);
     const client = new Client(roomUrl);
     const room = await client.joinOrCreate<MatchState>(MATCH_ROOM_NAME, undefined, MatchState);
+    if (this.#destroyed) {
+      await room.leave();
+      app.destroy(true, { children: true });
+      return;
+    }
 
     this.#app = app;
     this.#room = room;
     this.#localId = playerId(room.sessionId);
+    const rngSeed = hashSeed(room.roomId);
 
     this.#keyboard = new KeyboardInput();
     this.#keyboard.attach();
 
-    const rngSeed = hashSeed(room.roomId);
-    const localEntry = room.state.players.get(room.sessionId);
-    if (localEntry) {
-      this.#reconciler = new Reconciler(
-        {
-          pos: { x: localEntry.x, y: localEntry.y },
-          vel: { x: localEntry.vx, y: localEntry.vy },
-          facing: localEntry.facing === -1 ? -1 : 1,
-          grounded: localEntry.grounded,
-          coyoteTicks: localEntry.coyoteTicks,
-          jumpBufferTicks: localEntry.jumpBufferTicks,
-          dropThroughTicks: localEntry.dropThroughTicks,
-          lastInputSeq: localEntry.lastProcessedSeq,
-        },
-        { arena: TESTBED_ARENA, rngSeed, localId: this.#localId },
-      );
-      this.#prevLocalPos = { ...this.#reconciler.visualPosition };
+    // The local player's schema entry can still be undefined right here even
+    // though onJoin already ran server-side: joinOrCreate() can resolve
+    // before the first full-state patch has decoded. Seed the reconciler now
+    // if it's already there, but onStateChange below also seeds it lazily on
+    // whichever patch first carries it — without that fallback, a client
+    // that lost this race predicts nothing and silently never sends input,
+    // forever (found by actually loading the page, not by a unit test: every
+    // existing test mocks either GameClient or a state object that already
+    // has the local player in it).
+    const initialEntry = room.state.players.get(room.sessionId);
+    if (initialEntry) {
+      this.#ensureReconciler(initialEntry, rngSeed);
     }
 
     room.onStateChange((state) => {
@@ -75,6 +91,7 @@ export class GameClient {
 
       state.players.forEach((schemaPlayer, sessionId) => {
         if (sessionId === room.sessionId) {
+          this.#ensureReconciler(schemaPlayer, rngSeed);
           this.#reconciler?.reconcileFromSchema(schemaPlayer);
           return;
         }
@@ -102,6 +119,7 @@ export class GameClient {
   }
 
   async destroy(): Promise<void> {
+    this.#destroyed = true;
     this.#keyboard?.detach();
     this.#keyboard = undefined;
 
@@ -110,6 +128,18 @@ export class GameClient {
 
     this.#app?.destroy(true, { children: true });
     this.#app = undefined;
+  }
+
+  #ensureReconciler(schemaPlayer: PlayerState, rngSeed: number): void {
+    if (this.#reconciler || !this.#localId) {
+      return;
+    }
+    this.#reconciler = new Reconciler(schemaToSimPlayer(schemaPlayer), {
+      arena: TESTBED_ARENA,
+      rngSeed,
+      localId: this.#localId,
+    });
+    this.#prevLocalPos = { ...this.#reconciler.visualPosition };
   }
 
   #fixedUpdate(room: Room<unknown, MatchState>): void {

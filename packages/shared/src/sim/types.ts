@@ -1,6 +1,11 @@
 import type { ArenaRuntime } from "../arenas/types.js";
+import type { ActionState, AttackKind } from "../combat/types.js";
+import { MAX_HP, MAX_STAMINA } from "../config/game.js";
 import type { Vec } from "../math/vec.js";
-import type { PlayerId } from "../types/ids.js";
+import type { PlayerId, WeaponId } from "../types/ids.js";
+import { WEAPON_IDS } from "../types/ids.js";
+
+const DEFAULT_WEAPON: WeaponId = WEAPON_IDS.SWORD;
 
 export interface SimPlayer {
   pos: Vec;
@@ -14,6 +19,32 @@ export interface SimPlayer {
    *  fields, but drop-through can't work without persisting it across ticks. */
   dropThroughTicks: number;
   lastInputSeq: number;
+
+  // Combat (Phase 4, ADR 0001/plan Phase 4 step 1).
+  weapon: WeaponId;
+  action: ActionState;
+  /** Ticks spent in the current `action`; resets to 0 whenever `action`
+   *  changes, so weapon frame data (`combat/weapons.ts`) can be indexed by
+   *  it directly. */
+  actionTick: number;
+  /** Which attack is in flight during AttackStartup/Active/Recovery — `null`
+   *  outside those states. */
+  attackKind: AttackKind | null;
+  hp: number;
+  stamina: number;
+  /** Hitstun ticks remaining, decremented every tick; `action` stays
+   *  HitStun/GuardBroken while this is > 0. */
+  hitstunTicks: number;
+  /** Dodge invulnerability ticks remaining (see `DODGE_IFRAME_TICKS`). */
+  invulnTicks: number;
+  /** Ticks remaining in which a landed hit lets AttackRecovery cancel early
+   *  into Dodge (a hit-confirm cancel) — internal to `fsm.ts`, not named in
+   *  the plan's headline `SimPlayer` field list, same precedent as
+   *  `dropThroughTicks` above. */
+  hitConfirmTicks: number;
+  /** How many lights have chained without returning to a neutral state —
+   *  drives the Sword's "light chains x2" trait in `weapons.ts`. */
+  comboCount: number;
 }
 
 export interface SimState {
@@ -26,7 +57,7 @@ export interface SimState {
   rngSeed: number;
 }
 
-export function createSimPlayer(pos: Vec): SimPlayer {
+export function createSimPlayer(pos: Vec, weapon: WeaponId = DEFAULT_WEAPON): SimPlayer {
   return {
     pos: { x: pos.x, y: pos.y },
     vel: { x: 0, y: 0 },
@@ -36,5 +67,15 @@ export function createSimPlayer(pos: Vec): SimPlayer {
     jumpBufferTicks: 0,
     dropThroughTicks: 0,
     lastInputSeq: 0,
+    weapon,
+    action: "Idle",
+    actionTick: 0,
+    attackKind: null,
+    hp: MAX_HP,
+    stamina: MAX_STAMINA,
+    hitstunTicks: 0,
+    invulnTicks: 0,
+    hitConfirmTicks: 0,
+    comboCount: 0,
   };
 }

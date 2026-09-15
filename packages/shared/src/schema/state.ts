@@ -1,4 +1,6 @@
 import { MapSchema, Schema, type } from "@colyseus/schema";
+import { MAX_HP, MAX_STAMINA } from "../config/game.js";
+import { WEAPON_IDS } from "../types/ids.js";
 
 export class PlayerState extends Schema {
   @type("string") id = "";
@@ -22,6 +24,21 @@ export class PlayerState extends Schema {
   @type("number") coyoteTicks = 0;
   @type("number") jumpBufferTicks = 0;
   @type("number") dropThroughTicks = 0;
+
+  // Combat (Phase 4). `action`/`attackKind` are synced as strings rather
+  // than a numeric enum so clients never need the FSM's state table just to
+  // read them off the wire — see `combat/types.ts` for the closed set of
+  // values each one actually takes.
+  @type("string") weapon: string = WEAPON_IDS.SWORD;
+  @type("string") action = "Idle";
+  @type("number") actionTick = 0;
+  @type("string") attackKind = "";
+  @type("number") hp = MAX_HP;
+  @type("number") stamina = MAX_STAMINA;
+  @type("number") hitstunTicks = 0;
+  @type("number") invulnTicks = 0;
+  @type("number") hitConfirmTicks = 0;
+  @type("number") comboCount = 0;
 }
 
 export class MatchState extends Schema {

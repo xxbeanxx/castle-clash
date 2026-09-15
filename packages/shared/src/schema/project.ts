@@ -1,5 +1,6 @@
+import { isActionState, isAttackKind } from "../combat/types.js";
 import type { SimPlayer, SimState } from "../sim/types.js";
-import type { PlayerId } from "../types/ids.js";
+import { isWeaponId, WEAPON_IDS, type PlayerId } from "../types/ids.js";
 import type { MatchState, PlayerState } from "./state.js";
 
 /**
@@ -36,6 +37,16 @@ export function projectToSchema(
     schemaPlayer.coyoteTicks = simPlayer.coyoteTicks;
     schemaPlayer.jumpBufferTicks = simPlayer.jumpBufferTicks;
     schemaPlayer.dropThroughTicks = simPlayer.dropThroughTicks;
+    schemaPlayer.weapon = simPlayer.weapon;
+    schemaPlayer.action = simPlayer.action;
+    schemaPlayer.actionTick = simPlayer.actionTick;
+    schemaPlayer.attackKind = simPlayer.attackKind ?? "";
+    schemaPlayer.hp = simPlayer.hp;
+    schemaPlayer.stamina = simPlayer.stamina;
+    schemaPlayer.hitstunTicks = simPlayer.hitstunTicks;
+    schemaPlayer.invulnTicks = simPlayer.invulnTicks;
+    schemaPlayer.hitConfirmTicks = simPlayer.hitConfirmTicks;
+    schemaPlayer.comboCount = simPlayer.comboCount;
     const ack = lastProcessedSeq[id];
     if (ack !== undefined) {
       schemaPlayer.lastProcessedSeq = ack;
@@ -55,5 +66,15 @@ export function schemaToSimPlayer(schema: PlayerState): SimPlayer {
     jumpBufferTicks: schema.jumpBufferTicks,
     dropThroughTicks: schema.dropThroughTicks,
     lastInputSeq: schema.lastProcessedSeq,
+    weapon: isWeaponId(schema.weapon) ? schema.weapon : WEAPON_IDS.SWORD,
+    action: isActionState(schema.action) ? schema.action : "Idle",
+    actionTick: schema.actionTick,
+    attackKind: isAttackKind(schema.attackKind) ? schema.attackKind : null,
+    hp: schema.hp,
+    stamina: schema.stamina,
+    hitstunTicks: schema.hitstunTicks,
+    invulnTicks: schema.invulnTicks,
+    hitConfirmTicks: schema.hitConfirmTicks,
+    comboCount: schema.comboCount,
   };
 }

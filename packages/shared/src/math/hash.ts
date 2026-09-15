@@ -27,6 +27,16 @@ export function hashState(state: SimState): number {
       p.jumpBufferTicks,
       p.dropThroughTicks,
       p.lastInputSeq,
+      p.weapon,
+      p.action,
+      p.actionTick,
+      p.attackKind ?? "",
+      p.hp,
+      p.stamina,
+      p.hitstunTicks,
+      p.invulnTicks,
+      p.hitConfirmTicks,
+      p.comboCount,
     ].join(",");
   });
   return fnv1a([state.tick, state.rngSeed, ...players].join(";"));

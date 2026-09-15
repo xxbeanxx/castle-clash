@@ -11,6 +11,16 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <title>Castle Clash</title>
         <Meta />
         <Links />
+        {/*
+          Rendered by the client container's entrypoint.sh from GAME_SERVER_URL/
+          SUPABASE_URL/SUPABASE_PUBLISHABLE_KEY env vars (see config/runtime.ts).
+          A plain (non-module) script here runs synchronously during head parsing,
+          before <Scripts/>'s deferred module scripts — so window.__CONFIG__ is
+          always set before the app bundle reads it. 404s harmlessly in
+          `pnpm dev`, which never serves this file; runtime.ts falls back to a
+          local dev default in that case.
+        */}
+        <script src="/config.js" />
       </head>
       <body>
         {children}

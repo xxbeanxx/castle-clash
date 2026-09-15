@@ -26,6 +26,7 @@
     "@colyseus/schema": "5.0.32"
   },
   "devDependencies": {
+    "fast-check": "4.10.0",
     "tsup": "8.5.1",
     "typescript": "6.0.3",
     "vitest": "5.0.0"

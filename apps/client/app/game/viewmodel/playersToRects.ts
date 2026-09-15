@@ -5,6 +5,10 @@ export interface PlayerRect {
   x: number;
   y: number;
   tint: number;
+  /** The player's current combat `ActionState` (a plain string here, not
+   *  the shared union type — this stays a pure mapping and leaves deciding
+   *  what each state looks like to the render layer). */
+  action: string;
 }
 
 const RGB_MASK = 0xffffff;
@@ -23,7 +27,13 @@ export function playersToRects(
   const rects: PlayerRect[] = [];
   state.players.forEach((player) => {
     const pos = positionOverrides[player.id] ?? player;
-    rects.push({ id: player.id, x: pos.x, y: pos.y, tint: player.colorSeed & RGB_MASK });
+    rects.push({
+      id: player.id,
+      x: pos.x,
+      y: pos.y,
+      tint: player.colorSeed & RGB_MASK,
+      action: player.action,
+    });
   });
   return rects;
 }

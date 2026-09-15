@@ -18,8 +18,8 @@ describe("PlayerRectsView", () => {
     const view = new PlayerRectsView(app.stage);
 
     view.sync([
-      { id: "p1", x: 10, y: 20, tint: 0xff0000 },
-      { id: "p2", x: 30, y: 40, tint: 0x00ff00 },
+      { id: "p1", x: 10, y: 20, tint: 0xff0000, action: "Idle" },
+      { id: "p2", x: 30, y: 40, tint: 0x00ff00, action: "Idle" },
     ]);
 
     expect(app.stage.children).toHaveLength(2);
@@ -36,8 +36,8 @@ describe("PlayerRectsView", () => {
   it("moves an existing player's sprite instead of creating a new one", () => {
     const view = new PlayerRectsView(app.stage);
 
-    view.sync([{ id: "p1", x: 0, y: 0, tint: 0xffffff }]);
-    view.sync([{ id: "p1", x: 15, y: 25, tint: 0xffffff }]);
+    view.sync([{ id: "p1", x: 0, y: 0, tint: 0xffffff, action: "Idle" }]);
+    view.sync([{ id: "p1", x: 15, y: 25, tint: 0xffffff, action: "Idle" }]);
 
     expect(app.stage.children).toHaveLength(1);
     const [sprite] = app.stage.children as [Sprite];
@@ -48,9 +48,27 @@ describe("PlayerRectsView", () => {
   it("removes sprites for players no longer present", () => {
     const view = new PlayerRectsView(app.stage);
 
-    view.sync([{ id: "p1", x: 0, y: 0, tint: 0xffffff }]);
+    view.sync([{ id: "p1", x: 0, y: 0, tint: 0xffffff, action: "Idle" }]);
     view.sync([]);
 
     expect(app.stage.children).toHaveLength(0);
+  });
+
+  it("overrides tint and dims alpha for combat action states", () => {
+    const view = new PlayerRectsView(app.stage);
+
+    view.sync([
+      { id: "hit", x: 0, y: 0, tint: 0x00ff00, action: "HitStun" },
+      { id: "block", x: 0, y: 0, tint: 0x00ff00, action: "Block" },
+      { id: "dodge", x: 0, y: 0, tint: 0x00ff00, action: "Dodge" },
+      { id: "dead", x: 0, y: 0, tint: 0x00ff00, action: "Dead" },
+    ]);
+
+    const [hit, block, dodge, dead] = app.stage.children as [Sprite, Sprite, Sprite, Sprite];
+    expect(hit.tint).toBe(0xff4444);
+    expect(block.tint).toBe(0x4488ff);
+    expect(dodge.tint).toBe(0x00ff00);
+    expect(dodge.alpha).toBeCloseTo(0.4);
+    expect(dead.alpha).toBeCloseTo(0.3);
   });
 });

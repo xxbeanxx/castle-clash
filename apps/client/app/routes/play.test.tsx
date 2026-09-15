@@ -4,10 +4,11 @@ import Play from "./play.js";
 
 const startMock = vi.fn().mockResolvedValue(undefined);
 const destroyMock = vi.fn().mockResolvedValue(undefined);
+const subscribeHudMock = vi.fn().mockReturnValue(() => {});
 
 vi.mock("../game/GameClient.js", () => ({
   GameClient: vi.fn().mockImplementation(function GameClient() {
-    return { start: startMock, destroy: destroyMock };
+    return { start: startMock, destroy: destroyMock, subscribeHud: subscribeHudMock };
   }),
 }));
 

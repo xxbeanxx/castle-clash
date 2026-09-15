@@ -108,6 +108,18 @@ function knockbackVel(attack: AttackDef, attackerFacing: 1 | -1): { x: number; y
  * applies dodge i-frames, block, damage, knockback, hitstun, and KO — all
  * from state gathered before any of it is applied, so simultaneous trades
  * come out the same regardless of which player's hit is processed first.
+ *
+ * No lag compensation yet: hitboxes and hurtboxes are tested against the
+ * server's current-tick positions, not rewound to what the attacker's
+ * client actually saw. `docs/research/phase4-colyseus-rewind-lag-
+ * compensation.md` found `Room.allowRewindState()`/`Rewind` ready to adopt
+ * for this incrementally (unlike `defineInput`/`predict.*`, it doesn't
+ * require swapping the input transport) and recommends doing so — deferred
+ * here the same way Phase 3 deferred the built-in prediction framework:
+ * the plan's Phase 4 gate and tests don't exercise it, and at this sim's
+ * scale (≤ 8 players, dev/LAN latency) the gap isn't yet visible. A later
+ * phase adding real network latency handling should pick this back up
+ * rather than treating its absence as settled.
  */
 export function resolveCombat(
   players: Readonly<Record<PlayerId, SimPlayer>>,

@@ -50,6 +50,17 @@ describe("KeyboardInput", () => {
     expect(input.sample()).toBe(0);
   });
 
+  it.each([
+    ["KeyJ", "LIGHT"],
+    ["KeyK", "HEAVY"],
+    ["KeyL", "BLOCK"],
+    ["ShiftLeft", "DODGE"],
+    ["ShiftRight", "DODGE"],
+  ] as const)("maps %s to %s", (code, bitName) => {
+    keydown(target, code);
+    expect(input.sample()).toBe(INPUT_BITS[bitName]);
+  });
+
   it("stops reacting to events after detach", () => {
     input.detach();
     keydown(target, "ArrowRight");

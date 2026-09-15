@@ -1,9 +1,11 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getRuntimeConfig } from "../config/runtime.js";
 import { GameClient } from "../game/GameClient.js";
+import { CombatHud } from "./CombatHud.js";
 
 export function GameCanvas() {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [client, setClient] = useState<GameClient | null>(null);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -11,17 +13,28 @@ export function GameCanvas() {
       return;
     }
 
-    const client = new GameClient();
-    void client.start(container, getRuntimeConfig().GAME_SERVER_URL).catch((error: unknown) => {
-      console.error("failed to start GameClient", error);
-    });
+    const gameClient = new GameClient();
+    setClient(gameClient);
+    void gameClient
+      .start(container, getRuntimeConfig().GAME_SERVER_URL)
+      .catch((error: unknown) => {
+        console.error("failed to start GameClient", error);
+      });
 
     return () => {
-      void client.destroy();
+      setClient(null);
+      void gameClient.destroy();
     };
   }, []);
 
   return (
-    <div ref={containerRef} data-testid="game-canvas" style={{ width: "100%", height: "100%" }} />
+    <div style={{ position: "relative", width: "100%", height: "100%" }}>
+      <div
+        ref={containerRef}
+        data-testid="game-canvas"
+        style={{ width: "100%", height: "100%" }}
+      />
+      {client && <CombatHud client={client} />}
+    </div>
   );
 }

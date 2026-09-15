@@ -16,11 +16,21 @@ describe("playersToRects", () => {
     expect(playersToRects(new MatchState())).toEqual([]);
   });
 
-  it("maps each player to a rect carrying its id, position, and a tint from colorSeed", () => {
+  it("maps each player to a rect carrying its id, position, tint, and action", () => {
     const state = new MatchState();
     addPlayer(state, "p1", 10, 20, 0xff00ff);
 
-    expect(playersToRects(state)).toEqual([{ id: "p1", x: 10, y: 20, tint: 0xff00ff }]);
+    expect(playersToRects(state)).toEqual([
+      { id: "p1", x: 10, y: 20, tint: 0xff00ff, action: "Idle" },
+    ]);
+  });
+
+  it("carries the player's current action through", () => {
+    const state = new MatchState();
+    addPlayer(state, "p1", 0, 0, 1);
+    state.players.get("p1")!.action = "Block";
+
+    expect(playersToRects(state)[0]?.action).toBe("Block");
   });
 
   it("gives the same tint for the same colorSeed across separate calls", () => {
@@ -38,7 +48,7 @@ describe("playersToRects", () => {
     addPlayer(state, "p1", 10, 20, 0xff00ff);
 
     expect(playersToRects(state, { p1: { x: 99, y: 88 } })).toEqual([
-      { id: "p1", x: 99, y: 88, tint: 0xff00ff },
+      { id: "p1", x: 99, y: 88, tint: 0xff00ff, action: "Idle" },
     ]);
   });
 
@@ -48,8 +58,8 @@ describe("playersToRects", () => {
     addPlayer(state, "p2", 30, 40, 2);
 
     expect(playersToRects(state, { p1: { x: 99, y: 88 } })).toEqual([
-      { id: "p1", x: 99, y: 88, tint: 1 },
-      { id: "p2", x: 30, y: 40, tint: 2 },
+      { id: "p1", x: 99, y: 88, tint: 1, action: "Idle" },
+      { id: "p2", x: 30, y: 40, tint: 2, action: "Idle" },
     ]);
   });
 

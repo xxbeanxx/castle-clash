@@ -13,6 +13,7 @@ import {
 } from "@castle-clash/shared";
 import { Client, type Room } from "@colyseus/sdk";
 import { Application, type Ticker } from "pixi.js";
+import { matchStateToHud, type HudPlayerSnapshot } from "./hud.js";
 import { KeyboardInput } from "./input/KeyboardInput.js";
 import { Interpolator } from "./net/Interpolator.js";
 import { Reconciler } from "./net/Reconciler.js";
@@ -51,6 +52,16 @@ export class GameClient {
   #seq = 0;
   #lastKnownServerTimeMs = 0;
   #lastKnownAtLocalMs = 0;
+
+  readonly #hudListeners = new Set<(snapshots: HudPlayerSnapshot[]) => void>();
+
+  /** Subscribes to HUD snapshots (hp/stamina/weapon/action per player),
+   *  pushed once per server patch — no polling, no per-frame React
+   *  re-render. Returns an unsubscribe function. */
+  subscribeHud(listener: (snapshots: HudPlayerSnapshot[]) => void): () => void {
+    this.#hudListeners.add(listener);
+    return () => this.#hudListeners.delete(listener);
+  }
 
   async start(container: HTMLElement, roomUrl: string): Promise<void> {
     this.#phase = { tag: "starting" };
@@ -124,6 +135,13 @@ export class GameClient {
         this.#remoteInterpolators.set(id, interpolator);
         interpolator.pushFromSchema(schemaPlayer, this.#lastKnownServerTimeMs);
       });
+
+      if (this.#hudListeners.size > 0) {
+        const snapshots = matchStateToHud(state, room.sessionId);
+        for (const listener of this.#hudListeners) {
+          listener(snapshots);
+        }
+      }
     });
 
     app.ticker.add((ticker: Ticker) => {

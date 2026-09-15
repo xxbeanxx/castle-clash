@@ -38,7 +38,7 @@ jobs:
       - run: pnpm --filter @castle-clash/shared run test:coverage
         env:
           FC_SEED: ${{ github.run_id }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: shared-coverage

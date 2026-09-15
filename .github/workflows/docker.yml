@@ -85,6 +85,12 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # smoke-join runs via tsx (no server build needed) but imports
+      # @castle-clash/shared, which resolves through the workspace symlink to
+      # packages/shared/dist — that only exists after a build, which `pnpm
+      # install` doesn't do.
+      - run: pnpm --filter @castle-clash/shared run build
+
       # A headless @colyseus/sdk client joins the "match" room through the
       # running client-facing port and asserts that room state actually
       # arrives — the same round trip a browser tab makes.

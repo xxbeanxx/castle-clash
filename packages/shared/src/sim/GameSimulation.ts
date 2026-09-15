@@ -77,7 +77,10 @@ export function step(
     let coyoteTicks = coyoteAfterGround;
     let jumpBufferTicks = bufferAfterInput;
 
-    let vel = locked ? prev.vel : applyHorizontalMovement(prev.vel, bits, DT);
+    // Always run friction/acceleration, even locked — with bits forced to 0
+    // that's pure friction, so knockback velocity decays normally instead of
+    // drifting forever because a locked state skipped it entirely.
+    let vel = applyHorizontalMovement(prev.vel, locked ? 0 : bits, DT);
     const facing = locked ? prev.facing : updateFacing(prev.facing, bits);
     vel = applyGravity(vel, DT);
 

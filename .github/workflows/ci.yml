@@ -24,7 +24,14 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - run: pnpm turbo run lint typecheck test build
+      - run: pnpm turbo run lint typecheck build
+        env:
+          TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+          TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
+
+      # @castle-clash/shared's tests run once, below, with coverage — excluded
+      # here so its suite doesn't run twice in the same job.
+      - run: pnpm turbo run test --filter='!@castle-clash/shared'
         env:
           TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
           TURBO_TEAM: ${{ secrets.TURBO_TEAM }}

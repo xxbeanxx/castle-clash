@@ -78,9 +78,11 @@ export class MatchRoom extends Room<{ state: MatchState }> {
 
   #onInput(client: Client, payload: unknown): void {
     if (!this.#withinRateLimit(client.sessionId)) {
+      console.warn(`[MatchRoom] rate-limited input from ${client.sessionId}, dropping`);
       return;
     }
     if (!isInputFrame(payload)) {
+      console.warn(`[MatchRoom] malformed input from ${client.sessionId}, dropping`, payload);
       return;
     }
     this.#inputQueue.push(client.sessionId, payload);

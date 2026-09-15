@@ -6,6 +6,7 @@ export * from "./math/vec.js";
 export * from "./math/aabb.js";
 export * from "./math/hash.js";
 export * from "./schema/state.js";
+export * from "./schema/project.js";
 export * from "./protocol/messages.js";
 export * from "./protocol/guards.js";
 export * from "./arenas/index.js";

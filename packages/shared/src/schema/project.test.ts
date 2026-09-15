@@ -1,0 +1,50 @@
+import { describe, expect, it } from "vitest";
+import { TESTBED_ARENA } from "../arenas/testbed.js";
+import { createSimPlayer, type SimState } from "../sim/types.js";
+import { playerId } from "../types/ids.js";
+import { projectToSchema } from "./project.js";
+import { MatchState, PlayerState } from "./state.js";
+
+const P1 = playerId("p1");
+
+function simState(overrides: Partial<SimState> = {}): SimState {
+  return {
+    tick: 5,
+    players: { [P1]: createSimPlayer({ x: 111, y: 222 }) },
+    arena: TESTBED_ARENA,
+    rngSeed: 1,
+    ...overrides,
+  };
+}
+
+describe("projectToSchema", () => {
+  it("copies tick and each existing schema player's position from sim state", () => {
+    const match = new MatchState();
+    const schemaPlayer = new PlayerState();
+    schemaPlayer.id = P1;
+    match.players.set(P1, schemaPlayer);
+
+    projectToSchema(simState(), match, {});
+
+    expect(match.tick).toBe(5);
+    expect(match.players.get(P1)!.x).toBe(111);
+    expect(match.players.get(P1)!.y).toBe(222);
+  });
+
+  it("does not create schema players — MatchRoom owns join/leave lifecycle", () => {
+    const match = new MatchState();
+    projectToSchema(simState(), match, {});
+    expect(match.players.size).toBe(0);
+  });
+
+  it("stamps lastProcessedSeq per player from the given ack map", () => {
+    const match = new MatchState();
+    const schemaPlayer = new PlayerState();
+    schemaPlayer.id = P1;
+    match.players.set(P1, schemaPlayer);
+
+    projectToSchema(simState(), match, { [P1]: 42 });
+
+    expect(match.players.get(P1)!.lastProcessedSeq).toBe(42);
+  });
+});

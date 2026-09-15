@@ -1,6 +1,13 @@
 import type { Room } from "colyseus";
 
-export type TickCallback = (deltaMs: number) => void;
+export interface FixedStep {
+  /** Fixed step in seconds — always `1 / tickRate`, never a measured delta,
+   *  so `GameSimulation.step()` sees identical dt on every tick. */
+  dt: number;
+  tick: number;
+}
+
+export type TickCallback = (step: FixedStep) => void;
 
 export interface TickDriver {
   start(callback: TickCallback): void;
@@ -8,20 +15,26 @@ export interface TickDriver {
 }
 
 /**
- * `setTimestep` schedules its own callback internally, tied to the room's
- * lifecycle — matches `TickDriver.stop()`'s job with nothing left to do.
+ * `setFixedTimestep` (not the deprecated `setTimestep`) hands a `StepContext`
+ * with a fixed `dt`/`tick` driven by a framework-owned accumulator — the
+ * measured wall-clock delta never reaches the callback, which is what
+ * `GameSimulation.step()`'s determinism requires (see
+ * docs/research/phase3-colyseus-input-prediction-api.md).
  */
 export class IntervalTickDriver implements TickDriver {
-  readonly #room: Pick<Room, "setTimestep">;
+  readonly #room: Pick<Room, "setFixedTimestep">;
   readonly #tickRateHz: number;
 
-  constructor(room: Pick<Room, "setTimestep">, tickRateHz: number) {
+  constructor(room: Pick<Room, "setFixedTimestep">, tickRateHz: number) {
     this.#room = room;
     this.#tickRateHz = tickRateHz;
   }
 
   start(callback: TickCallback): void {
-    this.#room.setTimestep(callback, 1000 / this.#tickRateHz);
+    this.#room.setFixedTimestep(
+      (ctx) => callback({ dt: ctx.dt, tick: ctx.tick }),
+      this.#tickRateHz,
+    );
   }
 
   stop(): void {}
@@ -29,6 +42,7 @@ export class IntervalTickDriver implements TickDriver {
 
 export class ManualTickDriver implements TickDriver {
   #callback: TickCallback | undefined;
+  #tick = 0;
 
   start(callback: TickCallback): void {
     this.#callback = callback;
@@ -38,9 +52,10 @@ export class ManualTickDriver implements TickDriver {
     this.#callback = undefined;
   }
 
-  step(times = 1, deltaMs = 0): void {
+  step(times = 1, dt = 1 / 60): void {
     for (let i = 0; i < times; i++) {
-      this.#callback?.(deltaMs);
+      this.#tick += 1;
+      this.#callback?.({ dt, tick: this.#tick });
     }
   }
 }

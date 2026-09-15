@@ -1,25 +1,5 @@
-import { useEffect, useRef } from "react";
-import { getRuntimeConfig } from "../config/runtime.js";
-import { GameClient } from "../game/GameClient.js";
+import { GameCanvas } from "../ui/GameCanvas.js";
 
 export default function Play() {
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) {
-      return;
-    }
-
-    const client = new GameClient();
-    void client.start(container, getRuntimeConfig().GAME_SERVER_URL).catch((error: unknown) => {
-      console.error("failed to start GameClient", error);
-    });
-
-    return () => {
-      void client.destroy();
-    };
-  }, []);
-
-  return <div ref={containerRef} data-testid="game-canvas" />;
+  return <GameCanvas />;
 }

@@ -18,6 +18,7 @@
   },
   "dependencies": {
     "@castle-clash/shared": "workspace:*",
+    "@colyseus/monitor": "0.18.3",
     "colyseus": "0.18.5",
     "express": "5.2.1"
   },

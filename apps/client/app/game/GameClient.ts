@@ -1,4 +1,4 @@
-import { MatchState } from "@castle-clash/shared";
+import { MATCH_ROOM_NAME, MatchState } from "@castle-clash/shared";
 import { Client, type Room } from "@colyseus/sdk";
 import { Application } from "pixi.js";
 import { PlayerRectsView } from "./render/PlayerRects.js";
@@ -15,7 +15,7 @@ export class GameClient {
 
     const view = new PlayerRectsView(app.stage);
     const client = new Client(roomUrl);
-    const room = await client.joinOrCreate<MatchState>("match", undefined, MatchState);
+    const room = await client.joinOrCreate<MatchState>(MATCH_ROOM_NAME, undefined, MatchState);
 
     this.#app = app;
     this.#room = room;

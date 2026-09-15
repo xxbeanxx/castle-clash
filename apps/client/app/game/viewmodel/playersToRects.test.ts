@@ -33,6 +33,26 @@ describe("playersToRects", () => {
     expect(first?.tint).toBe(second?.tint);
   });
 
+  it("substitutes a position override for a player when one is given", () => {
+    const state = new MatchState();
+    addPlayer(state, "p1", 10, 20, 0xff00ff);
+
+    expect(playersToRects(state, { p1: { x: 99, y: 88 } })).toEqual([
+      { id: "p1", x: 99, y: 88, tint: 0xff00ff },
+    ]);
+  });
+
+  it("falls back to schema position for a player with no override", () => {
+    const state = new MatchState();
+    addPlayer(state, "p1", 10, 20, 1);
+    addPlayer(state, "p2", 30, 40, 2);
+
+    expect(playersToRects(state, { p1: { x: 99, y: 88 } })).toEqual([
+      { id: "p1", x: 99, y: 88, tint: 1 },
+      { id: "p2", x: 30, y: 40, tint: 2 },
+    ]);
+  });
+
   it("omits players who are no longer in state", () => {
     const state = new MatchState();
     addPlayer(state, "p1", 0, 0, 1);

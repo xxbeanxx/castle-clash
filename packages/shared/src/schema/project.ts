@@ -1,6 +1,6 @@
-import type { SimState } from "../sim/types.js";
+import type { SimPlayer, SimState } from "../sim/types.js";
 import type { PlayerId } from "../types/ids.js";
-import type { MatchState } from "./state.js";
+import type { MatchState, PlayerState } from "./state.js";
 
 /**
  * Copies sim state into the network schema once per tick (ADR 0001) — the
@@ -8,6 +8,11 @@ import type { MatchState } from "./state.js";
  * `@colyseus/schema` instances. Never creates or removes schema players:
  * `MatchRoom`'s `onJoin`/`onLeave` own that lifecycle, so a stale/unknown id
  * here is silently skipped rather than treated as a signal to add one.
+ *
+ * Syncs the player's full physics state, not just position: the owning
+ * client's `Reconciler` replays pending inputs starting from exactly this
+ * `SimPlayer` (via `schemaToSimPlayer`), so anything less would replay a
+ * different trajectory than the server did.
  */
 export function projectToSchema(
   sim: SimState,
@@ -24,9 +29,31 @@ export function projectToSchema(
     const simPlayer = sim.players[id]!;
     schemaPlayer.x = simPlayer.pos.x;
     schemaPlayer.y = simPlayer.pos.y;
+    schemaPlayer.vx = simPlayer.vel.x;
+    schemaPlayer.vy = simPlayer.vel.y;
+    schemaPlayer.facing = simPlayer.facing;
+    schemaPlayer.grounded = simPlayer.grounded;
+    schemaPlayer.coyoteTicks = simPlayer.coyoteTicks;
+    schemaPlayer.jumpBufferTicks = simPlayer.jumpBufferTicks;
+    schemaPlayer.dropThroughTicks = simPlayer.dropThroughTicks;
     const ack = lastProcessedSeq[id];
     if (ack !== undefined) {
       schemaPlayer.lastProcessedSeq = ack;
     }
   }
+}
+
+/** The inverse of `projectToSchema` for one player — reconstructs the exact
+ *  `SimPlayer` a client's `Reconciler` needs to replay pending inputs from. */
+export function schemaToSimPlayer(schema: PlayerState): SimPlayer {
+  return {
+    pos: { x: schema.x, y: schema.y },
+    vel: { x: schema.vx, y: schema.vy },
+    facing: schema.facing === -1 ? -1 : 1,
+    grounded: schema.grounded,
+    coyoteTicks: schema.coyoteTicks,
+    jumpBufferTicks: schema.jumpBufferTicks,
+    dropThroughTicks: schema.dropThroughTicks,
+    lastInputSeq: schema.lastProcessedSeq,
+  };
 }

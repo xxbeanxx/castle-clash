@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { TESTBED_ARENA } from "../arenas/testbed.js";
 import { createSimPlayer, type SimState } from "../sim/types.js";
 import { playerId } from "../types/ids.js";
-import { projectToSchema } from "./project.js";
+import { projectToSchema, schemaToSimPlayer } from "./project.js";
 import { MatchState, PlayerState } from "./state.js";
 
 const P1 = playerId("p1");
@@ -46,5 +46,53 @@ describe("projectToSchema", () => {
     projectToSchema(simState(), match, { [P1]: 42 });
 
     expect(match.players.get(P1)!.lastProcessedSeq).toBe(42);
+  });
+
+  it("copies full physics state, not just position", () => {
+    const match = new MatchState();
+    const schemaPlayer = new PlayerState();
+    schemaPlayer.id = P1;
+    match.players.set(P1, schemaPlayer);
+
+    const player = createSimPlayer({ x: 1, y: 2 });
+    player.vel = { x: 30, y: -40 };
+    player.facing = -1;
+    player.grounded = true;
+    player.coyoteTicks = 3;
+    player.jumpBufferTicks = 4;
+    player.dropThroughTicks = 5;
+
+    projectToSchema(simState({ players: { [P1]: player } }), match, {});
+
+    const synced = match.players.get(P1)!;
+    expect(synced.vx).toBe(30);
+    expect(synced.vy).toBe(-40);
+    expect(synced.facing).toBe(-1);
+    expect(synced.grounded).toBe(true);
+    expect(synced.coyoteTicks).toBe(3);
+    expect(synced.jumpBufferTicks).toBe(4);
+    expect(synced.dropThroughTicks).toBe(5);
+  });
+});
+
+describe("schemaToSimPlayer", () => {
+  it("is the exact inverse of projectToSchema for one player", () => {
+    const match = new MatchState();
+    const schemaPlayer = new PlayerState();
+    schemaPlayer.id = P1;
+    match.players.set(P1, schemaPlayer);
+
+    const player = createSimPlayer({ x: 111, y: 222 });
+    player.vel = { x: 30, y: -40 };
+    player.facing = -1;
+    player.grounded = true;
+    player.coyoteTicks = 3;
+    player.jumpBufferTicks = 4;
+    player.dropThroughTicks = 5;
+    player.lastInputSeq = 9;
+
+    projectToSchema(simState({ players: { [P1]: player } }), match, { [P1]: 9 });
+
+    expect(schemaToSimPlayer(match.players.get(P1)!)).toEqual(player);
   });
 });

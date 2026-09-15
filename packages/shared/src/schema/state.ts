@@ -9,6 +9,19 @@ export class PlayerState extends Schema {
    *  state — the reconcile ack the owning client drops its pending buffer
    *  against. Harmless noise to every other connected client. */
   @type("number") lastProcessedSeq = 0;
+
+  // Full physics state, not just position: the owning client's Reconciler
+  // replays pending inputs through GameSimulation.step() starting from this
+  // exact SimPlayer, so an approximation here (e.g. assuming vel=0,
+  // grounded=false) would replay a different trajectory than the server did
+  // and reintroduce the jank reconciliation exists to remove.
+  @type("number") vx = 0;
+  @type("number") vy = 0;
+  @type("number") facing = 1;
+  @type("boolean") grounded = false;
+  @type("number") coyoteTicks = 0;
+  @type("number") jumpBufferTicks = 0;
+  @type("number") dropThroughTicks = 0;
 }
 
 export class MatchState extends Schema {

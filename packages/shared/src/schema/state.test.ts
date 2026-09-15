@@ -10,6 +10,18 @@ describe("PlayerState", () => {
     expect(player.colorSeed).toBe(0);
   });
 
+  it("defaults physics fields to a grounded-at-rest player facing right", () => {
+    const player = new PlayerState();
+    expect(player.vx).toBe(0);
+    expect(player.vy).toBe(0);
+    expect(player.facing).toBe(1);
+    expect(player.grounded).toBe(false);
+    expect(player.coyoteTicks).toBe(0);
+    expect(player.jumpBufferTicks).toBe(0);
+    expect(player.dropThroughTicks).toBe(0);
+    expect(player.lastProcessedSeq).toBe(0);
+  });
+
   it("holds assigned values", () => {
     const player = new PlayerState();
     player.id = "abc123";

@@ -10,17 +10,20 @@ client, and Supabase for auth/persistence, in a pnpm + Turborepo monorepo.
 **`docs/IMPLEMENTATION_PLAN.md` is the source of truth** for architecture and the phase-by-phase
 build order — read it before making structural changes. It's being implemented phase by phase;
 check its "Phase N" sections against what actually exists in the tree to see how far the build has
-gotten (as of this writing: Phase 2, Walking Skeleton, is done — a browser joins the `match` room
-over a real WebSocket and every connected player syncs as `PlayerState` in `MatchState`; no sim,
-combat, arenas, or auth exist yet, so `MatchRoom` only tracks join/leave and an incrementing tick).
-`docs/adr/` records specific decisions (currently just ADR 0001, the isomorphic-sim boundary);
-`docs/research/` records version/API facts verified against live docs mid-implementation — check it
-before trusting a version number stated in the plan's prose, since several were wrong when written
-(pnpm "10" vs the actual 12, Colyseus's server bootstrap API, etc.). `docs/research/phase2-colyseus-
-client-compat.md` matters for anyone touching the client's Colyseus connection: the plan's
-`colyseus.js` assumption is stale — the browser client dependency is `@colyseus/sdk`, not
-`colyseus.js` (which tops out at 0.16.x with an incompatible `@colyseus/schema` v3 decoder against
-this server's v5 schema).
+gotten (as of this writing: Phase 3, Deterministic Movement and Netcode, is done and its gate
+passed live — a browser predicts its own movement locally against `packages/shared/src/sim` and
+reconciles against the server's authoritative tick, while remote players are interpolated; combat,
+real arenas/hazards, matchmaking, and auth don't exist yet, so there's one placeholder `testbed`
+arena and no way to take or deal damage). `docs/adr/` records specific decisions (currently just
+ADR 0001, the isomorphic-sim boundary); `docs/research/` records version/API facts verified against
+live docs mid-implementation — check it before trusting a version number stated in the plan's
+prose, since several were wrong when written (pnpm "10" vs the actual 12, Colyseus's server
+bootstrap API, etc.). `docs/research/phase2-colyseus-client-compat.md` matters for anyone touching
+the client's Colyseus connection: the plan's `colyseus.js` assumption is stale — the browser client
+dependency is `@colyseus/sdk`, not `colyseus.js` (which tops out at 0.16.x with an incompatible
+`@colyseus/schema` v3 decoder against this server's v5 schema). `docs/research/phase3-colyseus-
+input-prediction-api.md` covers the input/prediction API facts checked before Phase 3's netcode was
+built.
 
 ## Commands
 
@@ -115,14 +118,20 @@ service is up and the exact same URL is reachable from the host.
 A headless join smoke test lives at `apps/server/scripts/smoke-join.ts` (`pnpm --filter server run
 smoke-join`, reads `GAME_SERVER_URL` from the env): it connects with `@colyseus/sdk`, joins `match`,
 and asserts state arrives with the expected player count. CI's `docker.yml` `smoke` job runs this
-against the compose stack before the `push` job (gated on `smoke`) publishes to GHCR.
+against the compose stack before the `push` job (gated on `smoke`) publishes to GHCR. `smoke-join`
+runs via `tsx` against checked-out source, not the built container images, but it still imports
+`@castle-clash/shared`, which resolves through the workspace symlink to `packages/shared/dist` — a
+directory `pnpm install` doesn't produce and that only exists locally because `turbo` builds it as
+a dependency of other tasks. The `smoke` job runs `pnpm --filter @castle-clash/shared run build`
+right before `smoke-join` for exactly this reason; a fresh runner that skips straight from
+`pnpm install` to `smoke-join` fails with `ERR_MODULE_NOT_FOUND`.
 
 ## Architecture
 
 ### The isomorphic boundary is enforced by tooling, not just convention
 
-`packages/shared` holds gameplay rules (physics, combat, hazards, power-ups — once written) as
-pure functions: no DOM, no Node APIs, no wall-clock reads. The server will run this code
+`packages/shared` holds gameplay rules (physics and movement now; combat, hazards, and power-ups
+to come) as pure functions: no DOM, no Node APIs, no wall-clock reads. The server runs this code
 authoritatively; the client runs the identical code for local prediction. This is ADR 0001's
 decision (D1–D3 in the plan), and it's checked mechanically in two places:
 
@@ -134,10 +143,10 @@ decision (D1–D3 in the plan), and it's checked mechanically in two places:
   `apps/client/app/game/**` (the `GameClient` layer, landed in Phase 2), blocks `react` imports the
   same way: Pixi runs imperatively there, and React never re-renders on the game loop.
 
-When Colyseus/`@colyseus/schema` land in Phase 2+, the sim will run on plain objects (`SimState`),
-separate from the `@colyseus/schema` network classes — a `projectToSchema()` step copies sim state
-into schema once per tick, rather than gameplay code touching schema instances directly. See ADR
-0001 for why.
+Since Phase 3, the sim runs on plain objects (`packages/shared/src/sim/types.ts`'s `SimState`),
+separate from the `@colyseus/schema` network classes — `MatchRoom`'s tick calls
+`packages/shared/src/schema/project.ts`'s `projectToSchema()` once per tick to copy sim state into
+schema, rather than gameplay code touching schema instances directly. See ADR 0001 for why.
 
 ### The walking skeleton (Phase 2)
 
@@ -145,16 +154,19 @@ into schema once per tick, rather than gameplay code touching schema instances d
 decorator API — same classes run in both `apps/server` and `apps/client`, since schema is
 isomorphic-safe: no DOM/Node APIs). `apps/server/src/rooms/MatchRoom.ts` is the thin room described
 in D2: `onJoin`/`onLeave` add/remove a `PlayerState`, and an injected `TickDriver`
-(`apps/server/src/rooms/TickDriver.ts`) increments `state.tick` — `IntervalTickDriver` wraps the
-room's `setTimestep` in prod (not `setSimulationInterval`, which the plan's prose names but which
-`@colyseus/core@0.18.13` marks deprecated in favor of `setTimestep`; same behavior), and
-`ManualTickDriver.step(n)` drives it synchronously in tests, ahead of Phase 3 actually needing a
-real per-tick sim. `apps/client/app/game/GameClient.ts` (no React below `app/game/**`, enforced by
-ESLint) owns the Pixi `Application` and the room connection; `game/viewmodel/playersToRects.ts` is
-the pure `MatchState -> {id,x,y,tint}[]` mapping Pixi code draws from, and
+(`apps/server/src/rooms/TickDriver.ts`) drives the tick — `IntervalTickDriver` wraps the room's
+`setFixedTimestep` in prod (not `setSimulationInterval`, which the plan's prose names, nor
+`setTimestep`, which Phase 2's first pass used; both hand a *measured*, jittery wall-clock delta,
+which `GameSimulation.step()`'s determinism can't tolerate — `setFixedTimestep` hands a
+framework-owned, always-`1/tickRate` `dt` instead, per `docs/research/phase3-colyseus-input-
+prediction-api.md`), and `ManualTickDriver.step(n)` drives it synchronously in tests — built ahead
+of Phase 3's real per-tick sim need, and now also what `MatchRoom.movement.test.ts`'s
+scripted-input tests drive. `apps/client/app/game/GameClient.ts` (no React below `app/game/**`,
+enforced by oxlint) owns the Pixi `Application` and the room connection; `game/viewmodel/
+playersToRects.ts` is the pure `MatchState -> {id,x,y,tint}[]` mapping Pixi code draws from, and
 `game/render/PlayerRects.ts` syncs one tinted `Sprite` per player against a real `Container` —
-tested against a real Pixi `Application` in Vitest browser mode (`@vitest/browser-playwright` +
-a locally-installed Chromium; see `apps/client/vitest.browser.config.ts` and the `test:browser`
+tested against a real Pixi `Application` in Vitest browser mode (`@vitest/browser-playwright` + a
+locally-installed Chromium; see `apps/client/vitest.browser.config.ts` and the `test:browser`
 script), since jsdom can't drive Pixi's canvas/WebGL renderer.
 
 **The client's Colyseus SDK is `@colyseus/sdk`, not `colyseus.js`** — the plan's Phase 2 prose
@@ -171,26 +183,85 @@ its `app` parameter as the narrower `express.Application`, not `@types/express`'
 `apps/server/src/http.ts`'s `registerHealthRoutes`, has to type its own parameter as `Application`
 or TS rejects the assignment.
 
+### Deterministic movement and netcode (Phase 3)
+
+`packages/shared/src/sim/` is the authoritative gameplay core, all pure functions over plain
+objects: `physics.ts` (gravity, axis-separated AABB sweep, one-way platforms, terminal velocity),
+`movement.ts` (acceleration/friction, coyote time, jump buffering, variable jump height,
+drop-through), and `GameSimulation.step(state, inputs)`, which both `MatchRoom` and the client's
+`Reconciler` call — the server for real ticks, the client to predict and to replay pending inputs
+after a reconciliation. `packages/shared/src/arenas/testbed.ts` is the one placeholder arena
+(`TESTBED_ARENA`) real arenas will replace in Phase 6. `packages/shared/src/testing/` (`SimHarness`
+for scripted N-tick runs, `NetSim` for an in-memory latency/jitter/loss-configurable network,
+`bots/scripted.ts`) exists for exactly the determinism and convergence tests the plan's Phase 3
+gate names, in `packages/shared/src/sim/determinism.test.ts` and `testing/NetSim.test.ts`.
+
+The prediction/interpolation logic itself is split across the isomorphic boundary the same way sim
+is: `packages/shared/src/net/{Reconciler,Interpolator}.ts` hold the framework-free core (predict,
+replay pending inputs on reconcile, snapshot-buffer interpolation at `serverTime − 100 ms`), and
+`apps/client/app/game/net/{Reconciler,Interpolator}.ts` are thin adapters — the only client-specific
+piece is decoding a `@colyseus/schema` `PlayerState` into the plain `SimPlayer` the shared core
+replays from (`schemaToSimPlayer`). Server-side, `apps/server/src/rooms/InputQueue.ts` is a
+per-player ring buffer (rejects stale `seq`, caps depth at 8, repeats the last frame for up to 6
+ticks before going neutral), and `MatchRoom`'s tick is `drain inputs → GameSimulation.step →
+projectToSchema → record lastProcessedSeq`, at `setPatchRate(1000 / PATCH_RATE)`. Client-side,
+`apps/client/app/game/input/KeyboardInput.ts` samples key state into a bitmask on the fixed-step
+accumulator (not per render frame), and `GameClient.ts` runs a fixed 60 Hz sim loop with rendering
+interpolated between steps by `alpha`.
+
+`GameClient`'s lifecycle is a typed `Phase` union (`idle → starting → connected → predicting`, plus
+`destroyed`), not independent optional fields — that refactor (`8607e33`) followed two real bugs
+found only by loading the game in an actual browser, not from the (all-green) test suite, which
+mocks `GameClient` wholesale or hands it state that already has the local player in it:
+1. React StrictMode double-invokes the mount effect in dev, so `destroy()` can race `start()`'s own
+   in-flight `await`s; every post-`await` continuation in `start()` has to check the phase (via a
+   `#getPhase()` method, not a direct field read — tsc's control-flow narrowing doesn't know
+   `destroy()` can mutate `#phase` during an `await`, and flags a direct comparison as an impossible
+   literal) and tear down cleanly if a `destroy()` already ran.
+2. `room.state.players.get(room.sessionId)` right after `joinOrCreate()` can be `undefined` —
+   `joinOrCreate()` can resolve before the first full-state patch decodes — so the `Reconciler` is
+   seeded lazily from whichever `onStateChange` patch first carries the local player's schema entry,
+   not just once right after join.
+
+`ci.yml` turns on Vitest coverage for `packages/shared` (`sim/**` ≥ 90% lines) and sets `FC_SEED`
+from `github.run_id` on both the main verify step and the coverage step, so a `fast-check`
+property-test failure in CI reproduces locally with the exact same seed.
+
+**The hand-rolled `InputQueue`/`Reconciler`/`Interpolator` is a deliberate choice, not an
+oversight** — `@colyseus/core`'s `Room.defineInput()` and `@colyseus/sdk`'s `room.input()` +
+`predict.reconciler()`/`predict.sim()` already ship a complete, more capable input-buffering and
+client-prediction/rollback framework (evaluated in full in
+`docs/research/phase3-colyseus-input-prediction-api.md` §2). It wasn't adopted for Phase 3 because
+it's a negotiated wire protocol coupling both ends — a client can't send raw `room.send("input", …)`
+into a server `defineInput()` buffer, so adopting it is an all-or-nothing swap of the whole netcode
+stack, not an incremental one — and because verifying it meets the plan's exact thresholds (buffer
+depth 8, 6-tick repeat-then-neutral, 4 px smoothing cutoff, 100 ms remote lag) means reading several
+more undocumented `.d.ts` modules than fit in this phase. Don't "simplify" the hand-rolled version
+onto the built-in one without redoing that evaluation; it's a real, deliberately-deferred option
+for a later phase, not an obviously-superseded first attempt.
+
 ### Workspace layout and package boundaries
 
 ```
 apps/server/    # Colyseus authoritative server (Node, tsc build)
 apps/client/    # React Router v8 SPA (ssr: false) + PixiJS, Vite build
-packages/shared/ # isomorphic: config, types, input, math (sim/combat/arenas/schema come later)
+packages/shared/ # isomorphic: config, types, input, math, sim, arenas, net, schema (combat comes later)
 ```
 
 `packages/shared` publishes two subpath exports, wired via `tsup` (`tsup.config.ts` lists both
 entry points) and `package.json`'s `exports` map: `.` (the gameplay/types/math surface) and
-`./testing` (currently an empty placeholder — `SimHarness`/`NetSim`/bots land in Phase 3, but the
-export path exists now so consumers have a stable import from the start).
+`./testing` (`SimHarness`, `NetSim`, and `testing/bots/scripted.ts`, filled in during Phase 3 — the
+export path existed as an empty placeholder since Phase 1 so consumers had a stable import from the
+start).
 
 Each package's `tsconfig.json` extends the root `tsconfig.base.json` (strict,
 `noUncheckedIndexedAccess`, `verbatimModuleSyntax`) and overrides only what differs — module
 resolution (`bundler` for the client, `nodenext` for the server), `lib`/`types`, and the
-`experimentalDecorators`/`useDefineForClassFields: false` pair that `@colyseus/schema`'s decorators
-will need once schema classes exist. If you add a package or app, extend the base config rather
-than hand-duplicating its flags — a client tsconfig that didn't do this was a real bug caught in
-Phase 1's code review, because it let strictness silently drift out of sync with its siblings.
+`experimentalDecorators`/`useDefineForClassFields: false` pair `@colyseus/schema`'s decorators need
+(`packages/shared/src/schema/state.ts`'s `PlayerState`/`MatchState`, legacy decorator API). If you
+add a package or app, extend the base config rather than hand-duplicating its flags — a client
+tsconfig that didn't do this was a real bug caught in Phase 1's code review, because it let
+strictness silently drift out of sync with its siblings.
 
 `apps/server` splits its build into two tsconfigs: `tsconfig.json` (used by `tsc --noEmit` for
 typecheck, includes test files) and `tsconfig.build.json` (extends it, excludes `**/*.test.ts`) so

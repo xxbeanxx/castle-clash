@@ -161,6 +161,9 @@ export function step(
   const players: Record<PlayerId, SimPlayer> = { ...combat.players };
 
   // Record who last landed a hit, for kill-zone ring-out credit below.
+  // `CombatEvent.defender` is typed optional only because "whiff" lacks
+  // one — `resolve.ts` always sets it for hit/blocked/guardBreak/ko, so the
+  // `!` below is safe, not a workaround.
   for (const event of combat.events) {
     if (event.type === "hit" || event.type === "blocked" || event.type === "guardBreak") {
       const defenderId = event.defender!;

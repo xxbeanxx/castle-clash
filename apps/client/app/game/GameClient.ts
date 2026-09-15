@@ -35,6 +35,28 @@ export type JoinIntent =
   | { kind: "joinById"; roomId: string }
   | { kind: "reconnect"; token: string };
 
+/** A tiny pub/sub primitive — `subscribeHud`/`subscribeMatchFlow`/
+ *  `subscribeMatchCode`/`subscribeMatchResult` were four copies of the same
+ *  add-to-a-`Set`-and-return-an-unsubscriber shape before this existed. */
+class Emitter<T> {
+  readonly #listeners = new Set<(value: T) => void>();
+
+  subscribe(listener: (value: T) => void): () => void {
+    this.#listeners.add(listener);
+    return () => this.#listeners.delete(listener);
+  }
+
+  get hasListeners(): boolean {
+    return this.#listeners.size > 0;
+  }
+
+  emit(value: T): void {
+    for (const listener of this.#listeners) {
+      listener(value);
+    }
+  }
+}
+
 interface Resources {
   readonly app: Application;
   readonly room: Room<unknown, MatchState>;
@@ -66,38 +88,34 @@ export class GameClient {
   #lastKnownServerTimeMs = 0;
   #lastKnownAtLocalMs = 0;
 
-  readonly #hudListeners = new Set<(snapshots: HudPlayerSnapshot[]) => void>();
-  readonly #matchFlowListeners = new Set<(snapshot: MatchFlowSnapshot) => void>();
-  readonly #matchCodeListeners = new Set<(code: string) => void>();
-  readonly #matchResultListeners = new Set<(result: MatchResult) => void>();
+  readonly #hud = new Emitter<HudPlayerSnapshot[]>();
+  readonly #matchFlow = new Emitter<MatchFlowSnapshot>();
+  readonly #matchCode = new Emitter<string>();
+  readonly #matchResult = new Emitter<MatchResult>();
 
   /** Subscribes to HUD snapshots (hp/stamina/weapon/action per player),
    *  pushed once per server patch — no polling, no per-frame React
    *  re-render. Returns an unsubscribe function. */
   subscribeHud(listener: (snapshots: HudPlayerSnapshot[]) => void): () => void {
-    this.#hudListeners.add(listener);
-    return () => this.#hudListeners.delete(listener);
+    return this.#hud.subscribe(listener);
   }
 
   /** Subscribes to the match's phase/round/countdown banner, pushed once per
    *  server patch alongside the HUD. */
   subscribeMatchFlow(listener: (snapshot: MatchFlowSnapshot) => void): () => void {
-    this.#matchFlowListeners.add(listener);
-    return () => this.#matchFlowListeners.delete(listener);
+    return this.#matchFlow.subscribe(listener);
   }
 
   /** Subscribes to the private room's join code, sent once right after
    *  creating one — nothing fires for a quick-play or joined-by-code room. */
   subscribeMatchCode(listener: (code: string) => void): () => void {
-    this.#matchCodeListeners.add(listener);
-    return () => this.#matchCodeListeners.delete(listener);
+    return this.#matchCode.subscribe(listener);
   }
 
   /** Subscribes to the `MatchResult` broadcast once, the tick the match
    *  ends. */
   subscribeMatchResult(listener: (result: MatchResult) => void): () => void {
-    this.#matchResultListeners.add(listener);
-    return () => this.#matchResultListeners.delete(listener);
+    return this.#matchResult.subscribe(listener);
   }
 
   /** The local player's current predicted/visual position — `null` before
@@ -155,16 +173,8 @@ export class GameClient {
       return;
     }
 
-    room.onMessage(MESSAGE_TYPES.MATCH_CODE, (code: string) => {
-      for (const listener of this.#matchCodeListeners) {
-        listener(code);
-      }
-    });
-    room.onMessage(MESSAGE_TYPES.MATCH_RESULT, (result: MatchResult) => {
-      for (const listener of this.#matchResultListeners) {
-        listener(result);
-      }
-    });
+    room.onMessage(MESSAGE_TYPES.MATCH_CODE, (code: string) => this.#matchCode.emit(code));
+    room.onMessage(MESSAGE_TYPES.MATCH_RESULT, (result: MatchResult) => this.#matchResult.emit(result));
 
     const keyboard = new KeyboardInput();
     keyboard.attach();
@@ -212,17 +222,11 @@ export class GameClient {
         interpolator.pushFromSchema(schemaPlayer, this.#lastKnownServerTimeMs);
       });
 
-      if (this.#hudListeners.size > 0) {
-        const snapshots = matchStateToHud(state, room.sessionId);
-        for (const listener of this.#hudListeners) {
-          listener(snapshots);
-        }
+      if (this.#hud.hasListeners) {
+        this.#hud.emit(matchStateToHud(state, room.sessionId));
       }
-      if (this.#matchFlowListeners.size > 0) {
-        const snapshot = matchStateToPhaseBanner(state);
-        for (const listener of this.#matchFlowListeners) {
-          listener(snapshot);
-        }
+      if (this.#matchFlow.hasListeners) {
+        this.#matchFlow.emit(matchStateToPhaseBanner(state));
       }
     });
 

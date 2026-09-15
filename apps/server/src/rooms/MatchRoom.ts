@@ -30,6 +30,8 @@ const RATE_LIMIT_WINDOW_MS = 1000;
  *  finally removed from the match (plan Phase 5 step 3). */
 const RECONNECTION_WINDOW_SECONDS = 20;
 
+type MatchDirectorEvents = ReturnType<MatchDirector["tick"]>["events"];
+
 export type MatchMode = "quick" | "private";
 
 export interface MatchRoomOptions {
@@ -86,7 +88,17 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
     player.colorSeed = hashSeed(client.sessionId);
 
     // A room mid-round doesn't hand a brand-new player a body until the next
-    // round starts (plan step 3) — they watch instead.
+    // round starts (plan step 3) — they watch instead. Deliberately NOT
+    // implemented via the plan's literal "rooms lock during RoundActive":
+    // Colyseus's `room.lock()` rejects joinById/joinOrCreate outright
+    // (MATCHMAKE_INVALID_ROOM_ID) — a genuinely locked room can't accept a
+    // spectator either, since it can't accept anyone. `filterBy(["mode",
+    // "code"])` already keeps quick-play matchmaking from routing new
+    // randoms into a room mid-match (its metadata still matches, but a
+    // locked room would be excluded from the query the same way — the
+    // difference only matters for someone joining a specific roomId/code
+    // directly, which is exactly the "or spectate" case this achieves
+    // instead).
     const spectating = this.#director.phase.phase === "RoundActive";
     player.spectator = spectating;
     player.alive = !spectating;
@@ -109,10 +121,7 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
    *  elimination for the *current* round — the reconnecting player simply
    *  plays again from the next round on. */
   onDrop(client: Client): void {
-    const id = playerId(client.sessionId);
-    if (this.#director.phase.phase === "RoundActive") {
-      this.#director.eliminateByDisconnect(id, this.#sim, this.#sim.tick);
-    }
+    this.#eliminateIfRoundActive(playerId(client.sessionId));
     this.allowReconnection(client, RECONNECTION_WINDOW_SECONDS).catch(() => {
       // Reconnection window expired or was rejected — onLeave() below still
       // runs and does the real cleanup either way.
@@ -121,6 +130,9 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
 
   onLeave(client: Client): void {
     const id = playerId(client.sessionId);
+    // A consented mid-round leave (no prior onDrop) is still an elimination
+    // — a no-op if onDrop already handled this exact departure.
+    this.#eliminateIfRoundActive(id);
     this.state.players.delete(client.sessionId);
     const remainingPlayers = { ...this.#sim.players };
     delete remainingPlayers[id];
@@ -129,6 +141,16 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
     this.#messageWindows.delete(client.sessionId);
     this.#spectatorIds.delete(client.sessionId);
     this.#director.removePlayer(id);
+  }
+
+  #eliminateIfRoundActive(id: PlayerId): void {
+    if (this.#director.phase.phase !== "RoundActive") {
+      return;
+    }
+    const event = this.#director.eliminateByDisconnect(id, this.#sim, this.#sim.tick);
+    if (event) {
+      this.broadcast(MESSAGE_TYPES.FX, [event]);
+    }
   }
 
   onDispose(): void {
@@ -215,6 +237,11 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
     return { ...sim, players };
   }
 
+  /** `projectToSchema()` (shared) is the only place `SimState` crosses into
+   *  schema (ADR 0001) — this is deliberately a separate, MatchRoom-local
+   *  sync instead of extending that function's signature, since
+   *  `MatchPhaseState`/spectator bookkeeping is server-only match-flow
+   *  state, not part of the isomorphic sim `projectToSchema` projects. */
   #syncMatchFlow(): void {
     const phase = this.#director.phase;
     this.state.phase = phase.phase;
@@ -229,5 +256,3 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
     });
   }
 }
-
-type MatchDirectorEvents = ReturnType<MatchDirector["tick"]>["events"];

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router";
+import { useSearchParams } from "react-router";
 import { getRuntimeConfig } from "../config/runtime.js";
 import { installE2eDebugHook } from "../game/debug.js";
 import { GameClient } from "../game/GameClient.js";
@@ -15,7 +15,6 @@ export function GameCanvas({ roomId }: { roomId: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [client, setClient] = useState<GameClient | null>(null);
   const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
 
   useEffect(() => {
     const container = containerRef.current;
@@ -37,7 +36,13 @@ export function GameCanvas({ roomId }: { roomId: string }) {
         }
         storeReconnectionToken(actualRoomId, token);
         if (actualRoomId !== roomId) {
-          navigate(`/play/${actualRoomId}`, { replace: true });
+          // A display-only URL update (so a refresh/share rejoins this exact
+          // room, and the reconnection-token lookup in `resolveJoinIntent`
+          // has a real roomId to key off). Deliberately NOT react-router's
+          // `navigate()`: that re-renders this route with a new `roomId`
+          // prop, which would re-run this very effect against its own
+          // dependency array and tear down the connection it just made.
+          window.history.replaceState(null, "", `/play/${actualRoomId}${window.location.search}`);
         }
       })
       .catch((error: unknown) => {
@@ -48,7 +53,7 @@ export function GameCanvas({ roomId }: { roomId: string }) {
       setClient(null);
       void gameClient.destroy();
     };
-    // oxlint-disable-next-line react/exhaustive-deps -- `searchParams`/`navigate` intentionally excluded: re-running this effect for them would tear down and rejoin the room on every URL change this same effect causes.
+    // oxlint-disable-next-line react/exhaustive-deps -- `searchParams` intentionally excluded: it only matters for the initial join, and including it would re-run this effect (tearing down and rejoining) on every URL change.
   }, [roomId]);
 
   return (

@@ -3,6 +3,7 @@ import {
   createMatchPhaseState,
   createSimPlayer,
   RING_OUT_CREDIT_TICKS,
+  type EliminatedEvent,
   type MatchPhaseEvent,
   type MatchPhaseState,
   type MatchResult,
@@ -80,19 +81,31 @@ export class MatchDirector {
   }
 
   /**
-   * A client dropped without consent during `RoundActive` (plan step 2):
-   * counts as an elimination for the current round, crediting whoever last
-   * hit them within `RING_OUT_CREDIT_TICKS` — but keeps its `MatchStatsEntry`
-   * and seat, since `MatchRoom` still holds it open via `allowReconnection`.
+   * A player leaves — consented or not — during `RoundActive` (plan step 2:
+   * "disconnecting during RoundActive" counts as an elimination; a
+   * deliberate mid-round quit is treated the same way, since the round
+   * can't otherwise tell the two apart from `SimState` alone). Credits
+   * whoever last hit them within `RING_OUT_CREDIT_TICKS`. Called from both
+   * `MatchRoom.onDrop` (which keeps the seat open via `allowReconnection`,
+   * so this only affects the *current* round) and `MatchRoom.onLeave` (for
+   * a leave with no prior drop). A no-op if the player is already not
+   * alive — an unconsented drop's `onDrop` already eliminated them, so the
+   * `onLeave` that follows once the reconnection window closes doesn't
+   * double-count.
+   *
+   * Returns the `eliminated` event to broadcast as fx, or `null` when the
+   * player wasn't alive (nothing happened) — `MatchRoom` only broadcasts a
+   * non-null result.
    */
-  eliminateByDisconnect(id: PlayerId, sim: SimState, tick: number): void {
+  eliminateByDisconnect(id: PlayerId, sim: SimState, tick: number): EliminatedEvent | null {
     if (!this.#alive.has(id)) {
-      return;
+      return null;
     }
     const player = sim.players[id];
     const creditedTo =
       player?.lastHitBy && tick - player.lastHitTick <= RING_OUT_CREDIT_TICKS ? player.lastHitBy : undefined;
     this.#markEliminated(id, creditedTo);
+    return { type: "eliminated", victim: id, by: creditedTo, cause: "disconnect" };
   }
 
   #markEliminated(id: PlayerId, creditedTo: PlayerId | undefined): void {

@@ -13,6 +13,11 @@ export default defineConfig({
   testDir: ".",
   fullyParallel: true,
   retries: process.env.CI ? 2 : 0,
+  // The default ("list") reporter doesn't persist anything — the html
+  // reporter both writes a self-contained report AND embeds each failed
+  // test's trace.zip/video.webm into it, so uploading just this one
+  // directory (as e2e.yml does) is enough to get both on a CI failure.
+  reporter: [["html", { outputFolder: "playwright-report", open: "never" }]],
   use: {
     baseURL: process.env.CLIENT_URL ?? "http://localhost:8080",
     trace: "retain-on-failure",

@@ -1,4 +1,4 @@
-import { COUNTDOWN_TICKS, MATCH_ROOM_NAME } from "@castle-clash/shared";
+import { COUNTDOWN_TICKS, MATCH_ROOM_NAME, MESSAGE_TYPES, type EliminatedEvent } from "@castle-clash/shared";
 import { boot, type ColyseusTestServer } from "@colyseus/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { server } from "../src/index.js";
@@ -72,6 +72,34 @@ describe("MatchRoom reconnect", () => {
     expect(room.state.players.get(a.sessionId)!.roundsWon).toBe(1);
     // The seat is still reserved — the player entry hasn't been removed.
     expect(room.state.players.get(b.sessionId)).toBeDefined();
+
+    await a.leave();
+  });
+
+  it("counts a consented leave during RoundActive as an elimination too", async () => {
+    const tickDriver = new ManualTickDriver();
+    const room = await colyseus.createRoom(MATCH_ROOM_NAME, { tickDriver });
+
+    const a = await colyseus.connectTo(room);
+    const b = await colyseus.connectTo(room);
+    tickDriver.step(1 + COUNTDOWN_TICKS);
+    await room.waitForNextPatch();
+    expect(room.state.phase).toBe("RoundActive");
+
+    const fxEvents: EliminatedEvent[] = [];
+    a.onMessage(MESSAGE_TYPES.FX, (events: EliminatedEvent[]) => fxEvents.push(...events));
+
+    await b.leave();
+    tickDriver.step(1);
+    await room.waitForNextPatch();
+
+    expect(room.state.phase).toBe("RoundOver");
+    expect(room.state.players.get(a.sessionId)!.roundsWon).toBe(1);
+    // A consented leave removes the seat entirely — unlike a drop.
+    expect(room.state.players.get(b.sessionId)).toBeUndefined();
+    expect(fxEvents).toContainEqual(
+      expect.objectContaining({ type: "eliminated", cause: "disconnect", victim: b.sessionId }),
+    );
 
     await a.leave();
   });

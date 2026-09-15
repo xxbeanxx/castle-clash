@@ -4,6 +4,7 @@ import {
   MatchState,
   MESSAGE_TYPES,
   playerId,
+  type MatchResult,
   type PlayerState,
   schemaToSimPlayer,
   TESTBED_ARENA,
@@ -15,12 +16,24 @@ import { Client, type Room } from "@colyseus/sdk";
 import { Application, type Ticker } from "pixi.js";
 import { matchStateToHud, type HudPlayerSnapshot } from "./hud.js";
 import { KeyboardInput } from "./input/KeyboardInput.js";
+import { matchStateToPhaseBanner, type MatchFlowSnapshot } from "./matchFlow.js";
 import { Interpolator } from "./net/Interpolator.js";
 import { Reconciler } from "./net/Reconciler.js";
 import { PlayerRectsView } from "./render/PlayerRects.js";
 import { playersToRects } from "./viewmodel/playersToRects.js";
 
 const FIXED_DT_MS = 1000 / TICK_RATE;
+
+/** How to connect to a match — resolved into the right `@colyseus/sdk` call
+ *  by `GameClient.start()` (plan Phase 5 step 4: quick play, private rooms
+ *  by code, and reconnection via a stored token, all share one entry
+ *  point). */
+export type JoinIntent =
+  | { kind: "quick" }
+  | { kind: "createPrivate" }
+  | { kind: "joinPrivate"; code: string }
+  | { kind: "joinById"; roomId: string }
+  | { kind: "reconnect"; token: string };
 
 interface Resources {
   readonly app: Application;
@@ -54,6 +67,9 @@ export class GameClient {
   #lastKnownAtLocalMs = 0;
 
   readonly #hudListeners = new Set<(snapshots: HudPlayerSnapshot[]) => void>();
+  readonly #matchFlowListeners = new Set<(snapshot: MatchFlowSnapshot) => void>();
+  readonly #matchCodeListeners = new Set<(code: string) => void>();
+  readonly #matchResultListeners = new Set<(result: MatchResult) => void>();
 
   /** Subscribes to HUD snapshots (hp/stamina/weapon/action per player),
    *  pushed once per server patch — no polling, no per-frame React
@@ -63,7 +79,47 @@ export class GameClient {
     return () => this.#hudListeners.delete(listener);
   }
 
-  async start(container: HTMLElement, roomUrl: string): Promise<void> {
+  /** Subscribes to the match's phase/round/countdown banner, pushed once per
+   *  server patch alongside the HUD. */
+  subscribeMatchFlow(listener: (snapshot: MatchFlowSnapshot) => void): () => void {
+    this.#matchFlowListeners.add(listener);
+    return () => this.#matchFlowListeners.delete(listener);
+  }
+
+  /** Subscribes to the private room's join code, sent once right after
+   *  creating one — nothing fires for a quick-play or joined-by-code room. */
+  subscribeMatchCode(listener: (code: string) => void): () => void {
+    this.#matchCodeListeners.add(listener);
+    return () => this.#matchCodeListeners.delete(listener);
+  }
+
+  /** Subscribes to the `MatchResult` broadcast once, the tick the match
+   *  ends. */
+  subscribeMatchResult(listener: (result: MatchResult) => void): () => void {
+    this.#matchResultListeners.add(listener);
+    return () => this.#matchResultListeners.delete(listener);
+  }
+
+  /** The connected room's id, once known — `null` before `start()` resolves. */
+  get roomId(): string | null {
+    const phase = this.#getPhase();
+    return phase.tag === "connected" || phase.tag === "predicting" ? phase.resources.room.roomId : null;
+  }
+
+  /** The connected room's reconnection token, for the caller to persist and
+   *  pass back as `{ kind: "reconnect" }` on a later `start()` call. */
+  get reconnectionToken(): string | null {
+    const phase = this.#getPhase();
+    return phase.tag === "connected" || phase.tag === "predicting"
+      ? phase.resources.room.reconnectionToken
+      : null;
+  }
+
+  async start(
+    container: HTMLElement,
+    roomUrl: string,
+    intent: JoinIntent = { kind: "quick" },
+  ): Promise<void> {
     this.#phase = { tag: "starting" };
 
     const app = new Application();
@@ -83,12 +139,23 @@ export class GameClient {
 
     const view = new PlayerRectsView(app.stage);
     const client = new Client(roomUrl);
-    const room = await client.joinOrCreate<MatchState>(MATCH_ROOM_NAME, undefined, MatchState);
+    const room = await joinRoom(client, intent);
     if (this.#getPhase().tag === "destroyed") {
       await room.leave();
       app.destroy(true, { children: true });
       return;
     }
+
+    room.onMessage(MESSAGE_TYPES.MATCH_CODE, (code: string) => {
+      for (const listener of this.#matchCodeListeners) {
+        listener(code);
+      }
+    });
+    room.onMessage(MESSAGE_TYPES.MATCH_RESULT, (result: MatchResult) => {
+      for (const listener of this.#matchResultListeners) {
+        listener(result);
+      }
+    });
 
     const keyboard = new KeyboardInput();
     keyboard.attach();
@@ -140,6 +207,12 @@ export class GameClient {
         const snapshots = matchStateToHud(state, room.sessionId);
         for (const listener of this.#hudListeners) {
           listener(snapshots);
+        }
+      }
+      if (this.#matchFlowListeners.size > 0) {
+        const snapshot = matchStateToPhaseBanner(state);
+        for (const listener of this.#matchFlowListeners) {
+          listener(snapshot);
         }
       }
     });
@@ -239,4 +312,23 @@ export class GameClient {
 
 function lerp(a: Vec, b: Vec, t: number): Vec {
   return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+}
+
+/** Resolves a `JoinIntent` into the matching `@colyseus/sdk` call — the only
+ *  place that has to know quick play, private-by-code, and reconnection are
+ *  different wire calls; `GameClient.start()` just awaits a `Room` either
+ *  way. */
+function joinRoom(client: Client, intent: JoinIntent): Promise<Room<unknown, MatchState>> {
+  switch (intent.kind) {
+    case "quick":
+      return client.joinOrCreate<MatchState>(MATCH_ROOM_NAME, { mode: "quick" }, MatchState);
+    case "createPrivate":
+      return client.create<MatchState>(MATCH_ROOM_NAME, { mode: "private" }, MatchState);
+    case "joinPrivate":
+      return client.join<MatchState>(MATCH_ROOM_NAME, { mode: "private", code: intent.code }, MatchState);
+    case "joinById":
+      return client.joinById<MatchState>(intent.roomId, undefined, MatchState);
+    case "reconnect":
+      return client.reconnect<MatchState>(intent.token, MatchState);
+  }
 }

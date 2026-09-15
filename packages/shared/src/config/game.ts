@@ -48,12 +48,17 @@ export const ROUND_TIME_LIMIT = 3600; // 60s
 /** A ring-out (kill-zone elimination) still credits the last player who hit
  *  the victim, as long as the hit landed within this many ticks of the fall. */
 export const RING_OUT_CREDIT_TICKS = 180; // 3s
-/** Extra chip damage applied (on top of the attack's own damage) to a hit
- *  landed while a round is in sudden death — a documented, deliberately
- *  minimal reading of the plan's "ramps up damage": it's applied from
- *  `MatchDirector` as a post-hoc HP adjustment driven by `hit`/`blocked` fx
- *  events, not a change to `combat/resolve.ts`'s damage formula itself, so
- *  Phase 4's combat tests don't need to know sudden death exists. Arena
- *  shrinking (the plan's other example) is left to Phase 6, which owns real
- *  arena geometry — the testbed arena is static. */
-export const SUDDEN_DEATH_BONUS_DAMAGE = 5;
+/**
+ * `match/phase.ts`'s `advanceMatchPhase` sets `MatchPhaseState.suddenDeath`
+ * once a round runs past `ROUND_TIME_LIMIT` and emits a `suddenDeath` event
+ * — that flag is as far as this phase implements the plan's "sudden death
+ * shrinks the arena or ramps up damage" line. Neither effect is wired up:
+ * arena shrinking needs real per-match arena geometry (Phase 6's job, not
+ * this static testbed arena's), and a damage ramp applied after the fact by
+ * `MatchDirector` (rather than inside `combat/resolve.ts`, to avoid Phase
+ * 4's combat tests needing to know sudden death exists) can't retroactively
+ * KO a player `GameSimulation.step` already resolved as merely hurt this
+ * same tick — a half-correct elimination path is worse than none. A later
+ * phase picking this up should thread it through `resolveCombat` itself
+ * (e.g. a damage multiplier parameter) rather than bolt it on from outside.
+ */

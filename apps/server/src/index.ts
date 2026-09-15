@@ -6,7 +6,7 @@ import { MatchRoom } from "./rooms/MatchRoom.js";
 
 export const server = defineServer({
   rooms: {
-    [MATCH_ROOM_NAME]: defineRoom(MatchRoom),
+    [MATCH_ROOM_NAME]: defineRoom(MatchRoom).filterBy(["mode", "code"]),
   },
   transport: new WebSocketTransport(),
   express: (app) => {

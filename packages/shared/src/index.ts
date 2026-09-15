@@ -16,5 +16,6 @@ export * from "./sim/movement.js";
 export * from "./sim/GameSimulation.js";
 export * from "./combat/index.js";
 export * from "./match/phase.js";
+export * from "./match/result.js";
 export * from "./net/Reconciler.js";
 export * from "./net/Interpolator.js";

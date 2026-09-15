@@ -18,6 +18,11 @@ export const TESTBED_ARENA: ArenaDefinition = {
     { x: 200, y: 600 },
     { x: 1000, y: 600 },
   ],
-  killZones: [],
+  // A blast zone below the floor — unreachable by falling through the solid
+  // floor during normal play, but real once Phase 6 arenas have actual gaps.
+  // Kept here (rather than left empty) so Phase 5's kill-zone elimination
+  // path has a real geometry to test against instead of only unit-testing
+  // the check in isolation.
+  killZones: [{ x: -2000, y: 720, w: 5280, h: 400 }],
   hazards: [],
 };

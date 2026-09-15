@@ -37,6 +37,8 @@ export function hashState(state: SimState): number {
       p.invulnTicks,
       p.hitConfirmTicks,
       p.comboCount,
+      p.lastHitBy ?? "",
+      p.lastHitTick,
     ].join(",");
   });
   return fnv1a([state.tick, state.rngSeed, ...players].join(";"));

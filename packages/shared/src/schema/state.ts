@@ -39,9 +39,26 @@ export class PlayerState extends Schema {
   @type("number") invulnTicks = 0;
   @type("number") hitConfirmTicks = 0;
   @type("number") comboCount = 0;
+  /** Empty string sentinel for `null` (no `@colyseus/schema` primitive is
+   *  nullable) — mirrors `attackKind`'s convention above. */
+  @type("string") lastHitBy = "";
+  @type("number") lastHitTick = 0;
+
+  // Match flow (Phase 5).
+  @type("number") roundsWon = 0;
+  @type("boolean") alive = true;
+  @type("boolean") spectator = false;
 }
 
 export class MatchState extends Schema {
   @type("number") tick = 0;
   @type({ map: PlayerState }) players = new MapSchema<PlayerState>();
+
+  // Match flow (Phase 5).
+  @type("string") phase = "Waiting";
+  @type("number") round = 0;
+  /** `-1` sentinel for "no scheduled end" (`Waiting`/`RoundActive` outside a
+   *  time limit/`MatchOver`) — tick 0 is itself a valid absolute tick, so it
+   *  can't double as the sentinel. */
+  @type("number") phaseEndsAtTick = -1;
 }

@@ -45,6 +45,16 @@ export interface SimPlayer {
   /** How many lights have chained without returning to a neutral state —
    *  drives the Sword's "light chains x2" trait in `weapons.ts`. */
   comboCount: number;
+
+  // Match flow (Phase 5). Tracked here, not in `MatchDirector`, so a
+  // kill-zone ring-out's "credit the last attacker within 3s" rule
+  // (`RING_OUT_CREDIT_TICKS`) is itself pure and covered by determinism
+  // tests, the same way combat's hit resolution is.
+  /** Whoever last landed a hit/block/guard-break against this player. */
+  lastHitBy: PlayerId | null;
+  /** Absolute tick `lastHitBy` last landed a hit, for the ring-out credit
+   *  window; meaningless while `lastHitBy` is `null`. */
+  lastHitTick: number;
 }
 
 export interface SimState {
@@ -77,5 +87,7 @@ export function createSimPlayer(pos: Vec, weapon: WeaponId = DEFAULT_WEAPON): Si
     invulnTicks: 0,
     hitConfirmTicks: 0,
     comboCount: 0,
+    lastHitBy: null,
+    lastHitTick: 0,
   };
 }

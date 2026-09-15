@@ -36,3 +36,24 @@ export const DODGE_TOTAL_TICKS = 20;
 /** Ticks after landing a hit during which AttackRecovery can cancel early
  *  into Dodge (a hit-confirm cancel). */
 export const HIT_CONFIRM_TICKS = 6;
+
+// Match flow (Phase 5) — ticks at 60 Hz unless noted.
+export const MIN_PLAYERS = 2;
+/** Countdown shown to players before a round starts. */
+export const COUNTDOWN_TICKS = 180; // 3s
+/** How long the results of a finished round stay on screen before Draft. */
+export const ROUND_OVER_TICKS = 120; // 2s
+/** How long a round can run before sudden death kicks in. */
+export const ROUND_TIME_LIMIT = 3600; // 60s
+/** A ring-out (kill-zone elimination) still credits the last player who hit
+ *  the victim, as long as the hit landed within this many ticks of the fall. */
+export const RING_OUT_CREDIT_TICKS = 180; // 3s
+/** Extra chip damage applied (on top of the attack's own damage) to a hit
+ *  landed while a round is in sudden death — a documented, deliberately
+ *  minimal reading of the plan's "ramps up damage": it's applied from
+ *  `MatchDirector` as a post-hoc HP adjustment driven by `hit`/`blocked` fx
+ *  events, not a change to `combat/resolve.ts`'s damage formula itself, so
+ *  Phase 4's combat tests don't need to know sudden death exists. Arena
+ *  shrinking (the plan's other example) is left to Phase 6, which owns real
+ *  arena geometry — the testbed arena is static. */
+export const SUDDEN_DEATH_BONUS_DAMAGE = 5;

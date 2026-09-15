@@ -1,6 +1,6 @@
 import { isActionState, isAttackKind } from "../combat/types.js";
 import type { SimPlayer, SimState } from "../sim/types.js";
-import { isWeaponId, WEAPON_IDS, type PlayerId } from "../types/ids.js";
+import { isWeaponId, playerId, WEAPON_IDS, type PlayerId } from "../types/ids.js";
 import type { MatchState, PlayerState } from "./state.js";
 
 /**
@@ -47,6 +47,8 @@ export function projectToSchema(
     schemaPlayer.invulnTicks = simPlayer.invulnTicks;
     schemaPlayer.hitConfirmTicks = simPlayer.hitConfirmTicks;
     schemaPlayer.comboCount = simPlayer.comboCount;
+    schemaPlayer.lastHitBy = simPlayer.lastHitBy ?? "";
+    schemaPlayer.lastHitTick = simPlayer.lastHitTick;
     const ack = lastProcessedSeq[id];
     if (ack !== undefined) {
       schemaPlayer.lastProcessedSeq = ack;
@@ -76,5 +78,7 @@ export function schemaToSimPlayer(schema: PlayerState): SimPlayer {
     invulnTicks: schema.invulnTicks,
     hitConfirmTicks: schema.hitConfirmTicks,
     comboCount: schema.comboCount,
+    lastHitBy: schema.lastHitBy ? playerId(schema.lastHitBy) : null,
+    lastHitTick: schema.lastHitTick,
   };
 }

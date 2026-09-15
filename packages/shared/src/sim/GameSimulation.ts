@@ -2,8 +2,16 @@ import { applyFsm } from "../combat/fsm.js";
 import { resolveCombat, type CombatEvent } from "../combat/resolve.js";
 import type { ActionState } from "../combat/types.js";
 import { getWeapon } from "../combat/weapons.js";
-import { DROP_THROUGH_TICKS, MAX_STAMINA, PLAYER_HEIGHT, PLAYER_WIDTH, TICK_RATE } from "../config/game.js";
+import {
+  DROP_THROUGH_TICKS,
+  MAX_STAMINA,
+  PLAYER_HEIGHT,
+  PLAYER_WIDTH,
+  RING_OUT_CREDIT_TICKS,
+  TICK_RATE,
+} from "../config/game.js";
 import type { InputFrame } from "../input/bitmask.js";
+import { overlaps } from "../math/aabb.js";
 import type { PlayerId } from "../types/ids.js";
 import { applyGravity, sweep } from "./physics.js";
 import {
@@ -18,7 +26,20 @@ import type { SimPlayer, SimState } from "./types.js";
 
 const DT = 1 / TICK_RATE;
 
-export type SimEvent = { type: "jump" | "land"; playerId: PlayerId } | CombatEvent;
+/** Elimination sources (plan Phase 5 step 2): HP reaching 0 (`combat/
+ *  resolve.ts`'s `ko`), entering a kill zone, or — synthesized by
+ *  `MatchDirector`, never by `step()` itself — a disconnect during
+ *  `RoundActive`. `by` credits whoever last landed a hit within
+ *  `RING_OUT_CREDIT_TICKS`, so a ring-out (falling into a kill zone after
+ *  being knocked back) still counts as a kill. */
+export type EliminatedEvent = {
+  type: "eliminated";
+  victim: PlayerId;
+  by?: PlayerId;
+  cause: "ko" | "killZone" | "disconnect";
+};
+
+export type SimEvent = { type: "jump" | "land"; playerId: PlayerId } | CombatEvent | EliminatedEvent;
 
 export interface StepResult {
   state: SimState;
@@ -128,14 +149,49 @@ export function step(
       invulnTicks: fsm.invulnTicks,
       hitConfirmTicks: fsm.hitConfirmTicks,
       comboCount: fsm.comboCount,
+      lastHitBy: prev.lastHitBy,
+      lastHitTick: prev.lastHitTick,
     };
   }
 
+  const nextTick = state.tick + 1;
   const combat = resolveCombat(postPhysics);
   events.push(...combat.events);
 
+  const players: Record<PlayerId, SimPlayer> = { ...combat.players };
+
+  // Record who last landed a hit, for kill-zone ring-out credit below.
+  for (const event of combat.events) {
+    if (event.type === "hit" || event.type === "blocked" || event.type === "guardBreak") {
+      const defenderId = event.defender!;
+      players[defenderId] = { ...players[defenderId]!, lastHitBy: event.attacker, lastHitTick: nextTick };
+    }
+    if (event.type === "ko") {
+      events.push({ type: "eliminated", victim: event.defender!, by: event.attacker, cause: "ko" });
+    }
+  }
+
+  // Kill zones: falling out of the arena is its own elimination source,
+  // independent of HP — a full-health player can still be ring-out'd.
+  for (const id of Object.keys(players) as PlayerId[]) {
+    const player = players[id]!;
+    if (player.action === "Dead") {
+      continue;
+    }
+    const box = { x: player.pos.x, y: player.pos.y, w: PLAYER_WIDTH, h: PLAYER_HEIGHT };
+    if (!state.arena.killZones.some((zone) => overlaps(box, zone))) {
+      continue;
+    }
+    const credited =
+      player.lastHitBy !== null && nextTick - player.lastHitTick <= RING_OUT_CREDIT_TICKS
+        ? player.lastHitBy
+        : undefined;
+    players[id] = { ...player, action: "Dead", hp: 0, hitstunTicks: 0, vel: { x: 0, y: 0 } };
+    events.push({ type: "eliminated", victim: id, by: credited, cause: "killZone" });
+  }
+
   return {
-    state: { tick: state.tick + 1, players: combat.players, arena: state.arena, rngSeed: state.rngSeed },
+    state: { tick: nextTick, players, arena: state.arena, rngSeed: state.rngSeed },
     events,
   };
 }

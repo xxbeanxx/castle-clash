@@ -20,12 +20,14 @@
     "build": "tsup",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "lint": "oxlint ."
   },
   "dependencies": {
     "@colyseus/schema": "5.0.32"
   },
   "devDependencies": {
+    "@vitest/coverage-v8": "5.0.0",
     "fast-check": "4.10.0",
     "tsup": "8.5.1",
     "typescript": "6.0.3",

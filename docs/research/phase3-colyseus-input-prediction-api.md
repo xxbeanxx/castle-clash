@@ -1,7 +1,7 @@
 # Phase 3 Colyseus Input/Prediction API Check
 
 Research date: 2026-09-14. Scope: before implementing Phase 3's `InputQueue`, tick loop, and client
-`Reconciler`/`Interpolator`, check what the *installed* `@colyseus/core@0.18.13` /
+`Reconciler`/`Interpolator`, check what the _installed_ `@colyseus/core@0.18.13` /
 `@colyseus/sdk@0.18.2` actually ship, per this repo's established practice (see
 `phase1-version-assumptions.md` items 10–11) of reading the installed package's own `.d.ts` as a
 primary source rather than assuming from general Colyseus knowledge.
@@ -14,7 +14,7 @@ opts?)` is a framework-owned accumulator loop that hands a `StepContext` (`dt`/`
 "relevant groundwork for Phase 3's `GameSimulation.step()`."
 
 **Action taken this phase:** `IntervalTickDriver` now calls `room.setFixedTimestep(cb, tickRateHz)`
-instead of `setTimestep`. This matters for determinism: `setTimestep` hands the *measured* delta
+instead of `setTimestep`. This matters for determinism: `setTimestep` hands the _measured_ delta
 (jittery), which is exactly what `GameSimulation.step()` must never see (ADR 0001 / the plan's
 `determinism.test.ts` requires the same seed+inputs to hash identically). `TickDriver`'s callback
 shape changed from `(deltaMs: number) => void` to `(step: { dt: number; tick: number }) => void`
@@ -38,7 +38,7 @@ lines documenting `setFixedTimestep`/`StepContext`, checked 2026-09-14.
   `.data`, call `.send()`; delta-encoded, tracks `sentCount`/`lastProcessed`/`pendingCount`, buffers
   sent inputs for replay via `.at(seq)`). Layered on top, `predict.reconciler(self, …)` /
   `predict.sim(…)` (`build/predict/{Predictor,reconciler,simReconciler,rollback,divergence,
-  drift}.d.ts`) implement full server-reconciled rollback (apply-now, rewind-to-server-truth,
+drift}.d.ts`) implement full server-reconciled rollback (apply-now, rewind-to-server-truth,
   replay-pending, smooth-correct) and `Predict`/`predict.value()` implement passive
   lerp/dead-reckoning smoothing for remote entities — i.e., a drop-in replacement for hand-written
   `Reconciler.ts`/`Interpolator.ts`.
@@ -52,7 +52,7 @@ for two concrete reasons, not general caution:
    handshake, delta-encoded). Adopting one side without the other doesn't work — a client sending
    raw `room.send("input", frame)` messages (as Phase 2 already does for other messages, and as the
    plan's `MatchRoom`/`InputQueue` steps assume) never reaches a server `defineInput()` buffer.
-   Adopting it is an all-or-nothing swap of the *whole* netcode stack, not an incremental one.
+   Adopting it is an all-or-nothing swap of the _whole_ netcode stack, not an incremental one.
 2. **Behavioral fit is unverified against the plan's exact thresholds.** The plan's testing
    strategy pins specific numbers this phase must satisfy — buffer depth exactly 8, repeat-last-then-
    neutral at exactly 6 ticks, reconciliation error smoothed under 4 px over 100 ms but snapped

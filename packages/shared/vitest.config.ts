@@ -4,6 +4,15 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["src/**/*.test.ts"],
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "lcov"],
+      include: ["src/**/*.ts"],
+      exclude: ["src/**/*.test.ts", "src/fc-seed.d.ts"],
+      thresholds: {
+        "src/sim/**": { lines: 90 },
+      },
+    },
   },
   // `packages/shared`'s tsconfig sets `types: []` (no Node globals in the
   // isomorphic source), so property tests can't read `process.env.FC_SEED`

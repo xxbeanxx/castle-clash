@@ -177,9 +177,9 @@ describe("MatchDirector", () => {
     // that broken state across a round boundary.
     sim = {
       ...sim,
-      hazards: { ...sim.hazards, balconyBreakA: { ...sim.hazards["balconyBreakA"]!, hp: 0, active: false, phase: "broken" } },
+      hazards: { ...sim.hazards, balconyBreakA: { ...sim.hazards!["balconyBreakA"]!, hp: 0, active: false, phase: "broken" } },
     };
-    expect(sim.hazards["balconyBreakA"]!.active).toBe(false);
+    expect(sim.hazards!["balconyBreakA"]!.active).toBe(false);
 
     sim = {
       ...sim,

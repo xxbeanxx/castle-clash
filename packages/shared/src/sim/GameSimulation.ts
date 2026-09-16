@@ -10,6 +10,7 @@ import {
   RING_OUT_CREDIT_TICKS,
   TICK_RATE,
 } from "../config/game.js";
+import { dynamicPlatforms, dynamicSolids, stepHazards, type HazardEvent } from "../hazards/step.js";
 import type { InputFrame } from "../input/bitmask.js";
 import { overlaps } from "../math/aabb.js";
 import type { PlayerId } from "../types/ids.js";
@@ -36,10 +37,14 @@ export type EliminatedEvent = {
   type: "eliminated";
   victim: PlayerId;
   by?: PlayerId;
-  cause: "ko" | "killZone" | "disconnect";
+  cause: "ko" | "killZone" | "disconnect" | "hazard";
 };
 
-export type SimEvent = { type: "jump" | "land"; playerId: PlayerId } | CombatEvent | EliminatedEvent;
+export type SimEvent =
+  | { type: "jump" | "land"; playerId: PlayerId }
+  | CombatEvent
+  | EliminatedEvent
+  | HazardEvent;
 
 export interface StepResult {
   state: SimState;
@@ -82,6 +87,15 @@ export function step(
 ): StepResult {
   const events: SimEvent[] = [];
   const postPhysics: Record<PlayerId, SimPlayer> = {};
+  const landedIds = new Set<PlayerId>();
+
+  // Dynamic geometry hazards contribute to physics this tick — read from
+  // the END of the previous tick (`prevHazardState`), the same way every
+  // other per-tick input (FSM state, velocity, ...) is read from `prev`
+  // before this tick's own hazard step (below) computes what comes next.
+  const prevHazardState = state.hazards ?? {};
+  const solids = [...state.arena.solids, ...dynamicSolids(state.arena.hazards, prevHazardState)];
+  const extraPlatforms = dynamicPlatforms(state.arena.hazards, prevHazardState);
 
   for (const id of Object.keys(state.players) as PlayerId[]) {
     const prev = state.players[id]!;
@@ -123,11 +137,12 @@ export function step(
     }
 
     const box = { x: prev.pos.x, y: prev.pos.y, w: PLAYER_WIDTH, h: PLAYER_HEIGHT };
-    const platforms = dropThroughTicks > 0 ? [] : state.arena.platforms;
-    const swept = sweep(box, vel, DT, state.arena.solids, platforms);
+    const platforms = dropThroughTicks > 0 ? [] : [...state.arena.platforms, ...extraPlatforms];
+    const swept = sweep(box, vel, DT, solids, platforms);
 
     if (swept.grounded && !wasGrounded) {
       events.push({ type: "land", playerId: id });
+      landedIds.add(id);
     }
 
     postPhysics[id] = {
@@ -158,7 +173,7 @@ export function step(
   const combat = resolveCombat(postPhysics);
   events.push(...combat.events);
 
-  const players: Record<PlayerId, SimPlayer> = { ...combat.players };
+  let players: Record<PlayerId, SimPlayer> = { ...combat.players };
 
   // Record who last landed a hit, for kill-zone ring-out credit below.
   // `CombatEvent.defender` is typed optional only because "whiff" lacks
@@ -174,15 +189,38 @@ export function step(
     }
   }
 
+  // Hazards are one more damage/knockback/solidity layer on top of combat's
+  // — see `hazards/step.ts`. A player hazards knock straight to 0 hp
+  // (FireZone attrition, a lethal TimedTrap burst) has no attacker to
+  // credit, unlike a `"ko"` from `resolveCombat` above.
+  const beforeHazards = players;
+  const hazardResult = stepHazards({
+    tick: nextTick,
+    hazards: state.arena.hazards,
+    prevState: prevHazardState,
+    players: beforeHazards,
+    landedIds,
+  });
+  players = hazardResult.players;
+  events.push(...hazardResult.events);
+  for (const id of Object.keys(players) as PlayerId[]) {
+    if (beforeHazards[id]!.action !== "Dead" && players[id]!.action === "Dead") {
+      events.push({ type: "eliminated", victim: id, cause: "hazard" });
+    }
+  }
+
   // Kill zones: falling out of the arena is its own elimination source,
   // independent of HP — a full-health player can still be ring-out'd.
+  // Merges the arena's static blast-zone geometry with any active
+  // hazard-authored KillZone boxes this tick.
+  const killZones = [...state.arena.killZones, ...hazardResult.killZoneBoxes];
   for (const id of Object.keys(players) as PlayerId[]) {
     const player = players[id]!;
     if (player.action === "Dead") {
       continue;
     }
     const box = { x: player.pos.x, y: player.pos.y, w: PLAYER_WIDTH, h: PLAYER_HEIGHT };
-    if (!state.arena.killZones.some((zone) => overlaps(box, zone))) {
+    if (!killZones.some((zone) => overlaps(box, zone))) {
       continue;
     }
     const credited =
@@ -194,7 +232,13 @@ export function step(
   }
 
   return {
-    state: { tick: nextTick, players, arena: state.arena, rngSeed: state.rngSeed },
+    state: {
+      tick: nextTick,
+      players,
+      arena: state.arena,
+      rngSeed: state.rngSeed,
+      hazards: hazardResult.state,
+    },
     events,
   };
 }

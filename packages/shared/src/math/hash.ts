@@ -41,5 +41,12 @@ export function hashState(state: SimState): number {
       p.lastHitTick,
     ].join(",");
   });
-  return fnv1a([state.tick, state.rngSeed, ...players].join(";"));
+  const hazardState = state.hazards ?? {};
+  const hazardIds = Object.keys(hazardState).sort();
+  const hazards = hazardIds.map((id) => {
+    const h = hazardState[id]!;
+    return [id, h.kind, h.active ? 1 : 0, h.hp, h.phase, h.timer].join(",");
+  });
+
+  return fnv1a([state.tick, state.rngSeed, ...players, ...hazards].join(";"));
 }

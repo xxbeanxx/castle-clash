@@ -1,6 +1,7 @@
 import type { ArenaRuntime } from "../arenas/types.js";
 import type { ActionState, AttackKind } from "../combat/types.js";
 import { MAX_HP, MAX_STAMINA } from "../config/game.js";
+import type { HazardRuntimeState } from "../hazards/types.js";
 import type { Vec } from "../math/vec.js";
 import type { PlayerId, WeaponId } from "../types/ids.js";
 import { WEAPON_IDS } from "../types/ids.js";
@@ -65,6 +66,14 @@ export interface SimState {
    *  until a later phase's hazards/power-ups need it, but part of the state
    *  hash now so determinism tests cover it from the start. */
   rngSeed: number;
+  /** Per-hazard dynamic state (hp, broken/fallen phase, timers), keyed by
+   *  `HazardDef.id` — `undefined` is equivalent to "every hazard at its
+   *  fresh `createHazardState` value" (`GameSimulation.step` treats it that
+   *  way), so every `SimState` literal written before this phase — dozens
+   *  across `sim`/`net`/`testing`/server/client tests — stays valid without
+   *  editing each one to add an empty `hazards: {}`. New code should still
+   *  populate it explicitly via `createHazardState(arena.hazards)`. */
+  hazards?: Readonly<Record<string, HazardRuntimeState>>;
 }
 
 export function createSimPlayer(pos: Vec, weapon: WeaponId = DEFAULT_WEAPON): SimPlayer {

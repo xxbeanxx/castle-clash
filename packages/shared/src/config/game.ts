@@ -62,3 +62,15 @@ export const RING_OUT_CREDIT_TICKS = 180; // 3s
  * phase picking this up should thread it through `resolveCombat` itself
  * (e.g. a damage multiplier parameter) rather than bolt it on from outside.
  */
+
+// Arenas and hazards (Phase 6) — ticks at 60 Hz unless noted.
+/** FireZone's per-tick outward nudge while a player stands in it — small on
+ *  purpose ("hitstun-free knockback" per the plan, not a real launch). */
+export const FIRE_ZONE_KNOCKBACK_SPEED = 60;
+/** How long a TimedTrap's damage/knockback burst applies for once its warn
+ *  window ends — not named in the plan's `TimedTrap` field list (only
+ *  `periodTicks`/`warnTicks` are), same precedent as `SimPlayer`'s
+ *  non-headline fields: a trap needs *some* active duration distinct from
+ *  its instant-elimination KillZone sibling. */
+export const TIMED_TRAP_ACTIVE_TICKS = 10;
+export const TIMED_TRAP_HITSTUN_TICKS = 18;

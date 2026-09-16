@@ -22,8 +22,10 @@
   "dependencies": {
     "@castle-clash/shared": "workspace:*",
     "@colyseus/monitor": "0.18",
+    "@supabase/supabase-js": "2.116.0",
     "colyseus": "0.18",
-    "express": "5.2"
+    "express": "5.2",
+    "jose": "6.2.12"
   },
   "devDependencies": {
     "@colyseus/sdk": "0.18",

@@ -21,3 +21,4 @@ export * from "./match/phase.js";
 export * from "./match/result.js";
 export * from "./net/Reconciler.js";
 export * from "./net/Interpolator.js";
+export * from "./db/index.js";

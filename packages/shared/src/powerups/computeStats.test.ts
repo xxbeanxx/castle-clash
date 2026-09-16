@@ -46,6 +46,21 @@ describe("computeStats", () => {
     expect(stats.moveSpeed).toBe(BASE_STATS.moveSpeed + 16 * 2);
   });
 
+  it("applies an additive modifier before a multiplicative one on the SAME stat", () => {
+    // berserkersRage (add +0.15) and quickHands (mul +0.06/stack) both target
+    // attackSpeed — the only pair in the pool that does, specifically so
+    // this test can pin add-then-mul ordering directly rather than only by
+    // code inspection (each stat elsewhere in the pool has only one kind of
+    // modifier, which can't distinguish "add first" from "mul first").
+    const berserkersRage = POWER_UP_POOL.find((d) => d.id === "berserkersRage")!.id;
+    const quickHands = POWER_UP_POOL.find((d) => d.id === "quickHands")!.id;
+    const stats = computeStats(BASE_STATS, SWORD, { [berserkersRage]: 1, [quickHands]: 2 });
+    // add-first: (1 + 0.15) * (1 + 0.06*2) = 1.15 * 1.12
+    // mul-first (the bug this guards against): (1 * 1.12) + 0.15 = 1.27
+    expect(stats.attackSpeed).toBeCloseTo(1.15 * 1.12, 5);
+    expect(stats.attackSpeed).not.toBeCloseTo(1.27, 5);
+  });
+
   it("sums multiplicative modifiers into one combined bonus applied once", () => {
     const quickHands = POWER_UP_POOL.find((d) => d.id === "quickHands")!.id;
     const stats = computeStats(BASE_STATS, SWORD, { [quickHands]: 3 });

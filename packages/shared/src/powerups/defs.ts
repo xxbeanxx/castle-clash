@@ -74,6 +74,13 @@ export const POWER_UP_POOL: readonly PowerUpDef[] = [
     modifiers: [{ stat: "attackSpeed", op: "mul", value: 0.06 }],
   },
   {
+    id: powerUpId("berserkersRage"),
+    rarity: "common",
+    tags: ["offense"],
+    maxStacks: 5,
+    modifiers: [{ stat: "attackSpeed", op: "add", value: 0.15 }],
+  },
+  {
     id: powerUpId("steadyGuard"),
     rarity: "common",
     tags: ["defense"],

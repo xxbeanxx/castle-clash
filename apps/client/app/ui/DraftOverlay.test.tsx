@@ -146,6 +146,26 @@ describe("DraftOverlay", () => {
     expect(client.pickPowerUp).not.toHaveBeenCalled();
   });
 
+  it("disables on timeout too — the overlay disappears once the round moves on without a manual pick", () => {
+    const client = new FakeGameClient();
+    render(<DraftOverlay client={client as unknown as GameClient} />);
+
+    // Never clicks a card — GameClient's real timeout path is a server
+    // auto-pick that syncs via `powerups`, not a `draft:offer` update, so
+    // from the overlay's perspective the observable signal is exactly this:
+    // the phase moves past Draft while `offer.picked` is still null.
+    client.emitOffer(OFFER);
+    client.emitFlow(draftFlow());
+    expect(screen.getAllByTestId("draft-card")).toHaveLength(3);
+
+    client.emitFlow(draftFlow({ phase: "Countdown", ticksRemaining: null }));
+    expect(screen.queryByTestId("draft-overlay")).toBeNull();
+    expect(screen.queryAllByTestId("draft-card")).toHaveLength(0);
+
+    fireEvent.click(document.body); // no-op: nothing left to click
+    expect(client.pickPowerUp).not.toHaveBeenCalled();
+  });
+
   it("shows opponents' current builds", () => {
     const client = new FakeGameClient();
     render(<DraftOverlay client={client as unknown as GameClient} />);

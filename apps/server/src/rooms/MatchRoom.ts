@@ -31,6 +31,14 @@ import { IntervalTickDriver, type TickDriver } from "./TickDriver.js";
 /** Generous headroom over one input per tick, so a legitimate client that
  *  briefly resends (e.g. after a reconnect) isn't punished, while a flood is. */
 const MAX_MESSAGES_PER_SECOND = TICK_RATE * 2;
+/** A pick happens once per round at most for a legitimate client — this is
+ *  headroom for retries/misclicks, not a budget anyone should ever need to
+ *  spend fast. Deliberately its own, much smaller bucket (see
+ *  `#withinRateLimit`'s `key` param): sharing `MAX_MESSAGES_PER_SECOND`'s
+ *  bucket with `input` would let a tick's worth of combat-input spam starve
+ *  a `draft:pick` sent in the same real-time window, dropping a legitimate
+ *  pick with no draft-side validation ever running on it. */
+const MAX_DRAFT_PICKS_PER_SECOND = 5;
 const RATE_LIMIT_WINDOW_MS = 1000;
 
 /** How long a dropped connection's seat stays reserved before the player is
@@ -189,7 +197,8 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
     delete remainingPlayers[id];
     this.#sim = { ...this.#sim, players: remainingPlayers };
     this.#inputQueue.removePlayer(client.sessionId);
-    this.#messageWindows.delete(client.sessionId);
+    this.#messageWindows.delete(`${client.sessionId}:input`);
+    this.#messageWindows.delete(`${client.sessionId}:draft`);
     this.#spectatorIds.delete(client.sessionId);
     this.#director.removePlayer(id);
     this.#draftService.removePlayer(id);
@@ -210,7 +219,7 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
   }
 
   #onInput(client: Client, payload: unknown): void {
-    if (!this.#withinRateLimit(client.sessionId)) {
+    if (!this.#withinRateLimit(`${client.sessionId}:input`, MAX_MESSAGES_PER_SECOND)) {
       console.warn(`[MatchRoom] rate-limited input from ${client.sessionId}, dropping`);
       return;
     }
@@ -222,7 +231,7 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
   }
 
   #onDraftPick(client: Client, payload: unknown): void {
-    if (!this.#withinRateLimit(client.sessionId)) {
+    if (!this.#withinRateLimit(`${client.sessionId}:draft`, MAX_DRAFT_PICKS_PER_SECOND)) {
       console.warn(`[MatchRoom] rate-limited draft pick from ${client.sessionId}, dropping`);
       return;
     }
@@ -233,16 +242,20 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
     this.#draftService.pick(playerId(client.sessionId), payload.id);
   }
 
-  #withinRateLimit(sessionId: string): boolean {
+  /** `key` namespaces the window per message type as well as per session
+   *  (`"<sessionId>:input"` vs `"<sessionId>:draft"`) — two independent
+   *  buckets, so a burst on one message type can never starve the other's
+   *  budget for the same connection. */
+  #withinRateLimit(key: string, limit: number): boolean {
     const now = Date.now();
-    const window = this.#messageWindows.get(sessionId);
+    const window = this.#messageWindows.get(key);
 
     if (!window || now - window.windowStartMs >= RATE_LIMIT_WINDOW_MS) {
-      this.#messageWindows.set(sessionId, { windowStartMs: now, count: 1 });
+      this.#messageWindows.set(key, { windowStartMs: now, count: 1 });
       return true;
     }
 
-    if (window.count >= MAX_MESSAGES_PER_SECOND) {
+    if (window.count >= limit) {
       return false;
     }
 

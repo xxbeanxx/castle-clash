@@ -4,6 +4,12 @@ on:
   pull_request:
   push:
     branches: [main]
+  schedule:
+    # Nightly balance-report run (plan Phase 7's CI/CD integration step) —
+    # a separate trigger so it never runs on every PR/push, only once a day
+    # plus on-demand via workflow_dispatch below.
+    - cron: "0 7 * * *"
+  workflow_dispatch: {}
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -11,6 +17,7 @@ concurrency:
 
 jobs:
   verify:
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -45,6 +52,7 @@ jobs:
           path: packages/shared/coverage/
 
   browser:
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -66,3 +74,25 @@ jobs:
       - if: steps.playwright-cache.outputs.cache-hit == 'true'
         run: pnpm --filter @castle-clash/client exec playwright install-deps chromium
       - run: pnpm --filter @castle-clash/client run test:browser
+
+  # Plan Phase 7's CI/CD integration step — nightly (or on-demand via
+  # workflow_dispatch), never on a PR/push: it tracks power-up/weapon win-rate
+  # trends for tuning, nothing blocks on it.
+  balance-report:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @castle-clash/shared run sim:balance
+        env:
+          SIM_BALANCE_MATCHES: 5000
+      - uses: actions/upload-artifact@v7
+        with:
+          name: balance-report
+          path: packages/shared/balance-report/

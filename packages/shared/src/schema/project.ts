@@ -22,6 +22,24 @@ export function projectToSchema(
 ): void {
   match.tick = sim.tick;
 
+  // Hazard state (Phase 6) — same "never create/remove, only update"
+  // contract as players: `MatchRoom` seeds `match.hazards` once from the
+  // arena's `HazardDef`s at `onCreate`, so a hazard id with no existing
+  // schema entry here is skipped rather than treated as a signal to add
+  // one.
+  const hazards = sim.hazards ?? {};
+  for (const id of Object.keys(hazards)) {
+    const schemaHazard = match.hazards.get(id);
+    if (!schemaHazard) {
+      continue;
+    }
+    const hazard = hazards[id]!;
+    schemaHazard.active = hazard.active;
+    schemaHazard.hp = hazard.hp;
+    schemaHazard.phase = hazard.phase;
+    schemaHazard.timer = hazard.timer;
+  }
+
   for (const id of Object.keys(sim.players) as PlayerId[]) {
     const schemaPlayer = match.players.get(id);
     if (!schemaPlayer) {

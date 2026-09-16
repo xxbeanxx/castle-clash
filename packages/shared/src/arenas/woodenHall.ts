@@ -19,6 +19,13 @@ export const WOODEN_HALL_ARENA: ArenaDefinition = {
     { x: 150, y: 560, w: 220, h: 16 },
     { x: 450, y: 440, w: 220, h: 16 },
     { x: 850, y: 440, w: 200, h: 16 },
+    // A short approach ledge between stairUpper and balconyBreakA, a step
+    // lower than the balcony itself — the only place a horizontal swing's
+    // body-height hitbox actually reaches the overhead breakable slab's
+    // band: standing directly beneath it and swinging up bonks the solid's
+    // underside (see combat's hitbox being at the attacker's own height,
+    // not angled), so this ledge is the intended approach, not scenery.
+    { x: 670, y: 590, w: 80, h: 16 },
   ],
   spawns: [
     { x: 80, y: 600 },

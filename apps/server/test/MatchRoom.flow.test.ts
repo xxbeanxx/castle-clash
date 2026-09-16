@@ -63,7 +63,7 @@ describe("MatchRoom flow", () => {
 
   it("goes Waiting -> Countdown -> RoundActive, then RoundOver on a KO, then a fresh round at full HP", async () => {
     const tickDriver = new ManualTickDriver();
-    const room = await colyseus.createRoom(MATCH_ROOM_NAME, { tickDriver });
+    const room = await colyseus.createRoom(MATCH_ROOM_NAME, { tickDriver, arenaId: "castleRoom" });
 
     const a = await colyseus.connectTo(room);
     await room.waitForNextPatch();

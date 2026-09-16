@@ -31,7 +31,14 @@ describe("MatchRoom combat", () => {
 
   it("broadcasts an fx hit event and drops the defender's hp when an attack connects", async () => {
     const tickDriver = new ManualTickDriver();
-    const room = await colyseus.createRoom(MATCH_ROOM_NAME, { tickDriver });
+    // Pinned to `castleRoom` (both of its first two spawns sit on the same
+    // flat main floor) rather than left to `MatchRoom`'s default random
+    // pick (Phase 6) — the approach-and-attack loop below assumes both
+    // spawns are on the same flat, walkable ground within
+    // `MAX_APPROACH_TICKS`, which doesn't hold for every arena (e.g.
+    // `pit`'s spawns sit across a chasm, `colosseum`'s and `woodenHall`'s
+    // first two spawns are at different heights).
+    const room = await colyseus.createRoom(MATCH_ROOM_NAME, { tickDriver, arenaId: "castleRoom" });
     const attacker = await colyseus.connectTo(room);
     const defender = await colyseus.connectTo(room);
 

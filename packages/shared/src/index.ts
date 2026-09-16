@@ -10,6 +10,7 @@ export * from "./schema/project.js";
 export * from "./protocol/messages.js";
 export * from "./protocol/guards.js";
 export * from "./arenas/index.js";
+export * from "./hazards/index.js";
 export * from "./sim/types.js";
 export * from "./sim/physics.js";
 export * from "./sim/movement.js";

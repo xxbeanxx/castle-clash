@@ -1,6 +1,10 @@
 import {
+  createHazardState,
   createSimPlayer,
+  getArena,
   hashSeed,
+  HazardState,
+  isArenaId,
   isInputFrame,
   MatchState,
   MESSAGE_TYPES,
@@ -8,9 +12,10 @@ import {
   playerId,
   PlayerState,
   projectToSchema,
+  randomArenaId,
   step as simulationStep,
-  TESTBED_ARENA,
   TICK_RATE,
+  type ArenaId,
   type InputFrame,
   type PlayerId,
   type SimState,
@@ -42,6 +47,13 @@ export interface MatchRoomOptions {
    *  what `filterBy(["mode", "code"])` matches against; it's ignored (the
    *  server always generates its own) when *creating* one. */
   code?: string;
+  /** Picks this match's arena (plan Phase 6 step 4's `fixed` config) —
+   *  invalid or omitted falls back to a random pick among `ALL_ARENAS`
+   *  (`random`). Set once at `onCreate` and never changes for the rest of
+   *  the match; a `"vote"` config and per-round rotation are both out of
+   *  scope for this phase (see `docs/research/phase6-arena-scope-
+   *  deviations.md`). */
+  arenaId?: string;
 }
 
 export interface MatchRoomMetadata {
@@ -63,7 +75,29 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
   async onCreate(options: MatchRoomOptions = {}): Promise<void> {
     this.setState(new MatchState());
     this.setPatchRate(1000 / PATCH_RATE);
-    this.#sim = { tick: 0, players: {}, arena: TESTBED_ARENA, rngSeed: hashSeed(this.roomId) };
+
+    const arenaId: ArenaId = options.arenaId && isArenaId(options.arenaId) ? options.arenaId : randomArenaId();
+    const arena = getArena(arenaId);
+    this.state.arenaId = arena.id;
+    const initialHazards = createHazardState(arena.hazards);
+    for (const hazard of arena.hazards) {
+      const runtime = initialHazards[hazard.id]!;
+      const hazardState = new HazardState();
+      hazardState.id = hazard.id;
+      hazardState.kind = hazard.kind;
+      hazardState.active = runtime.active;
+      hazardState.hp = runtime.hp;
+      hazardState.phase = runtime.phase;
+      hazardState.timer = runtime.timer;
+      this.state.hazards.set(hazard.id, hazardState);
+    }
+    this.#sim = {
+      tick: 0,
+      players: {},
+      arena,
+      rngSeed: hashSeed(this.roomId),
+      hazards: initialHazards,
+    };
 
     const mode: MatchMode = options.mode ?? "quick";
     await this.setMetadata(mode === "private" ? { mode, code: generateRoomCode() } : { mode });
@@ -77,8 +111,8 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
   }
 
   onJoin(client: Client): void {
-    const spawnIndex = this.state.players.size % TESTBED_ARENA.spawns.length;
-    const spawn = TESTBED_ARENA.spawns[spawnIndex]!;
+    const spawnIndex = this.state.players.size % this.#sim.arena.spawns.length;
+    const spawn = this.#sim.arena.spawns[spawnIndex]!;
     const id = playerId(client.sessionId);
 
     const player = new PlayerState();
@@ -225,8 +259,8 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
     let players = sim.players;
     for (const sessionId of this.#spectatorIds) {
       const id = playerId(sessionId);
-      const spawnIndex = Object.keys(players).length % TESTBED_ARENA.spawns.length;
-      players = { ...players, [id]: createSimPlayer(TESTBED_ARENA.spawns[spawnIndex]!) };
+      const spawnIndex = Object.keys(players).length % sim.arena.spawns.length;
+      players = { ...players, [id]: createSimPlayer(sim.arena.spawns[spawnIndex]!) };
       this.#director.addPlayer(id);
       const schemaPlayer = this.state.players.get(sessionId);
       if (schemaPlayer) {

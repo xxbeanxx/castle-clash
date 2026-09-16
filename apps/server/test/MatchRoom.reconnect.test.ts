@@ -24,7 +24,7 @@ describe("MatchRoom reconnect", () => {
 
   it("restores the same PlayerId when a dropped client reconnects within the window", async () => {
     const tickDriver = new ManualTickDriver();
-    const room = await colyseus.createRoom(MATCH_ROOM_NAME, { tickDriver });
+    const room = await colyseus.createRoom(MATCH_ROOM_NAME, { tickDriver, arenaId: "castleRoom" });
 
     const a = await colyseus.connectTo(room);
     const b = await colyseus.connectTo(room);
@@ -55,7 +55,7 @@ describe("MatchRoom reconnect", () => {
 
   it("counts a drop during RoundActive as an elimination for the current round but keeps the seat", async () => {
     const tickDriver = new ManualTickDriver();
-    const room = await colyseus.createRoom(MATCH_ROOM_NAME, { tickDriver });
+    const room = await colyseus.createRoom(MATCH_ROOM_NAME, { tickDriver, arenaId: "castleRoom" });
 
     const a = await colyseus.connectTo(room);
     const b = await colyseus.connectTo(room);
@@ -78,7 +78,7 @@ describe("MatchRoom reconnect", () => {
 
   it("counts a consented leave during RoundActive as an elimination too", async () => {
     const tickDriver = new ManualTickDriver();
-    const room = await colyseus.createRoom(MATCH_ROOM_NAME, { tickDriver });
+    const room = await colyseus.createRoom(MATCH_ROOM_NAME, { tickDriver, arenaId: "castleRoom" });
 
     const a = await colyseus.connectTo(room);
     const b = await colyseus.connectTo(room);

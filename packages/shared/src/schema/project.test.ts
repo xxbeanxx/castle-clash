@@ -3,7 +3,7 @@ import { TESTBED_ARENA } from "../arenas/testbed.js";
 import { createSimPlayer, type SimState } from "../sim/types.js";
 import { playerId } from "../types/ids.js";
 import { projectToSchema, schemaToSimPlayer } from "./project.js";
-import { MatchState, PlayerState } from "./state.js";
+import { HazardState, MatchState, PlayerState } from "./state.js";
 
 const P1 = playerId("p1");
 
@@ -72,6 +72,37 @@ describe("projectToSchema", () => {
     expect(synced.coyoteTicks).toBe(3);
     expect(synced.jumpBufferTicks).toBe(4);
     expect(synced.dropThroughTicks).toBe(5);
+  });
+});
+
+describe("projectToSchema — hazards", () => {
+  it("updates an existing schema hazard entry's dynamic fields", () => {
+    const match = new MatchState();
+    const schemaHazard = new HazardState();
+    schemaHazard.id = "floor";
+    schemaHazard.kind = "breakableFloor";
+    match.hazards.set("floor", schemaHazard);
+
+    projectToSchema(
+      simState({ hazards: { floor: { id: "floor", kind: "breakableFloor", active: false, hp: 0, phase: "broken", timer: 0 } } }),
+      match,
+      {},
+    );
+
+    const synced = match.hazards.get("floor")!;
+    expect(synced.active).toBe(false);
+    expect(synced.hp).toBe(0);
+    expect(synced.phase).toBe("broken");
+  });
+
+  it("does not create schema hazard entries — MatchRoom owns that lifecycle", () => {
+    const match = new MatchState();
+    projectToSchema(
+      simState({ hazards: { floor: { id: "floor", kind: "breakableFloor", active: true, hp: 16, phase: "solid", timer: 0 } } }),
+      match,
+      {},
+    );
+    expect(match.hazards.size).toBe(0);
   });
 });
 

@@ -50,6 +50,22 @@ export class PlayerState extends Schema {
   @type("boolean") spectator = false;
 }
 
+/** Dynamic per-hazard state (Phase 6 plan step 4's `MatchState.hazards:
+ *  MapSchema<HazardState {id, kind, active, hp, phase}>` — `timer` is an
+ *  addition beyond that field list; see `hazards/types.ts`'s
+ *  `HazardRuntimeState` for why). Static hazard geometry (`box`, `dps`,
+ *  `periodTicks`, ...) is never sent — the client loads it from `shared`'s
+ *  arena registry by `MatchState.arenaId` instead, the same way the rest of
+ *  the arena's geometry is never synced. */
+export class HazardState extends Schema {
+  @type("string") id = "";
+  @type("string") kind = "";
+  @type("boolean") active = true;
+  @type("number") hp = 0;
+  @type("string") phase = "";
+  @type("number") timer = 0;
+}
+
 export class MatchState extends Schema {
   @type("number") tick = 0;
   @type({ map: PlayerState }) players = new MapSchema<PlayerState>();
@@ -61,4 +77,10 @@ export class MatchState extends Schema {
    *  time limit/`MatchOver`) — tick 0 is itself a valid absolute tick, so it
    *  can't double as the sentinel. */
   @type("number") phaseEndsAtTick = -1;
+
+  // Arenas and hazards (Phase 6). `arenaId` is set once, at `onCreate`, and
+  // never changes for the rest of the match (arena rotation is per-match,
+  // not per-round — see `docs/research/phase6-arena-scope-deviations.md`).
+  @type("string") arenaId = "";
+  @type({ map: HazardState }) hazards = new MapSchema<HazardState>();
 }

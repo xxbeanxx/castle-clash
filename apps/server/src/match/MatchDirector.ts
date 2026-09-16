@@ -2,6 +2,7 @@ import {
   advanceMatchPhase,
   createMatchPhaseState,
   createSimPlayer,
+  resetHazardState,
   RING_OUT_CREDIT_TICKS,
   type EliminatedEvent,
   type MatchPhaseEvent,
@@ -29,13 +30,19 @@ function zeroStats(): MatchStatsEntry {
   return { eliminations: 0, deaths: 0, damageDealt: 0, roundsWon: 0 };
 }
 
+/** Respawns every player AND resets hazard state for the new round (plan
+ *  Phase 6 step 4: "breakable floors reset between rounds") —
+ *  `resetHazardState` carries over a `BreakableFloorDef`'s state instead of
+ *  resetting it when its own `respawnPerRound` is `false`; nothing in this
+ *  phase's six arenas sets that yet. */
 function respawnPlayers(sim: SimState, connectedIds: readonly PlayerId[]): SimState {
   const players: Record<PlayerId, SimPlayer> = {};
   connectedIds.forEach((id, i) => {
     const spawn = sim.arena.spawns[i % sim.arena.spawns.length]!;
     players[id] = createSimPlayer(spawn, sim.players[id]?.weapon);
   });
-  return { ...sim, players };
+  const hazards = resetHazardState(sim.arena.hazards, sim.hazards ?? {}, sim.tick);
+  return { ...sim, players, hazards };
 }
 
 /**

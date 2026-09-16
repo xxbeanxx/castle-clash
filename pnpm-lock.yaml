@@ -193,6 +193,9 @@ importers:
       '@colyseus/sdk':
         specifier: '0.18'
         version: 0.18.2(@colyseus/core@0.18.13)(typescript@6.0.3)(zod@4.6.4)
+      '@supabase/supabase-js':
+        specifier: 2.116.0
+        version: 2.116.0
       isbot:
         specifier: ^5.2
         version: 5.2.2

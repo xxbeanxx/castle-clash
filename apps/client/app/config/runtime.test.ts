@@ -26,4 +26,13 @@ describe("getRuntimeConfig", () => {
 
     expect(getRuntimeConfig().GAME_SERVER_URL).toBe("ws://192.168.1.50:2567");
   });
+
+  it("uses VITE_SUPABASE_URL/VITE_SUPABASE_PUBLISHABLE_KEY to point dev at a local Supabase instance", () => {
+    vi.stubEnv("VITE_SUPABASE_URL", "http://127.0.0.1:54321");
+    vi.stubEnv("VITE_SUPABASE_PUBLISHABLE_KEY", "sb_publishable_local");
+
+    const config = getRuntimeConfig();
+    expect(config.SUPABASE_URL).toBe("http://127.0.0.1:54321");
+    expect(config.SUPABASE_PUBLISHABLE_KEY).toBe("sb_publishable_local");
+  });
 });

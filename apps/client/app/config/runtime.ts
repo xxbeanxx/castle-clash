@@ -17,6 +17,10 @@ declare global {
  * running server instead of failing to boot. `VITE_GAME_SERVER_URL` overrides just
  * the server URL in dev, so `pnpm dev` can be reached from another device on the
  * LAN (e.g. a phone), where `ws://localhost:2567` would otherwise point at itself.
+ * `VITE_SUPABASE_URL`/`VITE_SUPABASE_PUBLISHABLE_KEY` are the same idea for Phase
+ * 8's auth: `pnpm exec supabase start`'s own printed `API_URL`/`PUBLISHABLE_KEY`,
+ * so `pnpm dev` can sign in against a real local Supabase instance without
+ * building `config.js` first.
  */
 export function getRuntimeConfig(): RuntimeConfig {
   if (window.__CONFIG__) {
@@ -25,8 +29,8 @@ export function getRuntimeConfig(): RuntimeConfig {
   if (import.meta.env.DEV) {
     return {
       GAME_SERVER_URL: import.meta.env.VITE_GAME_SERVER_URL ?? "ws://localhost:2567",
-      SUPABASE_URL: "",
-      SUPABASE_PUBLISHABLE_KEY: "",
+      SUPABASE_URL: import.meta.env.VITE_SUPABASE_URL ?? "",
+      SUPABASE_PUBLISHABLE_KEY: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? "",
     };
   }
   throw new Error("window.__CONFIG__ is not set — is config.js loaded before the app bundle?");

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
+import { getAccessToken } from "../auth/supabase.js";
 import { getRuntimeConfig } from "../config/runtime.js";
 import { installE2eDebugHook } from "../game/debug.js";
 import { GameClient } from "../game/GameClient.js";
@@ -27,8 +28,10 @@ export function GameCanvas({ roomId }: { roomId: string }) {
     setClient(gameClient);
     installE2eDebugHook(gameClient);
     const intent = resolveJoinIntent(roomId, searchParams);
-    void gameClient
-      .start(container, getRuntimeConfig().GAME_SERVER_URL, intent)
+    void getAccessToken()
+      .then((accessToken) =>
+        gameClient.start(container, getRuntimeConfig().GAME_SERVER_URL, intent, accessToken ?? undefined),
+      )
       .then(() => {
         const actualRoomId = gameClient.roomId;
         const token = gameClient.reconnectionToken;

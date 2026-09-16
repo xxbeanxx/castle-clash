@@ -203,6 +203,13 @@ export class GameClient {
     container: HTMLElement,
     roomUrl: string,
     intent: JoinIntent = { kind: "quick" },
+    /** Forwarded to `MatchRoom.onAuth` (plan Phase 8 step 6) — `undefined`
+     *  for a caller with no session, which `onAuth` rejects the same way
+     *  a missing token always has. Callers should fetch this fresh right
+     *  before calling `start()` (`auth/supabase.ts`'s `getAccessToken()`
+     *  re-reads the current session every time) rather than caching it, so
+     *  a long-lived tab's later reconnect never sends an expired token. */
+    accessToken?: string,
   ): Promise<void> {
     this.#phase = { tag: "starting" };
 
@@ -234,6 +241,9 @@ export class GameClient {
     const arenaView = new ArenaView(arenaLayer);
     const hazardView = new HazardView(hazardLayer);
     const client = new Client(roomUrl);
+    if (accessToken) {
+      client.auth.token = accessToken;
+    }
     const room = await joinRoom(client, intent);
     if (this.#getPhase().tag === "destroyed") {
       await room.leave();

@@ -1,6 +1,7 @@
 import { ARENA_IDS, type ArenaId } from "@castle-clash/shared";
 import { useState } from "react";
 import { useNavigate } from "react-router";
+import { requireSession } from "../auth/requireSession.js";
 
 /** Display names for the lobby's arena picker (Phase 6) — quick play skips
  *  this entirely and takes `MatchRoom`'s random default, since there's no
@@ -17,6 +18,11 @@ const ARENA_OPTIONS = Object.values(ARENA_IDS) as ArenaId[];
 /** Matches `MatchRoomOptions.arenaId`'s own "random" behavior — an empty
  *  selection means "let the server pick," not a seventh named arena. */
 const RANDOM_ARENA = "";
+
+export async function clientLoader(): Promise<null> {
+  await requireSession();
+  return null;
+}
 
 /**
  * Quick play, create-a-private-room, or join-by-code (plan Phase 5 step 4)

@@ -17,6 +17,7 @@
   "dependencies": {
     "@castle-clash/shared": "workspace:*",
     "@colyseus/sdk": "0.18",
+    "@supabase/supabase-js": "2.116.0",
     "isbot": "^5.2",
     "pixi.js": "8.20",
     "react": "^19.3",

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isInputFrame } from "./guards.js";
+import { isDraftPick, isInputFrame } from "./guards.js";
 
 describe("isInputFrame", () => {
   it("accepts an object with numeric seq and bits", () => {
@@ -22,5 +22,22 @@ describe("isInputFrame", () => {
     ["non-numeric bits", { seq: 1, bits: "0" }],
   ])("rejects %s", (_label, value) => {
     expect(isInputFrame(value)).toBe(false);
+  });
+});
+
+describe("isDraftPick", () => {
+  it("accepts an object with a string id", () => {
+    expect(isDraftPick({ id: "sharpEdge" })).toBe(true);
+  });
+
+  it.each([
+    ["null", null],
+    ["undefined", undefined],
+    ["an array", ["sharpEdge"]],
+    ["a string", "sharpEdge"],
+    ["missing id", {}],
+    ["non-string id", { id: 1 }],
+  ])("rejects %s", (_label, value) => {
+    expect(isDraftPick(value)).toBe(false);
   });
 });

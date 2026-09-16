@@ -10,6 +10,24 @@ import type { SimPlayer } from "../sim/types.js";
 import type { ActionState, AttackKind } from "./types.js";
 import { getAttack, type WeaponDef } from "./weapons.js";
 
+/** Power-up-derived overrides for the two numeric knobs `applyFsm` would
+ *  otherwise read straight from `config/game.ts` (plan Phase 7's
+ *  `dodgeIFrames`/`staminaRegen` stats) — passed as plain numbers, not a
+ *  `DerivedStats`, so `combat/` never has to import from `powerups/` (the
+ *  dependency runs the other way: `powerups/computeStats.ts` imports
+ *  `combat/weapons.ts`'s `WeaponDef`). Defaults reproduce the pre-Phase-7
+ *  constants exactly, so every existing `applyFsm` call site keeps working
+ *  unmodified. */
+export interface FsmTuning {
+  dodgeIFrameTicks: number;
+  staminaRegenPerTick: number;
+}
+
+const DEFAULT_TUNING: FsmTuning = {
+  dodgeIFrameTicks: DODGE_IFRAME_TICKS,
+  staminaRegenPerTick: STAMINA_REGEN_PER_TICK,
+};
+
 export interface FsmContext {
   actionTick: number;
   bits: number;
@@ -185,7 +203,12 @@ export interface FsmOutcome {
  * regardless of what the FSM proposed, the same way a real fighting game
  * lets an incoming hit interrupt an in-progress action.
  */
-export function applyFsm(player: SimPlayer, bits: number, weapon: WeaponDef): FsmOutcome {
+export function applyFsm(
+  player: SimPlayer,
+  bits: number,
+  weapon: WeaponDef,
+  tuning: FsmTuning = DEFAULT_TUNING,
+): FsmOutcome {
   const hitstunTicksRemaining = Math.max(0, player.hitstunTicks - 1);
   const hitConfirmTicksRemaining = Math.max(0, player.hitConfirmTicks - 1);
   const invulnTicksDecayed = Math.max(0, player.invulnTicks - 1);
@@ -232,9 +255,9 @@ export function applyFsm(player: SimPlayer, bits: number, weapon: WeaponDef): Fs
 
   if (proposed === "Dodge" && changed) {
     staminaDelta = -DODGE_STAMINA_COST;
-    invulnTicks = DODGE_IFRAME_TICKS;
+    invulnTicks = tuning.dodgeIFrameTicks;
   } else if (proposed === "Idle" || proposed === "Run" || proposed === "Airborne") {
-    staminaDelta = STAMINA_REGEN_PER_TICK;
+    staminaDelta = tuning.staminaRegenPerTick;
   }
 
   return {

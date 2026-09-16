@@ -43,6 +43,13 @@ export const MIN_PLAYERS = 2;
 export const COUNTDOWN_TICKS = 180; // 3s
 /** How long the results of a finished round stay on screen before Draft. */
 export const ROUND_OVER_TICKS = 120; // 2s
+/** Hard fallback for how long `Draft` waits before moving on regardless of
+ *  picks (plan Phase 7 step 4: "auto-picks randomly with the seeded RNG on
+ *  timeout") — `match/phase.ts`'s own FSM enforces this independently of
+ *  `DraftService`'s per-player auto-pick, so a bug in the latter can't strand
+ *  a match in `Draft` forever; `DraftService` uses this same constant so its
+ *  auto-pick fires at (at the latest) the same tick this fallback would. */
+export const DRAFT_TICKS = 900; // 15s
 /** How long a round can run before sudden death kicks in. */
 export const ROUND_TIME_LIMIT = 3600; // 60s
 /** A ring-out (kill-zone elimination) still credits the last player who hit

@@ -11,11 +11,16 @@ import { has } from "../input/bitmask.js";
 import type { Vec } from "../math/vec.js";
 import type { SimPlayer } from "./types.js";
 
-export function applyHorizontalMovement(vel: Vec, bits: number, dt: number): Vec {
+export function applyHorizontalMovement(
+  vel: Vec,
+  bits: number,
+  dt: number,
+  maxSpeed: number = MAX_RUN_SPEED,
+): Vec {
   const dir = (has(bits, "RIGHT") ? 1 : 0) - (has(bits, "LEFT") ? 1 : 0);
 
   if (dir !== 0) {
-    const vx = Math.max(-MAX_RUN_SPEED, Math.min(MAX_RUN_SPEED, vel.x + dir * MOVE_ACCEL * dt));
+    const vx = Math.max(-maxSpeed, Math.min(maxSpeed, vel.x + dir * MOVE_ACCEL * dt));
     return { x: vx, y: vel.y };
   }
 
@@ -63,10 +68,15 @@ export interface JumpAttempt extends JumpCounters {
   jumped: boolean;
 }
 
-export function tryJump(vel: Vec, coyoteTicks: number, jumpBufferTicks: number): JumpAttempt {
+export function tryJump(
+  vel: Vec,
+  coyoteTicks: number,
+  jumpBufferTicks: number,
+  jumpVelocity: number = JUMP_VELOCITY,
+): JumpAttempt {
   if (coyoteTicks > 0 && jumpBufferTicks > 0) {
     return {
-      vel: { x: vel.x, y: -JUMP_VELOCITY },
+      vel: { x: vel.x, y: -jumpVelocity },
       jumped: true,
       coyoteTicks: 0,
       jumpBufferTicks: 0,

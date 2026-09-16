@@ -38,6 +38,12 @@ export interface HazardStepInput {
   /** Player ids whose `grounded` flipped false -> true this tick (physics
    *  stage), for `breakOn: "landing"`. */
   landedIds: ReadonlySet<PlayerId>;
+  /** Players whose `fireImmune` power-up effect is active this tick (plan
+   *  Phase 7) — skips FireZone's damage/knockback entirely. Optional and
+   *  defaulted to empty so every pre-Phase-7 caller of `stepHazards` keeps
+   *  working unmodified; `sim/GameSimulation.ts` is the only caller that
+   *  ever passes a non-empty set. */
+  fireImmuneIds?: ReadonlySet<PlayerId>;
 }
 
 export interface HazardStepResult {
@@ -255,6 +261,7 @@ function stepCollapsingPlatform(
  */
 export function stepHazards(input: HazardStepInput): HazardStepResult {
   const { tick, hazards, prevState, landedIds } = input;
+  const fireImmuneIds = input.fireImmuneIds ?? new Set<PlayerId>();
   const state: Record<string, HazardRuntimeState> = {};
   const killZoneBoxes: AABB[] = [];
   const events: HazardEvent[] = [];
@@ -272,7 +279,11 @@ export function stepHazards(input: HazardStepInput): HazardStepResult {
           const center = def.box.x + def.box.w / 2;
           for (const id of Object.keys(players) as PlayerId[]) {
             const player = players[id]!;
-            if (player.action === "Dead" || !overlaps(playerBox(player), def.box)) {
+            if (
+              player.action === "Dead" ||
+              !overlaps(playerBox(player), def.box) ||
+              fireImmuneIds.has(id)
+            ) {
               continue;
             }
             const pushDir = player.pos.x + PLAYER_WIDTH / 2 >= center ? 1 : -1;

@@ -15,6 +15,9 @@ export function hashState(state: SimState): number {
   const ids = Object.keys(state.players).sort();
   const players = ids.map((id) => {
     const p = state.players[id as keyof typeof state.players]!;
+    const powerups = p.powerups ?? {};
+    const powerupIds = (Object.keys(powerups) as (keyof typeof powerups)[]).sort();
+    const powerupStacks = powerupIds.map((powerupId) => `${powerupId}:${powerups[powerupId]}`).join("|");
     return [
       id,
       p.pos.x,
@@ -39,6 +42,9 @@ export function hashState(state: SimState): number {
       p.comboCount,
       p.lastHitBy ?? "",
       p.lastHitTick,
+      powerupStacks,
+      p.airJumpsUsed ?? 0,
+      p.ringOutArmorChargesUsed ?? 0,
     ].join(",");
   });
   const hazardState = state.hazards ?? {};

@@ -13,7 +13,34 @@ import type { Vec } from "../math/vec.js";
 import type { SimPlayer } from "../sim/types.js";
 import type { PlayerId } from "../types/ids.js";
 import type { ActionState } from "./types.js";
-import { getAttack, getWeapon, hitboxWorldBox, type AttackDef } from "./weapons.js";
+import { getAttack, getWeapon, hitboxWorldBox, type AttackDef, type WeaponDef } from "./weapons.js";
+
+/** Power-up-derived per-player knobs `resolveCombat` folds into hit
+ *  resolution (plan Phase 7): `blockStaminaCostMultiplier`/
+ *  `knockbackResistFraction`/`maxHp`/`staminaMax` apply to the defender,
+ *  `lifestealPct` to the attacker, `thornsPct` back onto the attacker as the
+ *  defender's reflect. Plain numbers, not a `DerivedStats` — `combat/` never
+ *  imports from `powerups/` (see `fsm.ts`'s `FsmTuning` for the same
+ *  reasoning); `sim/GameSimulation.ts` is what actually computes these via
+ *  `powerups/computeStats.ts` and passes them in. Defaults reproduce
+ *  pre-Phase-7 behavior exactly. */
+export interface CombatModifiers {
+  maxHp: number;
+  staminaMax: number;
+  blockStaminaCostMultiplier: number;
+  knockbackResistFraction: number;
+  lifestealPct: number;
+  thornsPct: number;
+}
+
+const DEFAULT_MODIFIERS: CombatModifiers = {
+  maxHp: MAX_HP,
+  staminaMax: MAX_STAMINA,
+  blockStaminaCostMultiplier: 1,
+  knockbackResistFraction: 0,
+  lifestealPct: 0,
+  thornsPct: 0,
+};
 
 export type CombatEventType = "hit" | "blocked" | "guardBreak" | "ko" | "whiff";
 
@@ -61,7 +88,10 @@ function clamp(value: number, min: number, max: number): number {
  * before applying any" (Phase 4 step 3's resolve.ts stages 3-4). Dead
  * players and anyone outside AttackActive contribute nothing.
  */
-function gatherPendingHits(players: Readonly<Record<PlayerId, SimPlayer>>): PendingHit[] {
+function gatherPendingHits(
+  players: Readonly<Record<PlayerId, SimPlayer>>,
+  weapons: Readonly<Partial<Record<PlayerId, WeaponDef>>>,
+): PendingHit[] {
   const ids = (Object.keys(players) as PlayerId[]).sort();
   const hits: PendingHit[] = [];
 
@@ -70,7 +100,7 @@ function gatherPendingHits(players: Readonly<Record<PlayerId, SimPlayer>>): Pend
     if (attacker.action !== "AttackActive" || attacker.attackKind === null) {
       continue;
     }
-    const weapon = getWeapon(attacker.weapon);
+    const weapon = weapons[attackerId] ?? getWeapon(attacker.weapon);
     const attack = getAttack(weapon, attacker.attackKind);
     const activeHitboxes = attack.hitboxes.filter((hb) => hb.tickOffset === attacker.actionTick);
     if (activeHitboxes.length === 0) {
@@ -153,8 +183,10 @@ function applyHitOutcome(
  */
 export function resolveCombat(
   players: Readonly<Record<PlayerId, SimPlayer>>,
+  weapons: Readonly<Partial<Record<PlayerId, WeaponDef>>> = {},
+  modifiers: Readonly<Partial<Record<PlayerId, CombatModifiers>>> = {},
 ): ResolveResult {
-  const pending = gatherPendingHits(players);
+  const pending = gatherPendingHits(players, weapons);
   const next: Record<PlayerId, SimPlayer> = { ...players };
   const events: CombatEvent[] = [];
 
@@ -167,6 +199,8 @@ export function resolveCombat(
     const { attackerId, defenderId, attack, attackerFacing } = hit;
     const defender = players[defenderId]!;
     const attacker = players[attackerId]!;
+    const defenderMods = modifiers[defenderId] ?? DEFAULT_MODIFIERS;
+    const attackerMods = modifiers[attackerId] ?? DEFAULT_MODIFIERS;
 
     if (defender.invulnTicks > 0) {
       // Dodge i-frames skip the hit entirely — no damage, no event.
@@ -175,17 +209,19 @@ export function resolveCombat(
 
     const blocked = defender.action === "Block" && isFrontalBlock(attacker, defender);
     const current = next[defenderId]!;
-    const vel = knockbackVel(attack, attackerFacing);
+    const resist = clamp(defenderMods.knockbackResistFraction, 0, 0.99);
+    const rawVel = knockbackVel(attack, attackerFacing);
+    const vel = { x: rawVel.x * (1 - resist), y: rawVel.y * (1 - resist) };
 
     if (blocked) {
-      const stamina = current.stamina - attack.staminaDamage;
+      const stamina = current.stamina - attack.staminaDamage * defenderMods.blockStaminaCostMultiplier;
       const guardBroken = stamina <= 0;
 
       next[defenderId] = applyHitOutcome(current, {
         action: guardBroken ? "GuardBroken" : "BlockStun",
         hitstunTicks: guardBroken ? GUARD_BROKEN_TICKS : BLOCK_STUN_TICKS,
-        hp: clamp(current.hp - attack.damage * BLOCK_DAMAGE_FRACTION, 0, MAX_HP),
-        stamina: clamp(stamina, 0, MAX_STAMINA),
+        hp: clamp(current.hp - attack.damage * BLOCK_DAMAGE_FRACTION, 0, defenderMods.maxHp),
+        stamina: clamp(stamina, 0, defenderMods.staminaMax),
         vel,
       });
       events.push({
@@ -196,7 +232,8 @@ export function resolveCombat(
       continue;
     }
 
-    const hp = clamp(current.hp - attack.damage, 0, MAX_HP);
+    const hp = clamp(current.hp - attack.damage, 0, defenderMods.maxHp);
+    const damageDealt = current.hp - hp;
     const dead = hp <= 0;
 
     next[defenderId] = applyHitOutcome(current, {
@@ -211,6 +248,24 @@ export function resolveCombat(
       events.push({ type: "ko", attacker: attackerId, defender: defenderId });
     } else {
       next[attackerId] = { ...next[attackerId]!, hitConfirmTicks: HIT_CONFIRM_TICKS };
+    }
+
+    // lifesteal (attacker) and thorns (defender) — both keyed off the same
+    // `damageDealt` this hit actually applied, not the attack's raw
+    // `damage` (a near-death hit can deal less than that). Thorns is
+    // deliberately capped so it can never itself finish the attacker off
+    // (min 1 hp survives) — it punishes aggression, but doesn't score a
+    // separate kill; a chained thorns-KO would need its own elimination/fx
+    // wiring this phase doesn't add.
+    if (attackerMods.lifestealPct > 0) {
+      const healed = next[attackerId]!;
+      const healedHp = clamp(healed.hp + damageDealt * attackerMods.lifestealPct, 0, attackerMods.maxHp);
+      next[attackerId] = { ...healed, hp: healedHp };
+    }
+    if (defenderMods.thornsPct > 0) {
+      const reflectedTo = next[attackerId]!;
+      const reflectedHp = Math.max(1, reflectedTo.hp - damageDealt * defenderMods.thornsPct);
+      next[attackerId] = { ...reflectedTo, hp: reflectedHp };
     }
   }
 

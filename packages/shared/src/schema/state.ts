@@ -1,4 +1,4 @@
-import { MapSchema, Schema, type } from "@colyseus/schema";
+import { ArraySchema, MapSchema, Schema, type } from "@colyseus/schema";
 import { MAX_HP, MAX_STAMINA } from "../config/game.js";
 import { WEAPON_IDS } from "../types/ids.js";
 
@@ -48,6 +48,22 @@ export class PlayerState extends Schema {
   @type("number") roundsWon = 0;
   @type("boolean") alive = true;
   @type("boolean") spectator = false;
+
+  // Power-up draft (Phase 7). One entry per stack owned — a power-up owned
+  // at 3 stacks appears 3 times, so opponents (and `hud.ts`'s HudPlayerSnapshot)
+  // can read stack counts straight off `.length`/a tally without a separate
+  // synced map. Deliberately public (plan step 4): opponents can see builds;
+  // only the draft *offers* themselves (`DraftService`/`MESSAGE_TYPES.
+  // DRAFT_OFFER`) are private.
+  @type(["string"]) powerups = new ArraySchema<string>();
+  /** Extra mid-air jumps used since last grounded (`doubleJump`'s
+   *  `airJumpsUsed`) — synced so a reconciling client's `schemaToSimPlayer`
+   *  seeds prediction from the exact same counter the server has, the same
+   *  reasoning `coyoteTicks`/`jumpBufferTicks` above already follow. */
+  @type("number") airJumpsUsed = 0;
+  /** `ringOutArmor` charges spent so far this match — same reconciliation
+   *  reasoning as `airJumpsUsed`. */
+  @type("number") ringOutArmorChargesUsed = 0;
 }
 
 /** Dynamic per-hazard state (Phase 6 plan step 4's `MatchState.hazards:

@@ -47,6 +47,16 @@ export type JoinIntent =
   | { kind: "joinById"; roomId: string }
   | { kind: "reconnect"; token: string };
 
+/** The client's view of its own private `draft:offer` (plan Phase 7 step 5)
+ *  — `picked` is set locally the instant `pickPowerUp` sends, before the
+ *  server's own ack (the `powerups` sync) arrives, so `DraftOverlay` can
+ *  disable its cards immediately rather than waiting a round trip. */
+export interface DraftOfferSnapshot {
+  offers: readonly string[];
+  endsAtTick: number;
+  picked: string | null;
+}
+
 /** A tiny pub/sub primitive — `subscribeHud`/`subscribeMatchFlow`/
  *  `subscribeMatchCode`/`subscribeMatchResult` were four copies of the same
  *  add-to-a-`Set`-and-return-an-unsubscriber shape before this existed. */
@@ -101,6 +111,7 @@ export class GameClient {
   #seq = 0;
   #lastKnownServerTimeMs = 0;
   #lastKnownAtLocalMs = 0;
+  #currentDraftOffer: DraftOfferSnapshot | null = null;
 
   /** The match's resolved arena and its camera — both seeded once
    *  `MatchState.arenaId` is known (see `#ensureArena`), which happens
@@ -113,6 +124,7 @@ export class GameClient {
   readonly #matchFlow = new Emitter<MatchFlowSnapshot>();
   readonly #matchCode = new Emitter<string>();
   readonly #matchResult = new Emitter<MatchResult>();
+  readonly #draftOffer = new Emitter<DraftOfferSnapshot | null>();
 
   /** Subscribes to HUD snapshots (hp/stamina/weapon/action per player),
    *  pushed once per server patch — no polling, no per-frame React
@@ -137,6 +149,30 @@ export class GameClient {
    *  ends. */
   subscribeMatchResult(listener: (result: MatchResult) => void): () => void {
     return this.#matchResult.subscribe(listener);
+  }
+
+  /** Subscribes to this client's own private draft offer (plan Phase 7) —
+   *  `null` once the round's `Draft` phase ends (picked, auto-picked, or
+   *  timed out), whichever came from the server. */
+  subscribeDraftOffer(listener: (offer: DraftOfferSnapshot | null) => void): () => void {
+    return this.#draftOffer.subscribe(listener);
+  }
+
+  /** Sends `draft:pick` for the current offer — a no-op if there's no
+   *  active offer or this client already picked (mirrors the server's own
+   *  once-only validation in `DraftService.pick`, so a double-click can't
+   *  even get as far as a wasted round trip). */
+  pickPowerUp(id: string): void {
+    const phase = this.#getPhase();
+    if (phase.tag !== "connected" && phase.tag !== "predicting") {
+      return;
+    }
+    if (!this.#currentDraftOffer || this.#currentDraftOffer.picked) {
+      return;
+    }
+    this.#currentDraftOffer = { ...this.#currentDraftOffer, picked: id };
+    this.#draftOffer.emit(this.#currentDraftOffer);
+    phase.resources.room.send(MESSAGE_TYPES.DRAFT_PICK, { id });
   }
 
   /** The local player's current predicted/visual position — `null` before
@@ -208,6 +244,10 @@ export class GameClient {
     room.onMessage(MESSAGE_TYPES.MATCH_CODE, (code: string) => this.#matchCode.emit(code));
     room.onMessage(MESSAGE_TYPES.MATCH_RESULT, (result: MatchResult) => this.#matchResult.emit(result));
     room.onMessage(MESSAGE_TYPES.FX, (events: SimEvent[]) => this.#shakeForEvents(events));
+    room.onMessage(MESSAGE_TYPES.DRAFT_OFFER, (payload: { offers: string[]; endsAtTick: number }) => {
+      this.#currentDraftOffer = { offers: payload.offers, endsAtTick: payload.endsAtTick, picked: null };
+      this.#draftOffer.emit(this.#currentDraftOffer);
+    });
 
     const keyboard = new KeyboardInput();
     keyboard.attach();
@@ -269,6 +309,13 @@ export class GameClient {
       }
       if (this.#matchFlow.hasListeners) {
         this.#matchFlow.emit(matchStateToPhaseBanner(state));
+      }
+      // The round's Draft phase ended (picked, auto-picked, or timed out) —
+      // clear the overlay's offer regardless of which of those it was, all
+      // three look the same from here: `state.phase` moved on.
+      if (this.#currentDraftOffer && state.phase !== "Draft") {
+        this.#currentDraftOffer = null;
+        this.#draftOffer.emit(null);
       }
     });
 

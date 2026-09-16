@@ -5,6 +5,7 @@ import { installE2eDebugHook } from "../game/debug.js";
 import { GameClient } from "../game/GameClient.js";
 import { resolveJoinIntent, storeReconnectionToken } from "../game/reconnection.js";
 import { CombatHud } from "./CombatHud.js";
+import { DraftOverlay } from "./DraftOverlay.js";
 import { MatchBanner } from "./MatchBanner.js";
 import { ResultsOverlay } from "./ResultsOverlay.js";
 
@@ -65,6 +66,7 @@ export function GameCanvas({ roomId }: { roomId: string }) {
       />
       {client && <CombatHud client={client} />}
       {client && <MatchBanner client={client} />}
+      {client && <DraftOverlay client={client} />}
       {client && <ResultsOverlay client={client} />}
     </div>
   );

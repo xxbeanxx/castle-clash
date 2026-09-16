@@ -1,0 +1,60 @@
+name: integration
+
+on:
+  pull_request:
+    paths:
+      - "supabase/**"
+      - "apps/server/**"
+      - "packages/shared/**"
+      - ".github/workflows/integration.yml"
+  workflow_dispatch: {}
+
+concurrency:
+  group: integration-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  supabase:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # `apps/server` imports `@castle-clash/shared`, which resolves through
+      # the workspace symlink to `packages/shared/dist` — `pnpm install`
+      # doesn't build it (see CLAUDE.md's stale-dist gotcha).
+      - run: pnpm --filter @castle-clash/shared run build
+
+      # `supabase` is a pinned pnpm devDependency at the workspace root (see
+      # docs/research/phase8-supabase-cli-podman.md), not the
+      # `supabase/setup-cli` action — one pinned version in package.json,
+      # rather than that version and a separate action version drifting
+      # apart. GitHub's Ubuntu runners ship Docker preinstalled, so `supabase
+      # start` here takes the `docker` branch of the docker-or-podman
+      # fallback this repo's local dev machine instead exercises via podman.
+      - run: pnpm exec supabase start --exclude studio,logflare,vector,imgproxy
+      - run: pnpm exec supabase db reset
+      - run: pnpm exec supabase db lint
+      - run: pnpm exec supabase test db --local
+
+      - name: Export local Supabase connection info
+        run: |
+          status=$(pnpm exec supabase status -o json)
+          echo "SUPABASE_URL=$(echo "$status" | jq -r '.API_URL')" >> "$GITHUB_ENV"
+          echo "SUPABASE_SECRET_KEY=$(echo "$status" | jq -r '.SECRET_KEY')" >> "$GITHUB_ENV"
+
+      - name: Server contract suite against local Supabase
+        working-directory: apps/server
+        run: npx vitest run test/contract/SupabasePlayerRepository.contract.test.ts
+
+      - name: Generated types freshness check
+        run: |
+          pnpm exec supabase gen types typescript --local > packages/shared/src/db/database.types.ts
+          git diff --exit-code -- packages/shared/src/db/database.types.ts
+
+      - run: pnpm exec supabase stop
+        if: always()

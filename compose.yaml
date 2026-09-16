@@ -9,6 +9,17 @@ services:
     image: castle-clash-server:local
     ports:
       - "2567:2567"
+    environment:
+      # Phase 8: MatchRoom.onAuth rejects every join without a real Supabase
+      # JWT, so these placeholders make the server start (and its own
+      # healthz/readyz respond) but not actually accept a join — this file
+      # doesn't run a Supabase stack alongside server/client (see
+      # docs/research/phase8-scope-deviations.md for why, and what a real
+      # auth-capable compose stack would need). `apps/server/scripts/smoke-
+      # join.ts`'s headless join accordingly can't succeed against this
+      # compose stack until that's addressed.
+      SUPABASE_URL: http://localhost:0
+      SUPABASE_SECRET_KEY: local-dev-placeholder
     healthcheck:
       # 127.0.0.1, not localhost: nginx's client-side counterpart below only
       # binds IPv4 in this image, and localhost can resolve to ::1 first.

@@ -1,36 +1,47 @@
 import {
+  getArena,
   hashSeed,
+  isArenaId,
   MATCH_ROOM_NAME,
   MatchState,
   MESSAGE_TYPES,
   playerId,
+  TESTBED_ARENA,
+  type ArenaDefinition,
   type MatchResult,
   type PlayerState,
   schemaToSimPlayer,
-  TESTBED_ARENA,
   TICK_RATE,
   type PlayerId,
   type Vec,
 } from "@castle-clash/shared";
 import { Client, type Room } from "@colyseus/sdk";
-import { Application, type Ticker } from "pixi.js";
+import { Application, Container, type Ticker } from "pixi.js";
 import { matchStateToHud, type HudPlayerSnapshot } from "./hud.js";
 import { KeyboardInput } from "./input/KeyboardInput.js";
 import { matchStateToPhaseBanner, type MatchFlowSnapshot } from "./matchFlow.js";
 import { Interpolator } from "./net/Interpolator.js";
 import { Reconciler } from "./net/Reconciler.js";
+import { ArenaView } from "./render/ArenaView.js";
+import { CameraController, DEFAULT_CAMERA_CONFIG } from "./render/Camera.js";
+import { HazardView } from "./render/HazardView.js";
 import { PlayerRectsView } from "./render/PlayerRects.js";
-import { playersToRects } from "./viewmodel/playersToRects.js";
+import { hazardsToRects } from "./viewmodel/hazardsToRects.js";
+import { playersToRects, type PlayerRect } from "./viewmodel/playersToRects.js";
 
 const FIXED_DT_MS = 1000 / TICK_RATE;
 
 /** How to connect to a match — resolved into the right `@colyseus/sdk` call
  *  by `GameClient.start()` (plan Phase 5 step 4: quick play, private rooms
  *  by code, and reconnection via a stored token, all share one entry
- *  point). */
+ *  point). `createPrivate`'s `arenaId` (Phase 6) is the lobby's host-side
+ *  arena picker — quick play always takes `MatchRoom`'s random default,
+ *  since there's no host to ask. An invalid/omitted `arenaId` is the
+ *  server's problem, not this type's: `MatchRoomOptions.arenaId` already
+ *  falls back to random for anything that isn't a real `ArenaId`. */
 export type JoinIntent =
   | { kind: "quick" }
-  | { kind: "createPrivate" }
+  | { kind: "createPrivate"; arenaId?: string }
   | { kind: "joinPrivate"; code: string }
   | { kind: "joinById"; roomId: string }
   | { kind: "reconnect"; token: string };
@@ -62,6 +73,8 @@ interface Resources {
   readonly room: Room<unknown, MatchState>;
   readonly keyboard: KeyboardInput;
   readonly view: PlayerRectsView;
+  readonly arenaView: ArenaView;
+  readonly hazardView: HazardView;
   readonly localId: PlayerId;
   readonly rngSeed: number;
 }
@@ -87,6 +100,13 @@ export class GameClient {
   #seq = 0;
   #lastKnownServerTimeMs = 0;
   #lastKnownAtLocalMs = 0;
+
+  /** The match's resolved arena and its camera — both seeded once
+   *  `MatchState.arenaId` is known (see `#ensureArena`), which happens
+   *  independently of (and usually before) the local player's own schema
+   *  entry, so this doesn't reuse `#ensureReconciler`'s seeding path. */
+  #resolvedArena: ArenaDefinition | null = null;
+  #camera: CameraController | null = null;
 
   readonly #hud = new Emitter<HudPlayerSnapshot[]>();
   readonly #matchFlow = new Emitter<MatchFlowSnapshot>();
@@ -164,7 +184,18 @@ export class GameClient {
     }
     container.appendChild(app.canvas);
 
-    const view = new PlayerRectsView(app.stage);
+    // Layered so hazards always draw over static geometry and players
+    // always draw over hazards, regardless of sync/creation order within a
+    // layer — matches `Container.addChild`'s append-only ordering each
+    // view already relies on internally.
+    const arenaLayer = new Container();
+    const hazardLayer = new Container();
+    const playerLayer = new Container();
+    app.stage.addChild(arenaLayer, hazardLayer, playerLayer);
+
+    const view = new PlayerRectsView(playerLayer);
+    const arenaView = new ArenaView(arenaLayer);
+    const hazardView = new HazardView(hazardLayer);
     const client = new Client(roomUrl);
     const room = await joinRoom(client, intent);
     if (this.#getPhase().tag === "destroyed") {
@@ -184,10 +215,18 @@ export class GameClient {
       room,
       keyboard,
       view,
+      arenaView,
+      hazardView,
       localId: playerId(room.sessionId),
       rngSeed: hashSeed(room.roomId),
     };
     this.#phase = { tag: "connected", resources };
+
+    // Same race as the reconciler below (join can resolve before the first
+    // full-state patch decodes) — `arenaId` just doesn't depend on the
+    // local player's own schema entry existing yet, so it's seeded
+    // independently rather than piggybacking on `#ensureReconciler`.
+    this.#ensureArena(room.state);
 
     // The local player's schema entry can still be undefined right here even
     // though onJoin already ran server-side: joinOrCreate() can resolve
@@ -204,6 +243,7 @@ export class GameClient {
       if (this.#getPhase().tag === "destroyed") {
         return;
       }
+      this.#ensureArena(state);
       this.#lastKnownServerTimeMs = state.tick * FIXED_DT_MS;
       this.#lastKnownAtLocalMs = performance.now();
 
@@ -246,7 +286,13 @@ export class GameClient {
       }
 
       const alpha = this.#accumulatorMs / FIXED_DT_MS;
-      view.sync(playersToRects(room.state, this.#renderOverrides(alpha)));
+      const rects = playersToRects(room.state, this.#renderOverrides(alpha));
+      view.sync(rects);
+
+      if (this.#resolvedArena) {
+        hazardView.sync(hazardsToRects(room.state, this.#resolvedArena.hazards));
+      }
+      this.#updateCamera(app, rects, ticker.deltaMS / 1000);
     });
   }
 
@@ -280,12 +326,69 @@ export class GameClient {
     }
     const { resources } = phase;
     const reconciler = new Reconciler(schemaToSimPlayer(schemaPlayer), {
-      arena: TESTBED_ARENA,
+      arena: this.#resolvedArena ?? this.#resolveArena(resources.room.state),
       rngSeed: resources.rngSeed,
       localId: resources.localId,
     });
     this.#prevLocalPos = { ...reconciler.visualPosition };
     this.#phase = { tag: "predicting", resources, reconciler };
+  }
+
+  /** The match's real arena (Phase 6), read by id from `MatchState.arenaId`
+   *  — static geometry is never sent over the wire (plan step 4), so the
+   *  client loads it from `shared`'s arena registry, the same way the
+   *  server does. Falls back to `TESTBED_ARENA` only for the impossible
+   *  case of an empty/unrecognized `arenaId` (e.g. a patch read before
+   *  `onCreate`'s own set has arrived), so prediction never crashes on a
+   *  missing arena — it just predicts against the wrong one for a tick. */
+  #resolveArena(state: MatchState): ArenaDefinition {
+    return isArenaId(state.arenaId) ? getArena(state.arenaId) : TESTBED_ARENA;
+  }
+
+  /** Seeds `#resolvedArena`/`#camera`/`ArenaView` the first tick
+   *  `MatchState.arenaId` resolves to a real arena — idempotent, and safe
+   *  to call from both right after join and every `onStateChange` until it
+   *  sticks (mirrors `#ensureReconciler`'s own race-tolerant seeding). */
+  #ensureArena(state: MatchState): void {
+    if (this.#resolvedArena || !isArenaId(state.arenaId)) {
+      return;
+    }
+    const phase = this.#getPhase();
+    if (phase.tag !== "connected" && phase.tag !== "predicting") {
+      return;
+    }
+    const arena = getArena(state.arenaId);
+    this.#resolvedArena = arena;
+    // Framed against the canvas's actual current size, not a hardcoded
+    // 1280x720 — `resizeTo: container` (see `start()`) means that can
+    // genuinely differ from `DEFAULT_CAMERA_CONFIG`'s fallback.
+    this.#camera = new CameraController(arena.bounds, {
+      ...DEFAULT_CAMERA_CONFIG,
+      viewportWidth: phase.resources.app.screen.width,
+      viewportHeight: phase.resources.app.screen.height,
+    });
+    phase.resources.arenaView.setArena(arena);
+  }
+
+  /** Lerps the camera toward every living player's current render position
+   *  and applies it as `app.stage`'s pan/zoom — every layer (arena,
+   *  hazards, players) is a child of `stage`, so one transform moves them
+   *  together. A no-op until `#ensureArena` seeds `#camera`. */
+  #updateCamera(app: Application, rects: readonly PlayerRect[], dtSeconds: number): void {
+    const camera = this.#camera;
+    const phase = this.#getPhase();
+    if (!camera || (phase.tag !== "connected" && phase.tag !== "predicting")) {
+      return;
+    }
+    const living = rects.filter((rect) => phase.resources.room.state.players.get(rect.id)?.alive !== false);
+    camera.update(living, dtSeconds);
+
+    const frame = camera.frame;
+    app.stage.scale.set(frame.zoom);
+    app.stage.position.set(
+      app.screen.width / 2 - frame.x * frame.zoom,
+      app.screen.height / 2 - frame.y * frame.zoom,
+    );
   }
 
   #fixedUpdate(): void {
@@ -336,7 +439,7 @@ function joinRoom(client: Client, intent: JoinIntent): Promise<Room<unknown, Mat
     case "quick":
       return client.joinOrCreate<MatchState>(MATCH_ROOM_NAME, { mode: "quick" }, MatchState);
     case "createPrivate":
-      return client.create<MatchState>(MATCH_ROOM_NAME, { mode: "private" }, MatchState);
+      return client.create<MatchState>(MATCH_ROOM_NAME, { mode: "private", arenaId: intent.arenaId }, MatchState);
     case "joinPrivate":
       return client.join<MatchState>(MATCH_ROOM_NAME, { mode: "private", code: intent.code }, MatchState);
     case "joinById":

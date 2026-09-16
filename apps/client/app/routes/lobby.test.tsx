@@ -39,6 +39,18 @@ describe("Lobby route", () => {
     );
   });
 
+  it("navigates to /play/new?mode=private&arena=pit when a specific arena is picked", () => {
+    const { router } = renderLobby();
+    render(<RouterProvider router={router} />);
+
+    fireEvent.change(screen.getByLabelText("Arena"), { target: { value: "pit" } });
+    fireEvent.click(screen.getByText("Create private room"));
+
+    expect(router.state.location.pathname + router.state.location.search).toBe(
+      "/play/new?mode=private&arena=pit",
+    );
+  });
+
   it("navigates to /play/new?mode=private&code=... on joining a code", () => {
     const { router } = renderLobby();
     render(<RouterProvider router={router} />);

@@ -51,6 +51,19 @@ vi.mock("pixi.js", () => ({
   Application: vi.fn().mockImplementation(function Application() {
     return mockApp;
   }),
+  Container: vi.fn().mockImplementation(function Container() {
+    return { addChild: vi.fn() };
+  }),
+  Graphics: vi.fn().mockImplementation(function Graphics() {
+    const graphics = {
+      position: { set: vi.fn() },
+      destroy: vi.fn(),
+      clear: vi.fn().mockReturnThis(),
+      rect: vi.fn().mockReturnThis(),
+      fill: vi.fn().mockReturnThis(),
+    };
+    return graphics;
+  }),
   Sprite: vi.fn().mockImplementation(function Sprite() {
     return { position: { set: vi.fn() }, destroy: vi.fn() };
   }),

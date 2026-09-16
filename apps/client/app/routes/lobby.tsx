@@ -1,5 +1,22 @@
+import { ARENA_IDS, type ArenaId } from "@castle-clash/shared";
 import { useState } from "react";
 import { useNavigate } from "react-router";
+
+/** Display names for the lobby's arena picker (Phase 6) — quick play skips
+ *  this entirely and takes `MatchRoom`'s random default, since there's no
+ *  host to ask; only a private room's creator picks one. */
+const ARENA_LABELS: Record<ArenaId, string> = {
+  [ARENA_IDS.PIT]: "Pit",
+  [ARENA_IDS.CASTLE_ROOM]: "Castle Room",
+  [ARENA_IDS.COLOSSEUM]: "Colosseum",
+  [ARENA_IDS.BRIDGE]: "Bridge",
+  [ARENA_IDS.WOODEN_HALL]: "Wooden Hall",
+  [ARENA_IDS.DUNGEON]: "Dungeon",
+};
+const ARENA_OPTIONS = Object.values(ARENA_IDS) as ArenaId[];
+/** Matches `MatchRoomOptions.arenaId`'s own "random" behavior — an empty
+ *  selection means "let the server pick," not a seventh named arena. */
+const RANDOM_ARENA = "";
 
 /**
  * Quick play, create-a-private-room, or join-by-code (plan Phase 5 step 4)
@@ -11,6 +28,7 @@ import { useNavigate } from "react-router";
 export default function Lobby() {
   const navigate = useNavigate();
   const [code, setCode] = useState("");
+  const [arena, setArena] = useState<string>(RANDOM_ARENA);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16, padding: 24, maxWidth: 320 }}>
@@ -20,9 +38,26 @@ export default function Lobby() {
         Quick play
       </button>
 
-      <button type="button" onClick={() => navigate("/play/new?mode=private")}>
-        Create private room
-      </button>
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <label htmlFor="arena-select">Arena</label>
+        <select id="arena-select" value={arena} onChange={(event) => setArena(event.target.value)}>
+          <option value={RANDOM_ARENA}>Random</option>
+          {ARENA_OPTIONS.map((id) => (
+            <option key={id} value={id}>
+              {ARENA_LABELS[id]}
+            </option>
+          ))}
+        </select>
+        <button
+          type="button"
+          onClick={() => {
+            const arenaParam = arena === RANDOM_ARENA ? "" : `&arena=${encodeURIComponent(arena)}`;
+            navigate(`/play/new?mode=private${arenaParam}`);
+          }}
+        >
+          Create private room
+        </button>
+      </div>
 
       <form
         onSubmit={(event) => {

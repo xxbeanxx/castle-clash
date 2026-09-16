@@ -34,7 +34,11 @@ export function resolveJoinIntent(roomId: string, searchParams: URLSearchParams)
     const mode = searchParams.get("mode");
     const code = searchParams.get("code");
     if (mode === "private") {
-      return code ? { kind: "joinPrivate", code } : { kind: "createPrivate" };
+      // `arena` only matters for creating a room — joining an existing one
+      // by code inherits whatever arena its host already picked.
+      return code
+        ? { kind: "joinPrivate", code }
+        : { kind: "createPrivate", arenaId: searchParams.get("arena") ?? undefined };
     }
     return { kind: "quick" };
   }

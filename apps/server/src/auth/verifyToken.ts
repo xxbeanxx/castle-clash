@@ -62,3 +62,28 @@ function requireSub(payload: JWTPayload): string {
   }
   return payload.sub;
 }
+
+/** The real, production verifier, built from `SUPABASE_URL` (a Supabase
+ *  project always issues tokens with `iss: "<SUPABASE_URL>/auth/v1"` and
+ *  expects `aud: "authenticated"` for a signed-in — including anonymous —
+ *  user). Throws only when actually called with `SUPABASE_URL` unset, not
+ *  at import time, so building `MatchRoom`'s class (which references this
+ *  as a default) never requires the env var to be set — only authenticating
+ *  a real join does. */
+export function createDefaultTokenVerifier(): TokenVerifier {
+  let cached: TokenVerifier | undefined;
+  return (token) => {
+    if (!cached) {
+      const supabaseUrl = process.env["SUPABASE_URL"];
+      if (!supabaseUrl) {
+        throw new Error(
+          "SUPABASE_URL is not set — cannot verify auth tokens. " +
+            "Set SUPABASE_URL (and run `pnpm exec supabase start` for local dev) before joining a match.",
+        );
+      }
+      const issuer = `${supabaseUrl}/auth/v1`;
+      cached = createTokenVerifier({ jwksUrl: `${issuer}/.well-known/jwks.json`, issuer, audience: "authenticated" });
+    }
+    return cached(token);
+  };
+}

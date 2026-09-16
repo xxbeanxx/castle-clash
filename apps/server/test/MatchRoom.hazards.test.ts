@@ -4,6 +4,7 @@ import { boot, type ColyseusTestServer } from "@colyseus/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { server } from "../src/index.js";
 import { ManualTickDriver } from "../src/rooms/TickDriver.js";
+import { connectAs, stubAuthForTests } from "./testAuth.js";
 
 function flush(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0));
@@ -117,6 +118,7 @@ describe("MatchRoom hazards", () => {
   let colyseus: ColyseusTestServer;
 
   beforeAll(async () => {
+    stubAuthForTests();
     colyseus = await boot(server);
   });
 
@@ -141,7 +143,9 @@ describe("MatchRoom hazards", () => {
     expect(room.state.hazards.get(HAZARD_ID)!.active).toBe(true);
     expect(room.state.hazards.get(HAZARD_ID)!.hp).toBe(16);
 
+    connectAs(colyseus, "player-a");
     const a = await colyseus.connectTo(room);
+    connectAs(colyseus, "player-b");
     await colyseus.connectTo(room);
     tickDriver.step(1);
     await room.waitForNextPatch();

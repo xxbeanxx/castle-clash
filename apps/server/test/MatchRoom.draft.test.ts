@@ -12,6 +12,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { server } from "../src/index.js";
 import type { MatchRoom } from "../src/rooms/MatchRoom.js";
 import { ManualTickDriver } from "../src/rooms/TickDriver.js";
+import { connectAs, stubAuthForTests } from "./testAuth.js";
 
 function flush(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0));
@@ -77,8 +78,10 @@ async function setupThroughRoundOver(colyseus: ColyseusTestServer): Promise<{
   const offersB: DraftOfferPayload[] = [];
   const offersC: DraftOfferPayload[] = [];
 
+  connectAs(colyseus, "player-a");
   const a = await colyseus.connectTo(room);
   a.onMessage(MESSAGE_TYPES.DRAFT_OFFER, (payload: DraftOfferPayload) => offersA.push(payload));
+  connectAs(colyseus, "player-b");
   const b = await colyseus.connectTo(room);
   b.onMessage(MESSAGE_TYPES.DRAFT_OFFER, (payload: DraftOfferPayload) => offersB.push(payload));
 
@@ -88,6 +91,7 @@ async function setupThroughRoundOver(colyseus: ColyseusTestServer): Promise<{
   await room.waitForNextPatch();
   expect(room.state.phase).toBe("RoundActive");
 
+  connectAs(colyseus, "player-c-spectator");
   const c = await colyseus.connectTo(room);
   c.onMessage(MESSAGE_TYPES.DRAFT_OFFER, (payload: DraftOfferPayload) => offersC.push(payload));
   expect(room.state.players.get(c.sessionId)!.spectator).toBe(true);
@@ -103,6 +107,7 @@ describe("MatchRoom draft", () => {
   let colyseus: ColyseusTestServer;
 
   beforeAll(async () => {
+    stubAuthForTests();
     colyseus = await boot(server);
   });
 

@@ -3,6 +3,7 @@ import { boot, type ColyseusTestServer } from "@colyseus/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { server } from "../src/index.js";
 import { ManualTickDriver } from "../src/rooms/TickDriver.js";
+import { connectAs, stubAuthForTests } from "./testAuth.js";
 
 /** `leave(false)` closing the raw socket resolves on the client's own
  *  'close' event, which can race the server's `_onLeave`/`onDrop` handling
@@ -15,6 +16,7 @@ describe("MatchRoom reconnect", () => {
   let colyseus: ColyseusTestServer;
 
   beforeAll(async () => {
+    stubAuthForTests();
     colyseus = await boot(server);
   });
 
@@ -26,7 +28,9 @@ describe("MatchRoom reconnect", () => {
     const tickDriver = new ManualTickDriver();
     const room = await colyseus.createRoom(MATCH_ROOM_NAME, { tickDriver, arenaId: "castleRoom" });
 
+    connectAs(colyseus, "player-a");
     const a = await colyseus.connectTo(room);
+    connectAs(colyseus, "player-b");
     const b = await colyseus.connectTo(room);
     tickDriver.step(1);
     await room.waitForNextPatch();
@@ -57,7 +61,9 @@ describe("MatchRoom reconnect", () => {
     const tickDriver = new ManualTickDriver();
     const room = await colyseus.createRoom(MATCH_ROOM_NAME, { tickDriver, arenaId: "castleRoom" });
 
+    connectAs(colyseus, "player-a");
     const a = await colyseus.connectTo(room);
+    connectAs(colyseus, "player-b");
     const b = await colyseus.connectTo(room);
     tickDriver.step(1 + COUNTDOWN_TICKS);
     await room.waitForNextPatch();
@@ -80,7 +86,9 @@ describe("MatchRoom reconnect", () => {
     const tickDriver = new ManualTickDriver();
     const room = await colyseus.createRoom(MATCH_ROOM_NAME, { tickDriver, arenaId: "castleRoom" });
 
+    connectAs(colyseus, "player-a");
     const a = await colyseus.connectTo(room);
+    connectAs(colyseus, "player-b");
     const b = await colyseus.connectTo(room);
     tickDriver.step(1 + COUNTDOWN_TICKS);
     await room.waitForNextPatch();

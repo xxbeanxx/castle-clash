@@ -21,12 +21,21 @@ import {
   type PlayerId,
   type SimState,
 } from "@castle-clash/shared";
-import { type Client, Room } from "colyseus";
+import { type AuthContext, type Client, Room } from "colyseus";
+import { createDefaultTokenVerifier, type TokenVerifier, type VerifiedUser } from "../auth/verifyToken.js";
 import { DraftService, type DraftRoundPlayer } from "../match/DraftService.js";
-import { MatchDirector } from "../match/MatchDirector.js";
+import { MatchDirector, type MatchResult } from "../match/MatchDirector.js";
+import { createDefaultPlayerRepository } from "../persistence/createPlayerRepository.js";
+import type { MatchResultRecord, PlayerRepository } from "../persistence/PlayerRepository.js";
+import { enqueueRecordMatch } from "../persistence/RecordMatchQueue.js";
 import { InputQueue } from "./InputQueue.js";
 import { generateRoomCode } from "./roomCode.js";
 import { IntervalTickDriver, type TickDriver } from "./TickDriver.js";
+
+/** This repo has no real release versioning yet (every `package.json` in
+ *  the workspace is still `0.0.0`) — tracks that placeholder rather than
+ *  inventing a scheme `matches.server_version` doesn't need yet. */
+const SERVER_VERSION = "0.0.0";
 
 /** Generous headroom over one input per tick, so a legitimate client that
  *  briefly resends (e.g. after a reconnect) isn't punished, while a flood is. */
@@ -51,6 +60,11 @@ export type MatchMode = "quick" | "private";
 
 export interface MatchRoomOptions {
   tickDriver?: TickDriver;
+  /** Test/DI seam, same pattern as `tickDriver` — a real client never sends
+   *  this (it isn't in `JoinIntent`'s shape), only `colyseus.createRoom()`
+   *  (server-side, not over the wire) can set it. Defaults to
+   *  `createDefaultPlayerRepository()`'s real Supabase-or-in-memory choice. */
+  playerRepository?: PlayerRepository;
   mode?: MatchMode;
   /** A private room's join code. Only meaningful together with `mode:
    *  "private"` — supplying it when *joining* an existing private room is
@@ -72,7 +86,33 @@ export interface MatchRoomMetadata {
 }
 
 export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMetadata }> {
+  /** Overridable so tests can stub out real JWT verification (see
+   *  `MatchRoom.auth.test.ts`) without a real Supabase project — the same
+   *  reason `TickDriver` is injected via options rather than hard-coded.
+   *  Unlike `tickDriver`, this can't be an `onCreate` option: `onAuth` is
+   *  `static` and runs before any room instance (or its options) exists. */
+  static verifyToken: TokenVerifier = createDefaultTokenVerifier();
+
+  /** Overridable the same way `verifyToken` is, and for the same reason: a
+   *  test that makes `PlayerRepository.recordMatch` always fail
+   *  (`MatchRoom.auth.test.ts`) would otherwise have to wait out
+   *  `enqueueRecordMatch`'s real exponential backoff (seconds) to observe
+   *  it give up. Production never sets this. */
+  static recordMatchDelay: (ms: number) => Promise<void> = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  /** Colyseus calls this — not the instance `onAuth` also declared on
+   *  `Room` — before a room instance is even selected for a `joinOrCreate`
+   *  (plan Phase 8 step 5). Rejects (throws) on a missing or invalid token;
+   *  `MatchMaker` turns that rejection into the client's join failing. The
+   *  resolved `VerifiedUser` becomes `client.auth` in `onJoin` below. */
+  static async onAuth(token: string, _options: unknown, _context: AuthContext): Promise<VerifiedUser> {
+    return MatchRoom.verifyToken(token);
+  }
+
   #tickDriver!: TickDriver;
+  #playerRepository!: PlayerRepository;
+  #matchId!: string;
+  #startedAt!: Date;
   readonly #inputQueue = new InputQueue();
   readonly #messageWindows = new Map<string, { windowStartMs: number; count: number }>();
   readonly #director = new MatchDirector();
@@ -80,6 +120,18 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
    *  playing, until the next round starts (plan step 3: "late joiners wait
    *  or spectate"). Never in `#sim.players`. */
   readonly #spectatorIds = new Set<string>();
+  /** The authenticated Supabase user id currently holding each seat —
+   *  checked in `onJoin` so "the same user can't hold two seats" (plan step
+   *  5) survives a reconnect window: `onDrop` deliberately does NOT clear
+   *  this (the seat stays reserved), only `onLeave` (a truly final
+   *  departure) does. */
+  readonly #sessionIdByUserId = new Map<string, string>();
+  /** Append-only for the room's whole lifetime (never cleared on leave,
+   *  unlike `#sessionIdByUserId` above) — `MatchDirector`'s per-player
+   *  stats survive a mid-match disconnect, so building a `MatchResultRecord`
+   *  at `MatchOver` needs every participant's userId, including ones who
+   *  already left. */
+  readonly #userIdByPlayerId = new Map<PlayerId, string>();
   #sim!: SimState;
   #draftService!: DraftService;
   /** Set from the most recent `roundEnd` event, read back when the
@@ -92,6 +144,13 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
   async onCreate(options: MatchRoomOptions = {}): Promise<void> {
     this.setState(new MatchState());
     this.setPatchRate(1000 / PATCH_RATE);
+    this.#playerRepository = options.playerRepository ?? createDefaultPlayerRepository();
+    // Generated once here, not when the match ends, so a `recordMatch` retry
+    // after a transient failure always resends the exact same id — that's
+    // what makes `record_match_result()`'s conflict-on-`matches.id` check an
+    // actual idempotency guarantee rather than a coincidence.
+    this.#matchId = crypto.randomUUID();
+    this.#startedAt = new Date();
 
     const arenaId: ArenaId = options.arenaId && isArenaId(options.arenaId) ? options.arenaId : randomArenaId();
     const arena = getArena(arenaId);
@@ -135,7 +194,22 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
     this.#tickDriver.start(() => this.#tick());
   }
 
-  onJoin(client: Client): void {
+  async onJoin(client: Client): Promise<void> {
+    // `client.auth` is whatever `MatchRoom.onAuth` (static, above) resolved
+    // to for this token — always set by the time `onJoin` runs, since
+    // `onAuth` throwing rejects the join before `onJoin` is ever called.
+    const auth = client.auth as VerifiedUser;
+    if (this.#sessionIdByUserId.has(auth.userId)) {
+      // Plan step 5: "the same user can't hold two seats." Throwing here
+      // (rather than silently ignoring the join) is what makes the second
+      // connection attempt fail instead of quietly succeeding with no body.
+      throw new Error(`user ${auth.userId} is already connected to this match`);
+    }
+    this.#sessionIdByUserId.set(auth.userId, client.sessionId);
+    this.#userIdByPlayerId.set(playerId(client.sessionId), auth.userId);
+
+    const loadout = await this.#playerRepository.getLoadout(auth.userId);
+
     const spawnIndex = this.state.players.size % this.#sim.arena.spawns.length;
     const spawn = this.#sim.arena.spawns[spawnIndex]!;
     const id = playerId(client.sessionId);
@@ -166,7 +240,17 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
     if (spectating) {
       this.#spectatorIds.add(client.sessionId);
     } else {
-      this.#sim = { ...this.#sim, players: { ...this.#sim.players, [id]: createSimPlayer(spawn) } };
+      // Plan step 5: "loads each player's persisted loadout" — only
+      // `weapon` actually changes gameplay today (it's already how
+      // `MatchDirector.respawnPlayers` threads weapon choice across
+      // rounds); `helmetId`/`capeId`/`weaponStyleId` are cosmetic-only and
+      // have no rendering pipeline yet (Phase 9's "Customization and Stats
+      // UI"), so loading them here would have no observable effect — not
+      // wired in on purpose, not an oversight.
+      this.#sim = {
+        ...this.#sim,
+        players: { ...this.#sim.players, [id]: createSimPlayer(spawn, loadout.weapon) },
+      };
       this.#director.addPlayer(id);
     }
 
@@ -202,6 +286,16 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
     this.#spectatorIds.delete(client.sessionId);
     this.#director.removePlayer(id);
     this.#draftService.removePlayer(id);
+    // Deliberately only here, not `onDrop`: a dropped-but-reconnectable seat
+    // must still count as "this user is connected" so a second join attempt
+    // during the reconnection window is rejected (plan step 5). Note this
+    // does NOT touch `#userIdByPlayerId` — that map has to survive this
+    // player's whole departure so `#buildMatchResultRecord` can still name
+    // them if the match ends after they've left.
+    const auth = client.auth as VerifiedUser | undefined;
+    if (auth) {
+      this.#sessionIdByUserId.delete(auth.userId);
+    }
   }
 
   #eliminateIfRoundActive(id: PlayerId): void {
@@ -322,6 +416,15 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
     }
     if (directorResult.result) {
       this.broadcast(MESSAGE_TYPES.MATCH_RESULT, directorResult.result);
+      // Fire-and-forget on purpose (plan step 5): `enqueueRecordMatch`
+      // retries with backoff internally and never throws, so this never
+      // delays or crashes the room's own tick/dispose regardless of
+      // whether the repository write succeeds.
+      void enqueueRecordMatch(
+        this.#playerRepository,
+        this.#buildMatchResultRecord(directorResult.result),
+        MatchRoom.recordMatchDelay,
+      );
     }
   }
 
@@ -408,5 +511,45 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
       schemaPlayer.alive = schemaPlayer.spectator ? false : this.#director.isAlive(id);
       schemaPlayer.roundsWon = phase.roundsWon[id] ?? 0;
     });
+  }
+
+  /** Every `PlayerId` in `result.stats` has a `#userIdByPlayerId` entry by
+   *  construction — it's set in `onJoin` for every seat that ever existed,
+   *  including ones that later left, and `MatchDirector` never invents a
+   *  `PlayerId` that didn't come through `onJoin`. A missing entry here
+   *  would mean that invariant broke, not a normal runtime case, hence the
+   *  throw rather than a silent fallback into `record_match_result()`'s
+   *  `uuid` column. */
+  #requireUserId(id: PlayerId): string {
+    const userId = this.#userIdByPlayerId.get(id);
+    if (!userId) {
+      throw new Error(`no known userId for player ${id} — onJoin invariant violated`);
+    }
+    return userId;
+  }
+
+  #buildMatchResultRecord(result: MatchResult): MatchResultRecord {
+    return {
+      matchId: this.#matchId,
+      arenaIds: [this.#sim.arena.id],
+      mode: this.metadata.mode,
+      startedAt: this.#startedAt,
+      endedAt: new Date(),
+      winnerId: result.winner ? this.#requireUserId(result.winner) : null,
+      serverVersion: SERVER_VERSION,
+      participants: (Object.keys(result.stats) as PlayerId[]).map((id) => {
+        const stats = result.stats[id]!;
+        const powerups = this.#sim.players[id]?.powerups ?? {};
+        return {
+          playerId: this.#requireUserId(id),
+          placement: id === result.winner ? 1 : 2,
+          roundsWon: stats.roundsWon,
+          eliminations: stats.eliminations,
+          deaths: stats.deaths,
+          damageDealt: stats.damageDealt,
+          powerups: Object.entries(powerups).flatMap(([powerUpId, count]) => Array(count).fill(powerUpId) as string[]),
+        };
+      }),
+    };
   }
 }

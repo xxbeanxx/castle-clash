@@ -12,6 +12,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { server } from "../src/index.js";
 import type { MatchRoom } from "../src/rooms/MatchRoom.js";
 import { ManualTickDriver } from "../src/rooms/TickDriver.js";
+import { connectAs, stubAuthForTests } from "./testAuth.js";
 
 function flush(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0));
@@ -54,6 +55,7 @@ describe("MatchRoom flow", () => {
   let colyseus: ColyseusTestServer;
 
   beforeAll(async () => {
+    stubAuthForTests();
     colyseus = await boot(server);
   });
 
@@ -65,6 +67,7 @@ describe("MatchRoom flow", () => {
     const tickDriver = new ManualTickDriver();
     const room = await colyseus.createRoom(MATCH_ROOM_NAME, { tickDriver, arenaId: "castleRoom" });
 
+    connectAs(colyseus, "player-a");
     const a = await colyseus.connectTo(room);
     await room.waitForNextPatch();
     expect(room.state.phase).toBe("Waiting");
@@ -75,6 +78,7 @@ describe("MatchRoom flow", () => {
       offerA = payload;
     });
 
+    connectAs(colyseus, "player-b");
     const b = await colyseus.connectTo(room);
     b.onMessage(MESSAGE_TYPES.DRAFT_OFFER, (payload: { offers: string[]; endsAtTick: number }) => {
       offerB = payload;

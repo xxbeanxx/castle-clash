@@ -12,6 +12,7 @@ import { boot, type ColyseusTestServer } from "@colyseus/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { ManualTickDriver } from "../src/rooms/TickDriver.js";
 import { server } from "../src/index.js";
+import { connectAs, stubAuthForTests } from "./testAuth.js";
 
 /** `client.send` hands off to a real transport, which delivers to the room's
  *  `onMessage` handler asynchronously even in-process — flush a macrotask so
@@ -24,6 +25,7 @@ describe("MatchRoom movement", () => {
   let colyseus: ColyseusTestServer;
 
   beforeAll(async () => {
+    stubAuthForTests();
     colyseus = await boot(server);
   });
 
@@ -35,6 +37,7 @@ describe("MatchRoom movement", () => {
     const tickDriver = new ManualTickDriver();
     const arena = getArena("castleRoom");
     const room = await colyseus.createRoom(MATCH_ROOM_NAME, { tickDriver, arenaId: arena.id });
+    connectAs(colyseus, "player-1");
     const client = await colyseus.connectTo(room);
 
     const RIGHT = encode(["RIGHT"]);
@@ -68,6 +71,7 @@ describe("MatchRoom movement", () => {
   it("drops malformed input without crashing the room", async () => {
     const tickDriver = new ManualTickDriver();
     const room = await colyseus.createRoom(MATCH_ROOM_NAME, { tickDriver, arenaId: "castleRoom" });
+    connectAs(colyseus, "player-1");
     const client = await colyseus.connectTo(room);
 
     client.send(MESSAGE_TYPES.INPUT, { not: "an input frame" });

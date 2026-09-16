@@ -3,6 +3,7 @@ import { boot, type ColyseusTestServer } from "@colyseus/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { ManualTickDriver } from "../src/rooms/TickDriver.js";
 import { server } from "../src/index.js";
+import { connectAs, stubAuthForTests } from "./testAuth.js";
 
 /** `client.send` hands off to a real transport, which delivers to the room's
  *  `onMessage` handler asynchronously even in-process — flush a macrotask so
@@ -22,6 +23,7 @@ describe("MatchRoom combat", () => {
   let colyseus: ColyseusTestServer;
 
   beforeAll(async () => {
+    stubAuthForTests();
     colyseus = await boot(server);
   });
 
@@ -39,7 +41,9 @@ describe("MatchRoom combat", () => {
     // `pit`'s spawns sit across a chasm, `colosseum`'s and `woodenHall`'s
     // first two spawns are at different heights).
     const room = await colyseus.createRoom(MATCH_ROOM_NAME, { tickDriver, arenaId: "castleRoom" });
+    connectAs(colyseus, "attacker");
     const attacker = await colyseus.connectTo(room);
+    connectAs(colyseus, "defender");
     const defender = await colyseus.connectTo(room);
 
     const fxEvents: CombatEvent[] = [];

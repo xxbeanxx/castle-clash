@@ -28,7 +28,8 @@ export interface FireZoneDef extends HazardDefBase {
  *  decrements `hp`: `"heavy"` only a heavy attack's hitbox overlapping the
  *  floor, `"any"` any attack's, `"landing"` a player landing on top of it.
  *  `respawnPerRound` (always `true` today — nothing in this phase turns it
- *  off) is read by `hazards/state.ts`'s round-reset factory, not `step.ts`. */
+ *  off) is read by `step.ts`'s `resetHazardState`, the round-reset factory
+ *  (not `createHazardState`/`stepHazards`, which don't need it). */
 export interface BreakableFloorDef extends HazardDefBase {
   kind: "breakableFloor";
   hp: number;

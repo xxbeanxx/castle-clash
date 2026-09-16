@@ -2,6 +2,10 @@ import type { HazardDef, MatchState } from "@castle-clash/shared";
 
 export interface HazardRect {
   id: string;
+  /** A plain string here, not `HazardKind` — same convention as
+   *  `playersToRects`'s `PlayerRect.action` (a plain string, not
+   *  `ActionState`): this stays a pure mapping and leaves deciding what
+   *  each kind looks like to the render layer (`HazardView`). */
   kind: string;
   x: number;
   y: number;

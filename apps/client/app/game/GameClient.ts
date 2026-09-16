@@ -11,6 +11,7 @@ import {
   type MatchResult,
   type PlayerState,
   schemaToSimPlayer,
+  type SimEvent,
   TICK_RATE,
   type PlayerId,
   type Vec,
@@ -206,6 +207,7 @@ export class GameClient {
 
     room.onMessage(MESSAGE_TYPES.MATCH_CODE, (code: string) => this.#matchCode.emit(code));
     room.onMessage(MESSAGE_TYPES.MATCH_RESULT, (result: MatchResult) => this.#matchResult.emit(result));
+    room.onMessage(MESSAGE_TYPES.FX, (events: SimEvent[]) => this.#shakeForEvents(events));
 
     const keyboard = new KeyboardInput();
     keyboard.attach();
@@ -368,6 +370,35 @@ export class GameClient {
       viewportHeight: phase.resources.app.screen.height,
     });
     phase.resources.arenaView.setArena(arena);
+  }
+
+  /** Shakes the camera for impactful `fx` events (plan step 5: "shakes on
+   *  events") — a light shake for a landed hit or a hazard reacting, a
+   *  heavier one for a guard break, a KO, or a full elimination. Whiffs,
+   *  blocks, jumps, and landings stay quiet; a shake on every swing would
+   *  just be noise. */
+  #shakeForEvents(events: readonly SimEvent[]): void {
+    let intensity = 0;
+    for (const event of events) {
+      switch (event.type) {
+        case "hit":
+        case "hazardBreak":
+        case "hazardFall":
+        case "hazardTrap":
+          intensity = Math.max(intensity, 0.5);
+          break;
+        case "guardBreak":
+        case "ko":
+        case "eliminated":
+          intensity = Math.max(intensity, 1);
+          break;
+        default:
+          break;
+      }
+    }
+    if (intensity > 0) {
+      this.#camera?.shake(intensity);
+    }
   }
 
   /** Lerps the camera toward every living player's current render position

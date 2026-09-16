@@ -39,12 +39,13 @@ function clampAxis(center: number, halfViewport: number, min: number, size: numb
 }
 
 /**
- * Pure framing math (plan Phase 6 step 5's `Camera`): fits all living
- * players with a lerped — well, this function itself computes only the
- * *target* frame for one instant; the lerp/shake live in the stateful
- * `CameraController` below, which is what `GameClient` actually drives
- * every tick. Kept separate so the math itself stays trivially testable
- * (`Camera.test.ts`) without needing a fake clock.
+ * Pure framing math (plan Phase 6 step 5's `Camera`): given living
+ * players' positions, computes the single target frame — center and
+ * clamped zoom — that fits them all right now. Lerping toward that target
+ * and shaking on events are the stateful `CameraController` below's job,
+ * which is what `GameClient` actually drives every tick; kept separate so
+ * the math itself stays trivially testable (`Camera.test.ts`) without
+ * needing a fake clock.
  *
  * No living players (everyone just got eliminated mid-round, or hasn't
  * spawned yet) centers on the arena as a whole, zoomed all the way in

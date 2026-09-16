@@ -79,16 +79,15 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
     const arenaId: ArenaId = options.arenaId && isArenaId(options.arenaId) ? options.arenaId : randomArenaId();
     const arena = getArena(arenaId);
     this.state.arenaId = arena.id;
-    const initialHazards = createHazardState(arena.hazards);
+    // Seed one empty HazardState entry per hazard def — id/kind only.
+    // `projectToSchema()` below fills in the dynamic fields (active/hp/
+    // phase/timer); it never creates entries itself (same contract as
+    // players), so this loop owns creation the same way `onJoin` owns
+    // creating a player's PlayerState.
     for (const hazard of arena.hazards) {
-      const runtime = initialHazards[hazard.id]!;
       const hazardState = new HazardState();
       hazardState.id = hazard.id;
       hazardState.kind = hazard.kind;
-      hazardState.active = runtime.active;
-      hazardState.hp = runtime.hp;
-      hazardState.phase = runtime.phase;
-      hazardState.timer = runtime.timer;
       this.state.hazards.set(hazard.id, hazardState);
     }
     this.#sim = {
@@ -96,8 +95,13 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
       players: {},
       arena,
       rngSeed: hashSeed(this.roomId),
-      hazards: initialHazards,
+      hazards: createHazardState(arena.hazards),
     };
+    // `projectToSchema` is ADR 0001's only place sim state crosses into
+    // schema — routing the initial sync through it too (rather than
+    // hand-copying HazardRuntimeState's fields here) means the field list
+    // only exists in one place.
+    projectToSchema(this.#sim, this.state, {});
 
     const mode: MatchMode = options.mode ?? "quick";
     await this.setMetadata(mode === "private" ? { mode, code: generateRoomCode() } : { mode });

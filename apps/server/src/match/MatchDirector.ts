@@ -1,9 +1,13 @@
 import {
   advanceMatchPhase,
+  BASE_STATS,
+  computeStats,
   createMatchPhaseState,
   createSimPlayer,
+  getWeapon,
   resetHazardState,
   RING_OUT_CREDIT_TICKS,
+  WEAPON_IDS,
   type EliminatedEvent,
   type MatchPhaseEvent,
   type MatchPhaseState,
@@ -34,12 +38,29 @@ function zeroStats(): MatchStatsEntry {
  *  Phase 6 step 4: "breakable floors reset between rounds") —
  *  `resetHazardState` carries over a `BreakableFloorDef`'s state instead of
  *  resetting it when its own `respawnPerRound` is `false`; nothing in this
- *  phase's six arenas sets that yet. */
+ *  phase's six arenas sets that yet.
+ *
+ * Phase 7: `powerups`/`ringOutArmorChargesUsed` survive the reset the same
+ * way `weapon` already does — a match-wide resource, not a per-round one —
+ * and a respawn's fresh hp/stamina come from that player's own
+ * `DerivedStats.maxHp`/`staminaMax` (via `computeStats`), not the flat
+ * `MAX_HP`/`MAX_STAMINA` `createSimPlayer` defaults to, so a `stoneSkin`/
+ * `ironLungs` pick actually raises what you respawn with. */
 function respawnPlayers(sim: SimState, connectedIds: readonly PlayerId[]): SimState {
   const players: Record<PlayerId, SimPlayer> = {};
   connectedIds.forEach((id, i) => {
     const spawn = sim.arena.spawns[i % sim.arena.spawns.length]!;
-    players[id] = createSimPlayer(spawn, sim.players[id]?.weapon);
+    const existing = sim.players[id];
+    const weapon = existing?.weapon ?? WEAPON_IDS.SWORD;
+    const powerups = existing?.powerups;
+    const stats = computeStats(BASE_STATS, getWeapon(weapon), powerups ?? {});
+    players[id] = {
+      ...createSimPlayer(spawn, weapon),
+      hp: stats.maxHp,
+      stamina: stats.staminaMax,
+      powerups,
+      ringOutArmorChargesUsed: existing?.ringOutArmorChargesUsed,
+    };
   });
   const hazards = resetHazardState(sim.arena.hazards, sim.hazards ?? {}, sim.tick);
   return { ...sim, players, hazards };
@@ -125,11 +146,22 @@ export class MatchDirector {
     }
   }
 
+  /**
+   * `draftComplete` is `DraftService`'s call, not this class's — `MatchRoom`
+   * is the only real caller that ever passes `false` (while a live draft is
+   * still waiting on picks). Defaulting to `true` here, rather than in
+   * `match/phase.ts` itself, means every test at this level that doesn't
+   * care about draft timing (most of `MatchDirector.test.ts`) keeps the
+   * exact one-tick `Draft` pass-through Phase 7 replaced, without having to
+   * thread a dummy `DraftService` through just to get through a round
+   * boundary.
+   */
   tick(
     prevSim: SimState,
     nextSim: SimState,
     events: readonly SimEvent[],
     connectedIds: readonly PlayerId[],
+    draftComplete = true,
   ): MatchDirectorTickResult {
     for (const event of events) {
       if (
@@ -151,6 +183,7 @@ export class MatchDirector {
       tick: nextSim.tick,
       playerCount: connectedIds.length,
       aliveIds,
+      draftComplete,
     });
     this.#phase = phase;
 

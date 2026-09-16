@@ -5,6 +5,7 @@ import {
   hashSeed,
   HazardState,
   isArenaId,
+  isDraftPick,
   isInputFrame,
   MatchState,
   MESSAGE_TYPES,
@@ -21,6 +22,7 @@ import {
   type SimState,
 } from "@castle-clash/shared";
 import { type Client, Room } from "colyseus";
+import { DraftService, type DraftRoundPlayer } from "../match/DraftService.js";
 import { MatchDirector } from "../match/MatchDirector.js";
 import { InputQueue } from "./InputQueue.js";
 import { generateRoomCode } from "./roomCode.js";
@@ -71,6 +73,13 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
    *  or spectate"). Never in `#sim.players`. */
   readonly #spectatorIds = new Set<string>();
   #sim!: SimState;
+  #draftService!: DraftService;
+  /** Set from the most recent `roundEnd` event, read back when the
+   *  following `draftStart` fires (`ROUND_OVER_TICKS` ticks later) to
+   *  compute each player's `DraftRoundPlayer.placement` — see
+   *  `DraftService`'s doc comment on the 2-tier simplification this implies
+   *  for 3+ player matches. */
+  #lastRoundWinner: PlayerId | null = null;
 
   async onCreate(options: MatchRoomOptions = {}): Promise<void> {
     this.setState(new MatchState());
@@ -97,6 +106,7 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
       rngSeed: hashSeed(this.roomId),
       hazards: createHazardState(arena.hazards),
     };
+    this.#draftService = new DraftService(hashSeed(this.roomId));
     // `projectToSchema` is ADR 0001's only place sim state crosses into
     // schema — routing the initial sync through it too (rather than
     // hand-copying HazardRuntimeState's fields here) means the field list
@@ -108,6 +118,9 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
 
     this.onMessage(MESSAGE_TYPES.INPUT, (client, payload: unknown) => {
       this.#onInput(client, payload);
+    });
+    this.onMessage(MESSAGE_TYPES.DRAFT_PICK, (client, payload: unknown) => {
+      this.#onDraftPick(client, payload);
     });
 
     this.#tickDriver = options.tickDriver ?? new IntervalTickDriver(this, TICK_RATE);
@@ -179,6 +192,7 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
     this.#messageWindows.delete(client.sessionId);
     this.#spectatorIds.delete(client.sessionId);
     this.#director.removePlayer(id);
+    this.#draftService.removePlayer(id);
   }
 
   #eliminateIfRoundActive(id: PlayerId): void {
@@ -207,6 +221,18 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
     this.#inputQueue.push(client.sessionId, payload);
   }
 
+  #onDraftPick(client: Client, payload: unknown): void {
+    if (!this.#withinRateLimit(client.sessionId)) {
+      console.warn(`[MatchRoom] rate-limited draft pick from ${client.sessionId}, dropping`);
+      return;
+    }
+    if (!isDraftPick(payload)) {
+      console.warn(`[MatchRoom] malformed draft pick from ${client.sessionId}, dropping`, payload);
+      return;
+    }
+    this.#draftService.pick(playerId(client.sessionId), payload.id);
+  }
+
   #withinRateLimit(sessionId: string): boolean {
     const now = Date.now();
     const window = this.#messageWindows.get(sessionId);
@@ -225,6 +251,15 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
   }
 
   #tick(): void {
+    // Applies whatever `DraftService` resolved (manual or auto-picked) as of
+    // the END of the PREVIOUS tick — one tick behind `#draftService.tick()`
+    // below on purpose, the same "read prev, compute next" convention
+    // `GameSimulation.step` itself follows for everything else (hazards,
+    // physics). Applying picks before that tick's `simulationStep` runs
+    // means a pick resolved last tick is visible to this tick's derived
+    // stats immediately, not delayed an extra tick.
+    this.#applyDraftPicks();
+
     const inputs: Record<string, InputFrame> = {};
     const lastProcessedSeq: Record<string, number> = {};
     const connectedIds = Object.keys(this.#sim.players) as PlayerId[];
@@ -237,11 +272,34 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
 
     const prevSim = this.#sim;
     const stepResult = simulationStep(prevSim, inputs);
-    const directorResult = this.#director.tick(prevSim, stepResult.state, stepResult.events, connectedIds);
+    // Auto-pick timeouts against THIS tick's absolute tick (`stepResult.
+    // state.tick`, i.e. `nextTick`) — the same tick value `match/phase.ts`'s
+    // own `DRAFT_TICKS` hard fallback compares `ticksInPhase` against below
+    // (via `director.tick`'s `nextSim.tick`). Calling this with any other
+    // tick value would let the two fallbacks drift out of sync, so a timed-
+    // out draft could reach `Countdown` with a pick never actually resolved.
+    this.#draftService.tick(stepResult.state.tick);
+    const draftComplete = this.#draftService.isComplete();
+    const directorResult = this.#director.tick(
+      prevSim,
+      stepResult.state,
+      stepResult.events,
+      connectedIds,
+      draftComplete,
+    );
     this.#sim = this.#promoteSpectators(directorResult.state, directorResult.events);
 
     projectToSchema(this.#sim, this.state, lastProcessedSeq);
     this.#syncMatchFlow();
+
+    for (const event of directorResult.events) {
+      if (event.type === "roundEnd") {
+        this.#lastRoundWinner = event.winner;
+      }
+      if (event.type === "draftStart") {
+        this.#startDraft(event.round);
+      }
+    }
 
     // Transient combat/movement feedback (hit, blocked, guardBreak, ko,
     // whiff, jump, land, eliminated) — never stored in schema (plan Phase 4
@@ -252,6 +310,51 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
     if (directorResult.result) {
       this.broadcast(MESSAGE_TYPES.MATCH_RESULT, directorResult.result);
     }
+  }
+
+  /** Generates and privately sends each active player's draft offer (plan
+   *  Phase 7 step 4) the tick `match/phase.ts`'s `draftStart` event fires.
+   *  A player who joins mid-Draft (rather than being one of the round's
+   *  existing active players) never gets an offer this round — `onJoin`
+   *  only hands out a body outside `RoundActive`, so this is a real if rare
+   *  case, and simplest to just let them sit out the draft they arrived
+   *  mid-way through rather than reopen an offer round already in flight. */
+  #startDraft(round: number): void {
+    const connectedIds = Object.keys(this.#sim.players) as PlayerId[];
+    const players: DraftRoundPlayer[] = connectedIds.map((id) => ({
+      id,
+      placement: id === this.#lastRoundWinner ? 1 : 2,
+      ownedStacks: this.#sim.players[id]?.powerups ?? {},
+    }));
+    const offers = this.#draftService.startRound(round, this.#sim.tick, players);
+    for (const [id, offer] of offers) {
+      this.clients.getById(id)?.send(MESSAGE_TYPES.DRAFT_OFFER, {
+        offers: offer.offers,
+        endsAtTick: offer.endsAtTick,
+      });
+    }
+  }
+
+  /** Folds every pick `DraftService` has resolved (manual or auto-picked on
+   *  timeout) since the last tick into `SimState.powerups` — exactly once
+   *  per pick, since `DraftService.drainPicks()` only ever returns a given
+   *  player's pick the first time it's called after that pick resolves. */
+  #applyDraftPicks(): void {
+    const picks = this.#draftService.drainPicks();
+    if (picks.size === 0) {
+      return;
+    }
+    let players = this.#sim.players;
+    for (const [id, powerUpId] of picks) {
+      const player = players[id];
+      if (!player) {
+        continue;
+      }
+      const stacks = { ...(player.powerups ?? {}) };
+      stacks[powerUpId] = (stacks[powerUpId] ?? 0) + 1;
+      players = { ...players, [id]: { ...player, powerups: stacks } };
+    }
+    this.#sim = { ...this.#sim, players };
   }
 
   /** Hands every waiting spectator a body the tick a new round starts. */

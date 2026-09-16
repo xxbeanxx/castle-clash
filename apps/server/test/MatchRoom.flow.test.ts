@@ -69,7 +69,16 @@ describe("MatchRoom flow", () => {
     await room.waitForNextPatch();
     expect(room.state.phase).toBe("Waiting");
 
+    let offerA: { offers: string[]; endsAtTick: number } | undefined;
+    let offerB: { offers: string[]; endsAtTick: number } | undefined;
+    a.onMessage(MESSAGE_TYPES.DRAFT_OFFER, (payload: { offers: string[]; endsAtTick: number }) => {
+      offerA = payload;
+    });
+
     const b = await colyseus.connectTo(room);
+    b.onMessage(MESSAGE_TYPES.DRAFT_OFFER, (payload: { offers: string[]; endsAtTick: number }) => {
+      offerB = payload;
+    });
     tickDriver.step(1);
     await room.waitForNextPatch();
     expect(room.state.phase).toBe("Countdown");
@@ -86,15 +95,37 @@ describe("MatchRoom flow", () => {
     expect(room.state.players.get(a.sessionId)!.roundsWon).toBe(1);
     expect(room.state.players.get(b.sessionId)!.alive).toBe(false);
 
-    // RoundOver -> Draft -> Countdown -> RoundActive, round 2, full HP.
-    tickDriver.step(ROUND_OVER_TICKS + 1 + COUNTDOWN_TICKS);
+    // RoundOver -> Draft: both clients get a private offer, pick from it.
+    tickDriver.step(ROUND_OVER_TICKS);
+    await room.waitForNextPatch();
+    expect(room.state.phase).toBe("Draft");
+    await flush();
+    expect(offerA).toBeDefined();
+    expect(offerB).toBeDefined();
+
+    a.send(MESSAGE_TYPES.DRAFT_PICK, { id: offerA!.offers[0] });
+    b.send(MESSAGE_TYPES.DRAFT_PICK, { id: offerB!.offers[0] });
+    await flush();
+
+    // Draft -> Countdown -> RoundActive, round 2, full HP, powerups synced.
+    tickDriver.step(1);
+    await room.waitForNextPatch();
+    expect(room.state.phase).toBe("Countdown");
+
+    tickDriver.step(COUNTDOWN_TICKS);
     await room.waitForNextPatch();
 
     expect(room.state.phase).toBe("RoundActive");
     expect(room.state.round).toBe(2);
-    expect(room.state.players.get(a.sessionId)!.hp).toBe(MAX_HP);
-    expect(room.state.players.get(b.sessionId)!.hp).toBe(MAX_HP);
+    // Full health at the new round's respawn — >= rather than === MAX_HP,
+    // since whichever power-up each client happened to draw and pick could
+    // itself be a maxHp boost (a real Phase 7 effect, not test flakiness).
+    expect(room.state.players.get(a.sessionId)!.hp).toBeGreaterThanOrEqual(MAX_HP);
+    expect(room.state.players.get(b.sessionId)!.hp).toBeGreaterThanOrEqual(MAX_HP);
     expect(room.state.players.get(b.sessionId)!.alive).toBe(true);
+    expect(room.state.players.get(a.sessionId)!.powerups.length).toBe(1);
+    expect(room.state.players.get(a.sessionId)!.powerups[0]).toBe(offerA!.offers[0]);
+    expect(room.state.players.get(b.sessionId)!.powerups.length).toBe(1);
 
     await a.leave();
     await b.leave();

@@ -19,13 +19,17 @@ export const recordMatchFailureCount = { value: 0 };
  * `result.matchId` in both `PlayerRepository` implementations.
  *
  * Returns the retry chain's promise so tests can await determinism;
- * `MatchRoom` deliberately ignores it (fire-and-forget).
+ * resolves `true` if `recordMatch` ever succeeded, `false` if every attempt
+ * was exhausted — `MatchRoom` uses that to decide whether running
+ * `evaluateAndGrantUnlocks` afterward (plan Phase 9 step 3) is worthwhile at
+ * all: unlock evaluation reads stats `recordMatch` itself would have just
+ * written, so it would find nothing new if that write never landed.
  */
 export function enqueueRecordMatch(
   repo: PlayerRepository,
   result: MatchResultRecord,
   delayFn: (ms: number) => Promise<void> = delay,
-): Promise<void> {
+): Promise<boolean> {
   return attempt(repo, result, 1, delayFn);
 }
 
@@ -34,14 +38,18 @@ async function attempt(
   result: MatchResultRecord,
   attemptNumber: number,
   delayFn: (ms: number) => Promise<void>,
-): Promise<void> {
+): Promise<boolean> {
   try {
     await repo.recordMatch(result);
+    return true;
   } catch (error) {
     if (attemptNumber >= MAX_ATTEMPTS) {
       recordMatchFailureCount.value += 1;
-      console.error(`[recordMatch] giving up after ${attemptNumber} attempts for match ${result.matchId}:`, error);
-      return;
+      console.error(
+        `[recordMatch] giving up after ${attemptNumber} attempts for match ${result.matchId}:`,
+        error,
+      );
+      return false;
     }
     const backoffMs = BASE_DELAY_MS * 2 ** (attemptNumber - 1);
     console.warn(
@@ -49,7 +57,7 @@ async function attempt(
       error,
     );
     await delayFn(backoffMs);
-    await attempt(repo, result, attemptNumber + 1, delayFn);
+    return attempt(repo, result, attemptNumber + 1, delayFn);
   }
 }
 

@@ -40,6 +40,18 @@ export default function Lobby() {
     <div style={{ display: "flex", flexDirection: "column", gap: 16, padding: 24, maxWidth: 320 }}>
       <h1>Castle Clash</h1>
 
+      <div style={{ display: "flex", gap: 8 }}>
+        <button type="button" onClick={() => navigate("/loadout")}>
+          Loadout
+        </button>
+        <button type="button" onClick={() => navigate("/stats")}>
+          Stats
+        </button>
+        <button type="button" onClick={() => navigate("/leaderboard")}>
+          Leaderboard
+        </button>
+      </div>
+
       <button type="button" onClick={() => navigate("/play/new")}>
         Quick play
       </button>

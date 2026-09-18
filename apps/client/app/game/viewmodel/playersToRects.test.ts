@@ -21,8 +21,27 @@ describe("playersToRects", () => {
     addPlayer(state, "p1", 10, 20, 0xff00ff);
 
     expect(playersToRects(state)).toEqual([
-      { id: "p1", x: 10, y: 20, tint: 0xff00ff, action: "Idle" },
+      {
+        id: "p1",
+        x: 10,
+        y: 20,
+        tint: 0xff00ff,
+        action: "Idle",
+        helmetTint: undefined,
+        capeTint: undefined,
+      },
     ]);
+  });
+
+  it("carries a player's equipped helmet/cape tint through, and omits an unequipped slot's", () => {
+    const state = new MatchState();
+    addPlayer(state, "p1", 0, 0, 1);
+    state.players.get("p1")!.cosmetics.helmetId = "helmet-gold";
+    state.players.get("p1")!.cosmetics.capeId = "cape-none";
+
+    const [rect] = playersToRects(state);
+    expect(rect?.helmetTint).toBe(0xffd700);
+    expect(rect?.capeTint).toBeUndefined();
   });
 
   it("carries the player's current action through", () => {
@@ -48,7 +67,15 @@ describe("playersToRects", () => {
     addPlayer(state, "p1", 10, 20, 0xff00ff);
 
     expect(playersToRects(state, { p1: { x: 99, y: 88 } })).toEqual([
-      { id: "p1", x: 99, y: 88, tint: 0xff00ff, action: "Idle" },
+      {
+        id: "p1",
+        x: 99,
+        y: 88,
+        tint: 0xff00ff,
+        action: "Idle",
+        helmetTint: undefined,
+        capeTint: undefined,
+      },
     ]);
   });
 
@@ -58,8 +85,24 @@ describe("playersToRects", () => {
     addPlayer(state, "p2", 30, 40, 2);
 
     expect(playersToRects(state, { p1: { x: 99, y: 88 } })).toEqual([
-      { id: "p1", x: 99, y: 88, tint: 1, action: "Idle" },
-      { id: "p2", x: 30, y: 40, tint: 2, action: "Idle" },
+      {
+        id: "p1",
+        x: 99,
+        y: 88,
+        tint: 1,
+        action: "Idle",
+        helmetTint: undefined,
+        capeTint: undefined,
+      },
+      {
+        id: "p2",
+        x: 30,
+        y: 40,
+        tint: 2,
+        action: "Idle",
+        helmetTint: undefined,
+        capeTint: undefined,
+      },
     ]);
   });
 

@@ -1,4 +1,5 @@
 import {
+  COSMETIC_SLOTS,
   createHazardState,
   createSimPlayer,
   getArena,
@@ -14,17 +15,24 @@ import {
   PlayerState,
   projectToSchema,
   randomArenaId,
+  resolveCosmeticSelection,
   step as simulationStep,
   TICK_RATE,
   type ArenaId,
   type InputFrame,
   type PlayerId,
   type SimState,
+  type WeaponId,
 } from "@castle-clash/shared";
 import { type AuthContext, type Client, Room } from "colyseus";
-import { createDefaultTokenVerifier, type TokenVerifier, type VerifiedUser } from "../auth/verifyToken.js";
+import {
+  createDefaultTokenVerifier,
+  type TokenVerifier,
+  type VerifiedUser,
+} from "../auth/verifyToken.js";
 import { DraftService, type DraftRoundPlayer } from "../match/DraftService.js";
 import { MatchDirector, type MatchResult } from "../match/MatchDirector.js";
+import { evaluateAndGrantUnlocks } from "../match/unlocks.js";
 import { createDefaultPlayerRepository } from "../persistence/createPlayerRepository.js";
 import type { MatchResultRecord, PlayerRepository } from "../persistence/PlayerRepository.js";
 import { enqueueRecordMatch } from "../persistence/RecordMatchQueue.js";
@@ -104,7 +112,11 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
    *  (plan Phase 8 step 5). Rejects (throws) on a missing or invalid token;
    *  `MatchMaker` turns that rejection into the client's join failing. The
    *  resolved `VerifiedUser` becomes `client.auth` in `onJoin` below. */
-  static async onAuth(token: string, _options: unknown, _context: AuthContext): Promise<VerifiedUser> {
+  static async onAuth(
+    token: string,
+    _options: unknown,
+    _context: AuthContext,
+  ): Promise<VerifiedUser> {
     return MatchRoom.verifyToken(token);
   }
 
@@ -132,6 +144,15 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
    *  at `MatchOver` needs every participant's userId, including ones who
    *  already left. */
   readonly #userIdByPlayerId = new Map<PlayerId, string>();
+  /** Same append-only-for-the-match-lifetime reasoning as
+   *  `#userIdByPlayerId` above, set alongside it in `onJoin` — `#sim.
+   *  players[id].weapon` is deleted on `onLeave` and a promoted spectator's
+   *  `SimPlayer` never carried a weapon at all before Phase 9 (`
+   *  #promoteSpectators` didn't know a loadout existed), so this is the one
+   *  place `#buildMatchResultRecord` can reliably read a participant's
+   *  weapon back from at `MatchOver`, regardless of when they left or
+   *  whether they spent part of the match spectating. */
+  readonly #weaponByPlayerId = new Map<PlayerId, WeaponId>();
   #sim!: SimState;
   #draftService!: DraftService;
   /** Set from the most recent `roundEnd` event, read back when the
@@ -145,7 +166,8 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
     this.setState(new MatchState());
     this.setPatchRate(1000 / PATCH_RATE);
     this.#playerRepository = options.playerRepository ?? createDefaultPlayerRepository();
-    this.#recordMatchDelay = options.recordMatchDelay ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+    this.#recordMatchDelay =
+      options.recordMatchDelay ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
     // Generated once here, not when the match ends, so a `recordMatch` retry
     // after a transient failure always resends the exact same id — that's
     // what makes `record_match_result()`'s conflict-on-`matches.id` check an
@@ -153,7 +175,8 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
     this.#matchId = crypto.randomUUID();
     this.#startedAt = new Date();
 
-    const arenaId: ArenaId = options.arenaId && isArenaId(options.arenaId) ? options.arenaId : randomArenaId();
+    const arenaId: ArenaId =
+      options.arenaId && isArenaId(options.arenaId) ? options.arenaId : randomArenaId();
     const arena = getArena(arenaId);
     this.state.arenaId = arena.id;
     // Seed one empty HazardState entry per hazard def — id/kind only.
@@ -209,17 +232,40 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
     this.#sessionIdByUserId.set(auth.userId, client.sessionId);
     this.#userIdByPlayerId.set(playerId(client.sessionId), auth.userId);
 
-    const loadout = await this.#playerRepository.getLoadout(auth.userId);
+    const [loadout, owned] = await Promise.all([
+      this.#playerRepository.getLoadout(auth.userId),
+      this.#playerRepository.getUnlocks(auth.userId),
+    ]);
+    const id = playerId(client.sessionId);
+    this.#weaponByPlayerId.set(id, loadout.weapon);
 
     const spawnIndex = this.state.players.size % this.#sim.arena.spawns.length;
     const spawn = this.#sim.arena.spawns[spawnIndex]!;
-    const id = playerId(client.sessionId);
 
     const player = new PlayerState();
     player.id = client.sessionId;
     player.x = spawn.x;
     player.y = spawn.y;
     player.colorSeed = hashSeed(client.sessionId);
+    // Plan Phase 9 step 3: "Client-supplied cosmetics are never trusted" —
+    // re-validates the persisted selection against the player's OWN
+    // `player_unlocks` (just fetched above) and the catalog, not against
+    // whatever `player_loadouts` happens to contain. An id that's unowned
+    // (stale RLS bypass, a removed catalog item) silently falls back to
+    // that slot's default rather than reaching any connected client.
+    player.cosmetics.helmetId = resolveCosmeticSelection(
+      COSMETIC_SLOTS.HELMET,
+      loadout.helmetId,
+      owned,
+    );
+    player.cosmetics.capeId = resolveCosmeticSelection(COSMETIC_SLOTS.CAPE, loadout.capeId, owned);
+    player.cosmetics.weaponStyleId = resolveCosmeticSelection(
+      COSMETIC_SLOTS.WEAPON_STYLE,
+      loadout.weaponStyleId,
+      owned,
+    );
+    player.cosmetics.tintPrimary = loadout.tintPrimary;
+    player.cosmetics.tintSecondary = loadout.tintSecondary;
 
     // A room mid-round doesn't hand a brand-new player a body until the next
     // round starts (plan step 3) — they watch instead. Deliberately NOT
@@ -241,13 +287,14 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
     if (spectating) {
       this.#spectatorIds.add(client.sessionId);
     } else {
-      // Plan step 5: "loads each player's persisted loadout" — only
-      // `weapon` actually changes gameplay today (it's already how
-      // `MatchDirector.respawnPlayers` threads weapon choice across
-      // rounds); `helmetId`/`capeId`/`weaponStyleId` are cosmetic-only and
-      // have no rendering pipeline yet (Phase 9's "Customization and Stats
-      // UI"), so loading them here would have no observable effect — not
-      // wired in on purpose, not an oversight.
+      // Plan step 5/Phase 9 step 3: "loads each player's persisted
+      // loadout" — `weapon` changes gameplay (`MatchDirector.
+      // respawnPlayers` threads it across rounds); `helmetId`/`capeId`/
+      // `weaponStyleId`/tints are cosmetic-only and render as indicator
+      // rects, not real sprite art (see `docs/research/
+      // phase9-cosmetics-rendering-deviation.md`) — already synced onto
+      // `player.cosmetics` above, independent of whether this player has a
+      // body yet.
       this.#sim = {
         ...this.#sim,
         players: { ...this.#sim.players, [id]: createSimPlayer(spawn, loadout.weapon) },
@@ -417,15 +464,33 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
     }
     if (directorResult.result) {
       this.broadcast(MESSAGE_TYPES.MATCH_RESULT, directorResult.result);
+      const record = this.#buildMatchResultRecord(directorResult.result);
       // Fire-and-forget on purpose (plan step 5): `enqueueRecordMatch`
       // retries with backoff internally and never throws, so this never
       // delays or crashes the room's own tick/dispose regardless of
-      // whether the repository write succeeds.
-      void enqueueRecordMatch(
-        this.#playerRepository,
-        this.#buildMatchResultRecord(directorResult.result),
-        this.#recordMatchDelay,
-      );
+      // whether the repository write succeeds. Chained, not awaited: unlock
+      // evaluation (plan Phase 9 step 3) only makes sense once `recordMatch`
+      // actually landed (it reads the stats that write just updated) — a
+      // permanently-failed record is still fire-and-forget, just with
+      // nothing further to chain.
+      void enqueueRecordMatch(this.#playerRepository, record, this.#recordMatchDelay)
+        .then((succeeded) => {
+          if (!succeeded) {
+            return;
+          }
+          return evaluateAndGrantUnlocks(
+            this.#playerRepository,
+            record.participants.map((participant) => participant.playerId),
+            (userId, newlyUnlocked) => {
+              const sessionId = this.#sessionIdByUserId.get(userId);
+              const client = sessionId ? this.clients.getById(sessionId) : undefined;
+              client?.send(MESSAGE_TYPES.PROFILE_UNLOCKS, newlyUnlocked);
+            },
+          );
+        })
+        .catch((error: unknown) => {
+          console.error(`[MatchRoom] unlock evaluation failed for match ${record.matchId}:`, error);
+        });
     }
   }
 
@@ -484,7 +549,13 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
     for (const sessionId of this.#spectatorIds) {
       const id = playerId(sessionId);
       const spawnIndex = Object.keys(players).length % sim.arena.spawns.length;
-      players = { ...players, [id]: createSimPlayer(sim.arena.spawns[spawnIndex]!) };
+      // `#weaponByPlayerId` was set at this player's own `onJoin`, before
+      // they ever became a spectator — a promoted spectator gets their own
+      // loadout weapon, not `createSimPlayer`'s `DEFAULT_WEAPON` fallback.
+      players = {
+        ...players,
+        [id]: createSimPlayer(sim.arena.spawns[spawnIndex]!, this.#weaponByPlayerId.get(id)),
+      };
       this.#director.addPlayer(id);
       const schemaPlayer = this.state.players.get(sessionId);
       if (schemaPlayer) {
@@ -529,6 +600,18 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
     return userId;
   }
 
+  /** Same invariant and same reasoning as `#requireUserId` above —
+   *  `#weaponByPlayerId` is set unconditionally in `onJoin`, right
+   *  alongside `#userIdByPlayerId`, so every `PlayerId` in `result.stats`
+   *  has an entry here too. */
+  #requireWeapon(id: PlayerId): WeaponId {
+    const weapon = this.#weaponByPlayerId.get(id);
+    if (!weapon) {
+      throw new Error(`no known weapon for player ${id} — onJoin invariant violated`);
+    }
+    return weapon;
+  }
+
   #buildMatchResultRecord(result: MatchResult): MatchResultRecord {
     return {
       matchId: this.#matchId,
@@ -548,7 +631,10 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
           eliminations: stats.eliminations,
           deaths: stats.deaths,
           damageDealt: stats.damageDealt,
-          powerups: Object.entries(powerups).flatMap(([powerUpId, count]) => Array(count).fill(powerUpId) as string[]),
+          powerups: Object.entries(powerups).flatMap(
+            ([powerUpId, count]) => Array(count).fill(powerUpId) as string[],
+          ),
+          weapon: this.#requireWeapon(id),
         };
       }),
     };

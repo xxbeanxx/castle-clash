@@ -7,4 +7,5 @@ export default [
   route("play/:roomId", "routes/play.$roomId.tsx"),
   route("loadout", "routes/loadout.tsx"),
   route("stats", "routes/stats.tsx"),
+  route("leaderboard", "routes/leaderboard.tsx"),
 ] satisfies RouteConfig;

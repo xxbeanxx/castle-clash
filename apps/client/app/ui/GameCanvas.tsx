@@ -9,6 +9,7 @@ import { CombatHud } from "./CombatHud.js";
 import { DraftOverlay } from "./DraftOverlay.js";
 import { MatchBanner } from "./MatchBanner.js";
 import { ResultsOverlay } from "./ResultsOverlay.js";
+import { UnlockToast } from "./UnlockToast.js";
 
 /** `roomId` is `"new"` for a not-yet-created room (quick play, or a private
  *  room to create/join by code from `mode`/`code` search params) — see
@@ -30,7 +31,12 @@ export function GameCanvas({ roomId }: { roomId: string }) {
     const intent = resolveJoinIntent(roomId, searchParams);
     void getAccessToken()
       .then((accessToken) =>
-        gameClient.start(container, getRuntimeConfig().GAME_SERVER_URL, intent, accessToken ?? undefined),
+        gameClient.start(
+          container,
+          getRuntimeConfig().GAME_SERVER_URL,
+          intent,
+          accessToken ?? undefined,
+        ),
       )
       .then(() => {
         const actualRoomId = gameClient.roomId;
@@ -62,15 +68,12 @@ export function GameCanvas({ roomId }: { roomId: string }) {
 
   return (
     <div style={{ position: "relative", width: "100%", height: "100%" }}>
-      <div
-        ref={containerRef}
-        data-testid="game-canvas"
-        style={{ width: "100%", height: "100%" }}
-      />
+      <div ref={containerRef} data-testid="game-canvas" style={{ width: "100%", height: "100%" }} />
       {client && <CombatHud client={client} />}
       {client && <MatchBanner client={client} />}
       {client && <DraftOverlay client={client} />}
       {client && <ResultsOverlay client={client} />}
+      {client && <UnlockToast client={client} />}
     </div>
   );
 }

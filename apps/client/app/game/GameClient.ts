@@ -125,6 +125,7 @@ export class GameClient {
   readonly #matchCode = new Emitter<string>();
   readonly #matchResult = new Emitter<MatchResult>();
   readonly #draftOffer = new Emitter<DraftOfferSnapshot | null>();
+  readonly #profileUnlocks = new Emitter<readonly string[]>();
 
   /** Subscribes to HUD snapshots (hp/stamina/weapon/action per player),
    *  pushed once per server patch — no polling, no per-frame React
@@ -158,6 +159,13 @@ export class GameClient {
     return this.#draftOffer.subscribe(listener);
   }
 
+  /** Subscribes to `MESSAGE_TYPES.PROFILE_UNLOCKS` (plan Phase 9 step 3) —
+   *  fires with the newly-unlocked catalog item ids once, only for the
+   *  player who crossed a threshold; nothing fires for anyone else. */
+  subscribeProfileUnlocks(listener: (itemIds: readonly string[]) => void): () => void {
+    return this.#profileUnlocks.subscribe(listener);
+  }
+
   /** Sends `draft:pick` for the current offer — a no-op if there's no
    *  active offer or this client already picked (mirrors the server's own
    *  once-only validation in `DraftService.pick`, so a double-click can't
@@ -184,10 +192,44 @@ export class GameClient {
     return phase.tag === "predicting" ? phase.reconciler.visualPosition : null;
   }
 
+  /** Every connected player's server-synced cosmetics — exists for
+   *  `game/debug.ts`'s `VITE_E2E` hook (plan Phase 9's e2e gate: "the
+   *  opponent context reads the player's tint via the debug hook"), so a
+   *  test can assert a saved loadout propagated to another browser without
+   *  decoding `@colyseus/schema` itself. Empty before a room is connected. */
+  get allCosmetics(): Array<{
+    tintPrimary: number;
+    helmetId: string;
+    capeId: string;
+    weaponStyleId: string;
+  }> {
+    const phase = this.#getPhase();
+    if (phase.tag !== "connected" && phase.tag !== "predicting") {
+      return [];
+    }
+    const cosmetics: Array<{
+      tintPrimary: number;
+      helmetId: string;
+      capeId: string;
+      weaponStyleId: string;
+    }> = [];
+    phase.resources.room.state.players.forEach((player) => {
+      cosmetics.push({
+        tintPrimary: player.cosmetics.tintPrimary,
+        helmetId: player.cosmetics.helmetId,
+        capeId: player.cosmetics.capeId,
+        weaponStyleId: player.cosmetics.weaponStyleId,
+      });
+    });
+    return cosmetics;
+  }
+
   /** The connected room's id, once known — `null` before `start()` resolves. */
   get roomId(): string | null {
     const phase = this.#getPhase();
-    return phase.tag === "connected" || phase.tag === "predicting" ? phase.resources.room.roomId : null;
+    return phase.tag === "connected" || phase.tag === "predicting"
+      ? phase.resources.room.roomId
+      : null;
   }
 
   /** The connected room's reconnection token, for the caller to persist and
@@ -252,12 +294,24 @@ export class GameClient {
     }
 
     room.onMessage(MESSAGE_TYPES.MATCH_CODE, (code: string) => this.#matchCode.emit(code));
-    room.onMessage(MESSAGE_TYPES.MATCH_RESULT, (result: MatchResult) => this.#matchResult.emit(result));
+    room.onMessage(MESSAGE_TYPES.MATCH_RESULT, (result: MatchResult) =>
+      this.#matchResult.emit(result),
+    );
+    room.onMessage(MESSAGE_TYPES.PROFILE_UNLOCKS, (itemIds: string[]) =>
+      this.#profileUnlocks.emit(itemIds),
+    );
     room.onMessage(MESSAGE_TYPES.FX, (events: SimEvent[]) => this.#shakeForEvents(events));
-    room.onMessage(MESSAGE_TYPES.DRAFT_OFFER, (payload: { offers: string[]; endsAtTick: number }) => {
-      this.#currentDraftOffer = { offers: payload.offers, endsAtTick: payload.endsAtTick, picked: null };
-      this.#draftOffer.emit(this.#currentDraftOffer);
-    });
+    room.onMessage(
+      MESSAGE_TYPES.DRAFT_OFFER,
+      (payload: { offers: string[]; endsAtTick: number }) => {
+        this.#currentDraftOffer = {
+          offers: payload.offers,
+          endsAtTick: payload.endsAtTick,
+          picked: null,
+        };
+        this.#draftOffer.emit(this.#currentDraftOffer);
+      },
+    );
 
     const keyboard = new KeyboardInput();
     keyboard.attach();
@@ -468,7 +522,9 @@ export class GameClient {
     if (!camera || (phase.tag !== "connected" && phase.tag !== "predicting")) {
       return;
     }
-    const living = rects.filter((rect) => phase.resources.room.state.players.get(rect.id)?.alive !== false);
+    const living = rects.filter(
+      (rect) => phase.resources.room.state.players.get(rect.id)?.alive !== false,
+    );
     camera.update(living, dtSeconds);
 
     const frame = camera.frame;
@@ -527,9 +583,17 @@ function joinRoom(client: Client, intent: JoinIntent): Promise<Room<unknown, Mat
     case "quick":
       return client.joinOrCreate<MatchState>(MATCH_ROOM_NAME, { mode: "quick" }, MatchState);
     case "createPrivate":
-      return client.create<MatchState>(MATCH_ROOM_NAME, { mode: "private", arenaId: intent.arenaId }, MatchState);
+      return client.create<MatchState>(
+        MATCH_ROOM_NAME,
+        { mode: "private", arenaId: intent.arenaId },
+        MatchState,
+      );
     case "joinPrivate":
-      return client.join<MatchState>(MATCH_ROOM_NAME, { mode: "private", code: intent.code }, MatchState);
+      return client.join<MatchState>(
+        MATCH_ROOM_NAME,
+        { mode: "private", code: intent.code },
+        MatchState,
+      );
     case "joinById":
       return client.joinById<MatchState>(intent.roomId, undefined, MatchState);
     case "reconnect":

@@ -1,11 +1,5 @@
 import { expect, test } from "@playwright/test";
 
-declare global {
-  interface Window {
-    __CC_DEBUG__?: { localPosition(): { x: number; y: number } | null };
-  }
-}
-
 /**
  * Plan Phase 5's e2e gate: context A creates a private room and reads the
  * code, context B joins by code, both see the countdown/round-active

@@ -1,4 +1,10 @@
-import { COUNTDOWN_TICKS, DRAFT_TICKS, MATCH_ROOM_NAME, ROUND_OVER_TICKS, ROUNDS_TO_WIN } from "@castle-clash/shared";
+import {
+  COUNTDOWN_TICKS,
+  DRAFT_TICKS,
+  MATCH_ROOM_NAME,
+  ROUND_OVER_TICKS,
+  ROUNDS_TO_WIN,
+} from "@castle-clash/shared";
 import type { Room as ClientRoom } from "@colyseus/sdk";
 import { boot, type ColyseusTestServer } from "@colyseus/testing";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -37,7 +43,10 @@ async function endRoundByDropping(
 /** RoundOver -> Draft (timeout auto-pick, no client sends a pick) ->
  *  Countdown -> RoundActive, the same tick counts `MatchRoom.draft.test.ts`
  *  uses. */
-async function advanceThroughDraftToNextRound(tickDriver: ManualTickDriver, room: MatchRoom): Promise<void> {
+async function advanceThroughDraftToNextRound(
+  tickDriver: ManualTickDriver,
+  room: MatchRoom,
+): Promise<void> {
   tickDriver.step(ROUND_OVER_TICKS);
   await room.waitForNextPatch();
   tickDriver.step(DRAFT_TICKS);
@@ -79,52 +88,48 @@ describe("MatchRoom auth", () => {
     await first.leave();
   });
 
-  it(
-    "calls repo.recordMatch exactly once with the match's aggregates once MatchOver is reached",
-    async () => {
-      const repo = new InMemoryPlayerRepository();
-      const tickDriver = new ManualTickDriver();
-      const room = await colyseus.createRoom(MATCH_ROOM_NAME, {
-        tickDriver,
-        arenaId: "castleRoom",
-        playerRepository: repo,
-      });
+  it("calls repo.recordMatch exactly once with the match's aggregates once MatchOver is reached", async () => {
+    const repo = new InMemoryPlayerRepository();
+    const tickDriver = new ManualTickDriver();
+    const room = await colyseus.createRoom(MATCH_ROOM_NAME, {
+      tickDriver,
+      arenaId: "castleRoom",
+      playerRepository: repo,
+    });
 
-      connectAs(colyseus, "winner-user");
-      const winner = await colyseus.connectTo(room);
-      connectAs(colyseus, "loser-user");
-      let loser = await colyseus.connectTo(room);
-      tickDriver.step(1 + COUNTDOWN_TICKS);
-      await room.waitForNextPatch();
+    connectAs(colyseus, "winner-user");
+    const winner = await colyseus.connectTo(room);
+    connectAs(colyseus, "loser-user");
+    let loser = await colyseus.connectTo(room);
+    tickDriver.step(1 + COUNTDOWN_TICKS);
+    await room.waitForNextPatch();
+    expect(room.state.phase).toBe("RoundActive");
+
+    for (let round = 1; round < ROUNDS_TO_WIN; round++) {
+      loser = await endRoundByDropping(colyseus, tickDriver, room, loser);
+      expect(room.state.phase).toBe("RoundOver");
+      await advanceThroughDraftToNextRound(tickDriver, room);
       expect(room.state.phase).toBe("RoundActive");
+    }
 
-      for (let round = 1; round < ROUNDS_TO_WIN; round++) {
-        loser = await endRoundByDropping(colyseus, tickDriver, room, loser);
-        expect(room.state.phase).toBe("RoundOver");
-        await advanceThroughDraftToNextRound(tickDriver, room);
-        expect(room.state.phase).toBe("RoundActive");
-      }
+    // Final round: drop the loser one more time to reach MatchOver.
+    await loser.leave(false);
+    await flush();
+    tickDriver.step(1);
+    await room.waitForNextPatch();
+    await flush(); // let the fire-and-forget enqueueRecordMatch() settle
 
-      // Final round: drop the loser one more time to reach MatchOver.
-      await loser.leave(false);
-      await flush();
-      tickDriver.step(1);
-      await room.waitForNextPatch();
-      await flush(); // let the fire-and-forget enqueueRecordMatch() settle
+    expect(room.state.phase).toBe("MatchOver");
+    expect(repo.recordedMatches.size).toBe(1);
+    const [record] = [...repo.recordedMatches.values()];
+    expect(record!.winnerId).toBe("winner-user");
+    expect(record!.participants).toHaveLength(2);
+    const winnerParticipant = record!.participants.find((p) => p.playerId === "winner-user");
+    expect(winnerParticipant?.placement).toBe(1);
+    expect(winnerParticipant?.roundsWon).toBe(ROUNDS_TO_WIN);
 
-      expect(room.state.phase).toBe("MatchOver");
-      expect(repo.recordedMatches.size).toBe(1);
-      const [record] = [...repo.recordedMatches.values()];
-      expect(record!.winnerId).toBe("winner-user");
-      expect(record!.participants).toHaveLength(2);
-      const winnerParticipant = record!.participants.find((p) => p.playerId === "winner-user");
-      expect(winnerParticipant?.placement).toBe(1);
-      expect(winnerParticipant?.roundsWon).toBe(ROUNDS_TO_WIN);
-
-      await winner.leave();
-    },
-    10000,
-  );
+    await winner.leave();
+  }, 10000);
 
   it("still reaches MatchOver and disposes cleanly when the repository always throws", async () => {
     const repo = new InMemoryPlayerRepository();

@@ -12,7 +12,9 @@ import { runPlayerRepositoryContractTests } from "./PlayerRepository.contract.js
  * failing; `.github/workflows/integration.yml` sets them to the CLI-started
  * local stack's own printed values before running the suite.
  */
-const canRunAgainstSupabase = Boolean(process.env["SUPABASE_URL"] && process.env["SUPABASE_SECRET_KEY"]);
+const canRunAgainstSupabase = Boolean(
+  process.env["SUPABASE_URL"] && process.env["SUPABASE_SECRET_KEY"],
+);
 
 describe.skipIf(!canRunAgainstSupabase)("SupabasePlayerRepository contract", () => {
   let client: SupabaseClient<Database>;
@@ -24,11 +26,17 @@ describe.skipIf(!canRunAgainstSupabase)("SupabasePlayerRepository contract", () 
   let userIdPool: string[] = [];
 
   beforeAll(async () => {
-    client = createClient<Database>(process.env["SUPABASE_URL"]!, process.env["SUPABASE_SECRET_KEY"]!);
+    client = createClient<Database>(
+      process.env["SUPABASE_URL"]!,
+      process.env["SUPABASE_SECRET_KEY"]!,
+    );
 
-    const ids = Array.from({ length: 8 }, () => crypto.randomUUID());
+    const ids = Array.from({ length: 12 }, () => crypto.randomUUID());
     for (const id of ids) {
-      const { error } = await client.auth.admin.createUser({ id, email: `${id}@contract-test.invalid` });
+      const { error } = await client.auth.admin.createUser({
+        id,
+        email: `${id}@contract-test.invalid`,
+      });
       if (error) {
         throw new Error(`failed to seed auth.users(${id}): ${error.message}`);
       }

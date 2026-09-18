@@ -2,6 +2,14 @@ import type { GameClient } from "./GameClient.js";
 
 export interface CastleClashDebugHook {
   localPosition(): { x: number; y: number } | null;
+  /** Plan Phase 9's e2e gate — every connected player's synced cosmetics,
+   *  so a test can assert a saved loadout propagated to another browser. */
+  allCosmetics(): Array<{
+    tintPrimary: number;
+    helmetId: string;
+    capeId: string;
+    weaponStyleId: string;
+  }>;
 }
 
 declare global {
@@ -23,5 +31,6 @@ export function installE2eDebugHook(client: GameClient): void {
   }
   window.__CC_DEBUG__ = {
     localPosition: () => client.localPosition,
+    allCosmetics: () => client.allCosmetics,
   };
 }

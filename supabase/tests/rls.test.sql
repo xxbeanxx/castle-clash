@@ -8,7 +8,7 @@
 -- `auth.uid()` reads `request.jwt.claims->>'sub'` (confirmed by inspecting
 -- the local instance's actual `auth.uid()` definition, not assumed).
 begin;
-select plan(9);
+select plan(11);
 
 -- Two players, inserted directly into auth.users (RLS/triggers aren't
 -- bypassed by this — the same `on_auth_user_created` trigger real sign-up
@@ -109,6 +109,26 @@ select is(
   ),
   0,
   'leaderboard view has no email/id/phone/password-shaped column'
+);
+
+-- --- Test 10-11: a player can read their own player_stats row but not --
+-- another's (Phase 9's addition to Phase 8's default-deny table) ----------
+reset role;
+insert into public.player_stats (player_id, wins) values ('11111111-1111-1111-1111-111111111111', 7);
+
+select set_config('request.jwt.claims', json_build_object('sub', '11111111-1111-1111-1111-111111111111', 'role', 'authenticated')::text, true);
+set local role authenticated;
+
+select is(
+  (select wins from public.player_stats where player_id = '11111111-1111-1111-1111-111111111111'),
+  7,
+  'user A can select their own player_stats row'
+);
+
+select is(
+  (select count(*)::int from public.player_stats where player_id = '22222222-2222-2222-2222-222222222222'),
+  0,
+  'user A cannot select user B''s player_stats row'
 );
 
 select * from finish();

@@ -1,4 +1,4 @@
-import { WEAPON_IDS, type WeaponId } from "@castle-clash/shared";
+import { WEAPON_IDS, type UnlockStats, type WeaponId } from "@castle-clash/shared";
 
 /** A player's persisted gameplay/cosmetic choices (plan Phase 8 step 2's
  *  `player_loadouts` row). `helmetId`/`capeId`/`weaponStyleId` are `null`
@@ -35,7 +35,25 @@ export interface MatchParticipantResult {
   readonly deaths: number;
   readonly damageDealt: number;
   readonly powerups: readonly string[];
+  /** The weapon this participant actually played the match with (plan
+   *  Phase 9 step 3: `winWithWeapon`'s unlock rule needs a per-weapon win
+   *  tally, which needs to know this per match). `MatchRoom` reads it from
+   *  a map populated at `onJoin` from that player's loadout, not from
+   *  `SimState.players` directly — the latter is deleted on `onLeave`, so a
+   *  participant who left before `MatchOver` would otherwise have none. */
+  readonly weapon: WeaponId;
 }
+
+/** What a brand-new player (no `player_stats` row yet) gets — mirrors
+ *  `DEFAULT_LOADOUT`'s reasoning below: `player_stats`'s own column
+ *  defaults, kept in sync by hand since `UnlockStats` isn't generated from
+ *  the DB schema. */
+export const DEFAULT_UNLOCK_STATS: UnlockStats = {
+  wins: 0,
+  eliminations: 0,
+  matchesPlayed: 0,
+  winsByWeapon: {},
+};
 
 /** One completed match's full record (plan Phase 8 step 5: `MatchOver` ->
  *  `recordMatch`). `matchId` is generated once at room creation (not here)
@@ -67,4 +85,14 @@ export interface PlayerRepository {
    *  match must not double-count `player_stats` (this is what makes a
    *  retry-with-backoff queue on top of this safe). */
   recordMatch(result: MatchResultRecord): Promise<void>;
+  /** The stats `evaluateUnlocks()` (shared) checks unlock thresholds
+   *  against — read fresh after `recordMatch` succeeds (plan Phase 9 step
+   *  3), so it reflects the match that might have just crossed one. */
+  getStats(userId: string): Promise<UnlockStats>;
+  /** Idempotent: granting an already-owned item is a no-op, not an error —
+   *  `evaluateAndGrantUnlocks` (apps/server/src/match/unlocks.ts) never
+   *  checks `getUnlocks` immediately beforehand for every item, so this is
+   *  what actually makes a duplicate grant (e.g. from re-evaluating after a
+   *  retried `recordMatch`) safe. */
+  grantUnlock(userId: string, itemId: string): Promise<void>;
 }

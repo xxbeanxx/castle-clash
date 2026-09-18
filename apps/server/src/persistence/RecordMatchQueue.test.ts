@@ -27,7 +27,7 @@ describe("enqueueRecordMatch", () => {
     const repo = new InMemoryPlayerRepository();
     const spy = vi.spyOn(repo, "recordMatch");
 
-    await enqueueRecordMatch(repo, makeResult("match-1"), noWait);
+    await expect(enqueueRecordMatch(repo, makeResult("match-1"), noWait)).resolves.toBe(true);
 
     expect(spy).toHaveBeenCalledTimes(1);
     expect(recordMatchFailureCount.value).toBe(0);
@@ -44,7 +44,7 @@ describe("enqueueRecordMatch", () => {
       return InMemoryPlayerRepository.prototype.recordMatch.call(repo, result);
     });
 
-    await enqueueRecordMatch(repo, makeResult("match-2"), noWait);
+    await expect(enqueueRecordMatch(repo, makeResult("match-2"), noWait)).resolves.toBe(true);
 
     expect(calls).toBe(3);
     expect(recordMatchFailureCount.value).toBe(0);
@@ -55,7 +55,7 @@ describe("enqueueRecordMatch", () => {
     const repo = new InMemoryPlayerRepository();
     vi.spyOn(repo, "recordMatch").mockRejectedValue(new Error("permanent"));
 
-    await expect(enqueueRecordMatch(repo, makeResult("match-3"), noWait)).resolves.toBeUndefined();
+    await expect(enqueueRecordMatch(repo, makeResult("match-3"), noWait)).resolves.toBe(false);
 
     expect(recordMatchFailureCount.value).toBe(1);
   });

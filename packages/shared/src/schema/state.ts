@@ -2,6 +2,26 @@ import { ArraySchema, MapSchema, Schema, type } from "@colyseus/schema";
 import { MAX_HP, MAX_STAMINA } from "../config/game.js";
 import { WEAPON_IDS } from "../types/ids.js";
 
+/** A player's server-validated cosmetic loadout, synced so every connected
+ *  client — not just the player themselves — can render it (plan Phase 9
+ *  step 3: "server-validated cosmetics visible to all players in a
+ *  match"). `MatchRoom.onJoin` is the only writer: it resolves the raw
+ *  `player_loadouts` row through `resolveCosmeticSelection()` against the
+ *  player's own `player_unlocks` before ever setting these fields, so an
+ *  unowned or removed catalog id can never reach a connected client's
+ *  screen (`db/cosmetics.ts`'s doc comment covers the "invalid -> default"
+ *  fallback in full). `helmetId`/`capeId`/`weaponStyleId` hold a
+ *  `COSMETIC_CATALOG` item id, always that slot's `default` item id rather
+ *  than an empty-string sentinel — there's no "equipped nothing" state
+ *  distinct from "equipped the default." */
+export class CosmeticsState extends Schema {
+  @type("string") helmetId = "";
+  @type("string") capeId = "";
+  @type("string") weaponStyleId = "";
+  @type("number") tintPrimary = 0;
+  @type("number") tintSecondary = 0;
+}
+
 export class PlayerState extends Schema {
   @type("string") id = "";
   @type("number") x = 0;
@@ -64,6 +84,9 @@ export class PlayerState extends Schema {
   /** `ringOutArmor` charges spent so far this match — same reconciliation
    *  reasoning as `airJumpsUsed`. */
   @type("number") ringOutArmorChargesUsed = 0;
+
+  // Customization (Phase 9). See `CosmeticsState`'s doc comment above.
+  @type(CosmeticsState) cosmetics = new CosmeticsState();
 }
 
 /** Dynamic per-hazard state (Phase 6 plan step 4's `MatchState.hazards:

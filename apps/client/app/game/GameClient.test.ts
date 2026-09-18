@@ -12,6 +12,11 @@ function fakeSchemaPlayer(overrides: Partial<Record<string, number | boolean>> =
     jumpBufferTicks: 0,
     dropThroughTicks: 0,
     lastProcessedSeq: 0,
+    // `playersToRects` (Phase 9) reads `.cosmetics.helmetId`/`.capeId` off
+    // every player unconditionally, same as a real `PlayerState` schema
+    // instance always has a `cosmetics` field — this fake needs one too,
+    // even though nothing in this file exercises cosmetics rendering.
+    cosmetics: { helmetId: "helmet-none", capeId: "cape-none", weaponStyleId: "weaponStyle-none" },
     ...overrides,
   };
 }

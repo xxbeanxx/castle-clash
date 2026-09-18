@@ -2,7 +2,7 @@
 -- counters increment correctly, and a second call with the same match ID
 -- doesn't double-count.
 begin;
-select plan(7);
+select plan(9);
 
 insert into auth.users (id, is_anonymous) values
   ('33333333-3333-3333-3333-333333333333', false),
@@ -21,8 +21,8 @@ select lives_ok(
     "winnerId": "33333333-3333-3333-3333-333333333333",
     "serverVersion": "0.0.0",
     "participants": [
-      {"playerId": "33333333-3333-3333-3333-333333333333", "placement": 1, "roundsWon": 2, "eliminations": 3, "deaths": 1, "damageDealt": 120.5, "powerups": ["lifesteal"]},
-      {"playerId": "44444444-4444-4444-4444-444444444444", "placement": 2, "roundsWon": 0, "eliminations": 0, "deaths": 2, "damageDealt": 40, "powerups": []}
+      {"playerId": "33333333-3333-3333-3333-333333333333", "placement": 1, "roundsWon": 2, "eliminations": 3, "deaths": 1, "damageDealt": 120.5, "powerups": ["lifesteal"], "weapon": "mace"},
+      {"playerId": "44444444-4444-4444-4444-444444444444", "placement": 2, "roundsWon": 0, "eliminations": 0, "deaths": 2, "damageDealt": 40, "powerups": [], "weapon": "sword"}
     ]
   }'::jsonb)
   $$,
@@ -53,6 +53,18 @@ select is(
   'the loser''s player_stats.deaths reflects the recorded match'
 );
 
+select is(
+  (select weapon from public.match_participants where match_id = '99999999-9999-9999-9999-999999999999' and player_id = '33333333-3333-3333-3333-333333333333'),
+  'mace',
+  'the winner''s match_participants row records the weapon they played'
+);
+
+select is(
+  (select (wins_by_weapon ->> 'mace')::int from public.player_stats where player_id = '33333333-3333-3333-3333-333333333333'),
+  1,
+  'the winner''s player_stats.wins_by_weapon credits the weapon they won with'
+);
+
 -- Second call with the SAME match id: idempotent no-op, per the function's
 -- own early-return on a `matches.id` conflict.
 select lives_ok(
@@ -66,8 +78,8 @@ select lives_ok(
     "winnerId": "33333333-3333-3333-3333-333333333333",
     "serverVersion": "0.0.0",
     "participants": [
-      {"playerId": "33333333-3333-3333-3333-333333333333", "placement": 1, "roundsWon": 2, "eliminations": 3, "deaths": 1, "damageDealt": 120.5, "powerups": ["lifesteal"]},
-      {"playerId": "44444444-4444-4444-4444-444444444444", "placement": 2, "roundsWon": 0, "eliminations": 0, "deaths": 2, "damageDealt": 40, "powerups": []}
+      {"playerId": "33333333-3333-3333-3333-333333333333", "placement": 1, "roundsWon": 2, "eliminations": 3, "deaths": 1, "damageDealt": 120.5, "powerups": ["lifesteal"], "weapon": "mace"},
+      {"playerId": "44444444-4444-4444-4444-444444444444", "placement": 2, "roundsWon": 0, "eliminations": 0, "deaths": 2, "damageDealt": 40, "powerups": [], "weapon": "sword"}
     ]
   }'::jsonb)
   $$,

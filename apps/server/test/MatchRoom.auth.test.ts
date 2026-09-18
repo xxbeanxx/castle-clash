@@ -51,10 +51,6 @@ describe("MatchRoom auth", () => {
 
   beforeAll(async () => {
     stubAuthForTests();
-    // The "repository always throws" test below would otherwise wait out
-    // `enqueueRecordMatch`'s real exponential backoff (seconds) to observe
-    // it give up — see `MatchRoom.recordMatchDelay`'s doc comment.
-    MatchRoom.recordMatchDelay = async () => {};
     colyseus = await boot(server);
   });
 
@@ -140,6 +136,9 @@ describe("MatchRoom auth", () => {
       tickDriver,
       arenaId: "castleRoom",
       playerRepository: repo,
+      // Otherwise this test would wait out several real seconds of
+      // enqueueRecordMatch's exponential backoff to observe it give up.
+      recordMatchDelay: async () => {},
     });
 
     connectAs(colyseus, "winner-user-2");

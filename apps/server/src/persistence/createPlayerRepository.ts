@@ -14,7 +14,18 @@ import { SupabasePlayerRepository } from "./SupabasePlayerRepository.js";
  * `integration.yml`) always sets both, so it always gets the real
  * implementation. Called lazily per room (`MatchRoom.onCreate`), not once
  * at module load, so importing this file never requires the env vars to be
- * set. */
+ * set.
+ *
+ * The `SupabasePlayerRepository`/its `SupabaseClient` is built once and
+ * cached at module scope, not per call — matchmaking creates one `MatchRoom`
+ * per match, so calling this naively on every `onCreate` would open a new
+ * client (and its own connection pool) per match under real load. Mirrors
+ * `verifyToken.ts`'s `createDefaultTokenVerifier()`, which caches its JWKS
+ * resolver for the same reason. Never cached for the `InMemoryPlayerRepository`
+ * fallback path — dev-without-Supabase is already a degraded mode, and a
+ * fresh one per room there is harmless. */
+let cachedSupabaseRepository: PlayerRepository | undefined;
+
 export function createDefaultPlayerRepository(): PlayerRepository {
   const url = process.env["SUPABASE_URL"];
   const secretKey = process.env["SUPABASE_SECRET_KEY"];
@@ -27,5 +38,6 @@ export function createDefaultPlayerRepository(): PlayerRepository {
     return new InMemoryPlayerRepository();
   }
 
-  return new SupabasePlayerRepository(createClient<Database>(url, secretKey));
+  cachedSupabaseRepository ??= new SupabasePlayerRepository(createClient<Database>(url, secretKey));
+  return cachedSupabaseRepository;
 }

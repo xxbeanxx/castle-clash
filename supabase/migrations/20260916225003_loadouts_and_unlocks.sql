@@ -36,6 +36,33 @@ create table public.player_unlocks (
 alter table public.player_loadouts enable row level security;
 alter table public.player_unlocks enable row level security;
 
+-- Shared by both the insert and update policies below (they'd otherwise
+-- repeat this exact three-clause check verbatim) — `stable`, not `volatile`,
+-- since it only reads; `security invoker` (the default) so it runs under
+-- the calling role's own RLS-scoped view of `player_unlocks`, identical to
+-- inlining the `exists(...)` clauses directly.
+create function public.player_owns_cosmetics(
+  p_player_id uuid, p_helmet_id text, p_cape_id text, p_weapon_style_id text
+)
+returns boolean
+language sql
+stable
+as $$
+  select
+    (p_helmet_id is null or exists (
+      select 1 from public.player_unlocks
+      where player_id = p_player_id and item_id = p_helmet_id
+    ))
+    and (p_cape_id is null or exists (
+      select 1 from public.player_unlocks
+      where player_id = p_player_id and item_id = p_cape_id
+    ))
+    and (p_weapon_style_id is null or exists (
+      select 1 from public.player_unlocks
+      where player_id = p_player_id and item_id = p_weapon_style_id
+    ));
+$$;
+
 create policy "players can view their own loadout"
   on public.player_loadouts for select
   to authenticated
@@ -53,18 +80,7 @@ create policy "players can insert their own loadout"
   to authenticated
   with check (
     player_id = (select auth.uid())
-    and (helmet_id is null or exists (
-      select 1 from public.player_unlocks
-      where player_id = player_loadouts.player_id and item_id = player_loadouts.helmet_id
-    ))
-    and (cape_id is null or exists (
-      select 1 from public.player_unlocks
-      where player_id = player_loadouts.player_id and item_id = player_loadouts.cape_id
-    ))
-    and (weapon_style_id is null or exists (
-      select 1 from public.player_unlocks
-      where player_id = player_loadouts.player_id and item_id = player_loadouts.weapon_style_id
-    ))
+    and public.player_owns_cosmetics(player_id, helmet_id, cape_id, weapon_style_id)
   );
 
 create policy "players can update their own loadout"
@@ -73,18 +89,7 @@ create policy "players can update their own loadout"
   using (player_id = (select auth.uid()))
   with check (
     player_id = (select auth.uid())
-    and (helmet_id is null or exists (
-      select 1 from public.player_unlocks
-      where player_id = player_loadouts.player_id and item_id = player_loadouts.helmet_id
-    ))
-    and (cape_id is null or exists (
-      select 1 from public.player_unlocks
-      where player_id = player_loadouts.player_id and item_id = player_loadouts.cape_id
-    ))
-    and (weapon_style_id is null or exists (
-      select 1 from public.player_unlocks
-      where player_id = player_loadouts.player_id and item_id = player_loadouts.weapon_style_id
-    ))
+    and public.player_owns_cosmetics(player_id, helmet_id, cape_id, weapon_style_id)
   );
 
 -- `player_unlocks` itself: select-only for its owner. Every row is written

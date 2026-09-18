@@ -65,6 +65,12 @@ export interface MatchRoomOptions {
    *  (server-side, not over the wire) can set it. Defaults to
    *  `createDefaultPlayerRepository()`'s real Supabase-or-in-memory choice. */
   playerRepository?: PlayerRepository;
+  /** Test/DI seam for `enqueueRecordMatch`'s retry backoff — same pattern
+   *  as `tickDriver`/`playerRepository`. A test that makes
+   *  `PlayerRepository.recordMatch` always fail (`MatchRoom.auth.test.ts`)
+   *  would otherwise wait out several real seconds of exponential backoff
+   *  to observe it give up. Defaults to a real `setTimeout`-based delay. */
+  recordMatchDelay?: (ms: number) => Promise<void>;
   mode?: MatchMode;
   /** A private room's join code. Only meaningful together with `mode:
    *  "private"` — supplying it when *joining* an existing private room is
@@ -93,13 +99,6 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
    *  `static` and runs before any room instance (or its options) exists. */
   static verifyToken: TokenVerifier = createDefaultTokenVerifier();
 
-  /** Overridable the same way `verifyToken` is, and for the same reason: a
-   *  test that makes `PlayerRepository.recordMatch` always fail
-   *  (`MatchRoom.auth.test.ts`) would otherwise have to wait out
-   *  `enqueueRecordMatch`'s real exponential backoff (seconds) to observe
-   *  it give up. Production never sets this. */
-  static recordMatchDelay: (ms: number) => Promise<void> = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
   /** Colyseus calls this — not the instance `onAuth` also declared on
    *  `Room` — before a room instance is even selected for a `joinOrCreate`
    *  (plan Phase 8 step 5). Rejects (throws) on a missing or invalid token;
@@ -111,6 +110,7 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
 
   #tickDriver!: TickDriver;
   #playerRepository!: PlayerRepository;
+  #recordMatchDelay!: (ms: number) => Promise<void>;
   #matchId!: string;
   #startedAt!: Date;
   readonly #inputQueue = new InputQueue();
@@ -145,6 +145,7 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
     this.setState(new MatchState());
     this.setPatchRate(1000 / PATCH_RATE);
     this.#playerRepository = options.playerRepository ?? createDefaultPlayerRepository();
+    this.#recordMatchDelay = options.recordMatchDelay ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
     // Generated once here, not when the match ends, so a `recordMatch` retry
     // after a transient failure always resends the exact same id — that's
     // what makes `record_match_result()`'s conflict-on-`matches.id` check an
@@ -423,7 +424,7 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
       void enqueueRecordMatch(
         this.#playerRepository,
         this.#buildMatchResultRecord(directorResult.result),
-        MatchRoom.recordMatchDelay,
+        this.#recordMatchDelay,
       );
     }
   }

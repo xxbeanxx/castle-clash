@@ -258,6 +258,15 @@ export type Database = {
       }
     }
     Functions: {
+      player_owns_cosmetics: {
+        Args: {
+          p_cape_id: string
+          p_helmet_id: string
+          p_player_id: string
+          p_weapon_style_id: string
+        }
+        Returns: boolean
+      }
       record_match_result: { Args: { payload: Json }; Returns: undefined }
     }
     Enums: {

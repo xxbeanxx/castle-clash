@@ -1,4 +1,4 @@
-import { WEAPON_IDS, type Database, type UnlockStats, type WeaponId } from "@castle-clash/shared";
+import { isWeaponId, type Database, type UnlockStats, type WeaponId } from "@castle-clash/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   DEFAULT_LOADOUT,
@@ -7,10 +7,6 @@ import {
   type MatchResultRecord,
   type PlayerRepository,
 } from "./PlayerRepository.js";
-
-function isWeaponId(value: string): value is WeaponId {
-  return (Object.values(WEAPON_IDS) as string[]).includes(value);
-}
 
 /** `player_stats.wins_by_weapon` is a `Json` column (`jsonb`, untyped by
  *  Postgres) — narrows it down to only the keys that are actually a known

@@ -57,6 +57,16 @@ export interface DraftOfferSnapshot {
   picked: string | null;
 }
 
+/** A `PlayerState.cosmetics` schema instance's fields as a plain object —
+ *  shared by `GameClient.allCosmetics`'s return type and `game/debug.ts`'s
+ *  `CastleClashDebugHook`, so the shape only exists once. */
+export interface PlayerCosmetics {
+  tintPrimary: number;
+  helmetId: string;
+  capeId: string;
+  weaponStyleId: string;
+}
+
 /** A tiny pub/sub primitive — `subscribeHud`/`subscribeMatchFlow`/
  *  `subscribeMatchCode`/`subscribeMatchResult` were four copies of the same
  *  add-to-a-`Set`-and-return-an-unsubscriber shape before this existed. */
@@ -197,22 +207,12 @@ export class GameClient {
    *  opponent context reads the player's tint via the debug hook"), so a
    *  test can assert a saved loadout propagated to another browser without
    *  decoding `@colyseus/schema` itself. Empty before a room is connected. */
-  get allCosmetics(): Array<{
-    tintPrimary: number;
-    helmetId: string;
-    capeId: string;
-    weaponStyleId: string;
-  }> {
+  get allCosmetics(): PlayerCosmetics[] {
     const phase = this.#getPhase();
     if (phase.tag !== "connected" && phase.tag !== "predicting") {
       return [];
     }
-    const cosmetics: Array<{
-      tintPrimary: number;
-      helmetId: string;
-      capeId: string;
-      weaponStyleId: string;
-    }> = [];
+    const cosmetics: PlayerCosmetics[] = [];
     phase.resources.room.state.players.forEach((player) => {
       cosmetics.push({
         tintPrimary: player.cosmetics.tintPrimary,

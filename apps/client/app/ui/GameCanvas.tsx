@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
+import { getAccessToken } from "../auth/supabase.js";
 import { getRuntimeConfig } from "../config/runtime.js";
 import { installE2eDebugHook } from "../game/debug.js";
 import { GameClient } from "../game/GameClient.js";
 import { resolveJoinIntent, storeReconnectionToken } from "../game/reconnection.js";
 import { CombatHud } from "./CombatHud.js";
+import { DraftOverlay } from "./DraftOverlay.js";
 import { MatchBanner } from "./MatchBanner.js";
 import { ResultsOverlay } from "./ResultsOverlay.js";
+import { UnlockToast } from "./UnlockToast.js";
 
 /** `roomId` is `"new"` for a not-yet-created room (quick play, or a private
  *  room to create/join by code from `mode`/`code` search params) — see
@@ -26,8 +29,15 @@ export function GameCanvas({ roomId }: { roomId: string }) {
     setClient(gameClient);
     installE2eDebugHook(gameClient);
     const intent = resolveJoinIntent(roomId, searchParams);
-    void gameClient
-      .start(container, getRuntimeConfig().GAME_SERVER_URL, intent)
+    void getAccessToken()
+      .then((accessToken) =>
+        gameClient.start(
+          container,
+          getRuntimeConfig().GAME_SERVER_URL,
+          intent,
+          accessToken ?? undefined,
+        ),
+      )
       .then(() => {
         const actualRoomId = gameClient.roomId;
         const token = gameClient.reconnectionToken;
@@ -58,14 +68,12 @@ export function GameCanvas({ roomId }: { roomId: string }) {
 
   return (
     <div style={{ position: "relative", width: "100%", height: "100%" }}>
-      <div
-        ref={containerRef}
-        data-testid="game-canvas"
-        style={{ width: "100%", height: "100%" }}
-      />
+      <div ref={containerRef} data-testid="game-canvas" style={{ width: "100%", height: "100%" }} />
       {client && <CombatHud client={client} />}
       {client && <MatchBanner client={client} />}
+      {client && <DraftOverlay client={client} />}
       {client && <ResultsOverlay client={client} />}
+      {client && <UnlockToast client={client} />}
     </div>
   );
 }

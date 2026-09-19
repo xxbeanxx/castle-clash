@@ -54,6 +54,46 @@ describe("PlayerRectsView", () => {
     expect(app.stage.children).toHaveLength(0);
   });
 
+  it("adds a helmet indicator rect above the body when a helmet is equipped", () => {
+    const view = new PlayerRectsView(app.stage);
+
+    view.sync([{ id: "p1", x: 10, y: 20, tint: 0xffffff, action: "Idle", helmetTint: 0xffd700 }]);
+
+    expect(app.stage.children).toHaveLength(2);
+    const [, helmet] = app.stage.children as [Sprite, Sprite];
+    expect(helmet.tint).toBe(0xffd700);
+  });
+
+  it("adds a cape indicator rect when a cape is equipped, and removes both when unequipped", () => {
+    const view = new PlayerRectsView(app.stage);
+
+    view.sync([{ id: "p1", x: 0, y: 0, tint: 0xffffff, action: "Idle", capeTint: 0x4b0082 }]);
+    expect(app.stage.children).toHaveLength(2);
+
+    view.sync([{ id: "p1", x: 0, y: 0, tint: 0xffffff, action: "Idle" }]);
+    expect(app.stage.children).toHaveLength(1);
+  });
+
+  it("removes a player's cosmetic indicator sprites along with their body sprite", () => {
+    const view = new PlayerRectsView(app.stage);
+
+    view.sync([
+      {
+        id: "p1",
+        x: 0,
+        y: 0,
+        tint: 0xffffff,
+        action: "Idle",
+        helmetTint: 0xffd700,
+        capeTint: 0x4b0082,
+      },
+    ]);
+    expect(app.stage.children).toHaveLength(3);
+
+    view.sync([]);
+    expect(app.stage.children).toHaveLength(0);
+  });
+
   it("overrides tint and dims alpha for combat action states", () => {
     const view = new PlayerRectsView(app.stage);
 

@@ -16,6 +16,19 @@ describe("resolveJoinIntent", () => {
     });
   });
 
+  it("resolves 'new' with mode=private and an arena to creating one with that arena", () => {
+    expect(resolveJoinIntent("new", new URLSearchParams("mode=private&arena=pit"))).toEqual({
+      kind: "createPrivate",
+      arenaId: "pit",
+    });
+  });
+
+  it("ignores arena when a code is also present — joining inherits the host's arena", () => {
+    expect(
+      resolveJoinIntent("new", new URLSearchParams("mode=private&code=ABC123&arena=pit")),
+    ).toEqual({ kind: "joinPrivate", code: "ABC123" });
+  });
+
   it("resolves 'new' with mode=private and a code to joining by code", () => {
     expect(resolveJoinIntent("new", new URLSearchParams("mode=private&code=ABC123"))).toEqual({
       kind: "joinPrivate",

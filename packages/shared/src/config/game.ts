@@ -43,6 +43,13 @@ export const MIN_PLAYERS = 2;
 export const COUNTDOWN_TICKS = 180; // 3s
 /** How long the results of a finished round stay on screen before Draft. */
 export const ROUND_OVER_TICKS = 120; // 2s
+/** Hard fallback for how long `Draft` waits before moving on regardless of
+ *  picks (plan Phase 7 step 4: "auto-picks randomly with the seeded RNG on
+ *  timeout") — `match/phase.ts`'s own FSM enforces this independently of
+ *  `DraftService`'s per-player auto-pick, so a bug in the latter can't strand
+ *  a match in `Draft` forever; `DraftService` uses this same constant so its
+ *  auto-pick fires at (at the latest) the same tick this fallback would. */
+export const DRAFT_TICKS = 900; // 15s
 /** How long a round can run before sudden death kicks in. */
 export const ROUND_TIME_LIMIT = 3600; // 60s
 /** A ring-out (kill-zone elimination) still credits the last player who hit
@@ -62,3 +69,15 @@ export const RING_OUT_CREDIT_TICKS = 180; // 3s
  * phase picking this up should thread it through `resolveCombat` itself
  * (e.g. a damage multiplier parameter) rather than bolt it on from outside.
  */
+
+// Arenas and hazards (Phase 6) — ticks at 60 Hz unless noted.
+/** FireZone's per-tick outward nudge while a player stands in it — small on
+ *  purpose ("hitstun-free knockback" per the plan, not a real launch). */
+export const FIRE_ZONE_KNOCKBACK_SPEED = 60;
+/** How long a TimedTrap's damage/knockback burst applies for once its warn
+ *  window ends — not named in the plan's `TimedTrap` field list (only
+ *  `periodTicks`/`warnTicks` are), same precedent as `SimPlayer`'s
+ *  non-headline fields: a trap needs *some* active duration distinct from
+ *  its instant-elimination KillZone sibling. */
+export const TIMED_TRAP_ACTIVE_TICKS = 10;
+export const TIMED_TRAP_HITSTUN_TICKS = 18;

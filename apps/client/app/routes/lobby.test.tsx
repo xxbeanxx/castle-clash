@@ -1,7 +1,13 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router";
-import { afterEach, describe, expect, it } from "vitest";
-import Lobby from "./lobby.js";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import Lobby, { clientLoader } from "./lobby.js";
+
+const getSessionMock = vi.fn().mockResolvedValue({ access_token: "test-access-token" });
+
+vi.mock("../auth/supabase.js", () => ({
+  getSession: () => getSessionMock(),
+}));
 
 function renderLobby() {
   const router = createMemoryRouter(
@@ -17,6 +23,21 @@ function renderLobby() {
 describe("Lobby route", () => {
   afterEach(() => {
     cleanup();
+    getSessionMock.mockReset().mockResolvedValue({ access_token: "test-access-token" });
+  });
+
+  it("redirects to /login when clientLoader runs with no session", async () => {
+    getSessionMock.mockResolvedValue(null);
+    const router = createMemoryRouter(
+      [
+        { path: "/lobby", Component: Lobby, loader: clientLoader },
+        { path: "/login", Component: () => <p>login route</p> },
+      ],
+      { initialEntries: ["/lobby"] },
+    );
+    render(<RouterProvider router={router} />);
+
+    await waitFor(() => expect(router.state.location.pathname).toBe("/login"));
   });
 
   it("navigates to /play/new on quick play", () => {
@@ -36,6 +57,18 @@ describe("Lobby route", () => {
 
     expect(router.state.location.pathname + router.state.location.search).toBe(
       "/play/new?mode=private",
+    );
+  });
+
+  it("navigates to /play/new?mode=private&arena=pit when a specific arena is picked", () => {
+    const { router } = renderLobby();
+    render(<RouterProvider router={router} />);
+
+    fireEvent.change(screen.getByLabelText("Arena"), { target: { value: "pit" } });
+    fireEvent.click(screen.getByText("Create private room"));
+
+    expect(router.state.location.pathname + router.state.location.search).toBe(
+      "/play/new?mode=private&arena=pit",
     );
   });
 

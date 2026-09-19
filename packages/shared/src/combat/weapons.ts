@@ -41,8 +41,11 @@ export interface WeaponDef {
 }
 
 /** One hitbox per active tick, all sharing the same facing-relative box —
- *  frame data doesn't need a swept/growing hitbox for Phase 4's MVP weapons. */
-function activeEveryTick(active: number, box: AABB): AttackHitbox[] {
+ *  frame data doesn't need a swept/growing hitbox for Phase 4's MVP weapons.
+ *  Exported for `powerups/computeStats.ts`'s `deriveWeapon`, which
+ *  regenerates a scaled-reach/scaled-active-window hitbox list the same way
+ *  `deriveAirLight` below does. */
+export function activeEveryTick(active: number, box: AABB): AttackHitbox[] {
   return Array.from({ length: active }, (_, tickOffset) => ({ tickOffset, box }));
 }
 

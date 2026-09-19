@@ -21,7 +21,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "lint": "oxlint ."
+    "lint": "oxlint .",
+    "sim:balance": "tsx scripts/sim-balance.ts"
   },
   "dependencies": {
     "@colyseus/schema": "5.0"
@@ -30,6 +31,7 @@
     "@vitest/coverage-v8": "5.0",
     "fast-check": "4.10",
     "tsup": "8.5",
+    "tsx": "^4.23",
     "typescript": "6.0",
     "vitest": "5.0"
   }

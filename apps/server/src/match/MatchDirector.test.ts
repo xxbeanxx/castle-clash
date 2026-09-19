@@ -1,6 +1,8 @@
 import {
   COUNTDOWN_TICKS,
+  createHazardState,
   createSimPlayer,
+  getArena,
   MAX_HP,
   playerId,
   ROUND_OVER_TICKS,
@@ -150,5 +152,49 @@ describe("MatchDirector", () => {
     const tickResult = director.tick(sim, result.state, result.events, CONNECTED);
     expect(tickResult.phase.phase).toBe("RoundOver");
     expect(tickResult.phase.roundsWon[A]).toBe(1);
+  });
+
+  it("resets a broken BreakableFloor's hazard state when the next round starts (plan Phase 6 step 4)", () => {
+    const arena = getArena("woodenHall");
+    const director = new MatchDirector();
+    director.addPlayer(A);
+    director.addPlayer(B);
+
+    let sim: SimState = {
+      tick: 0,
+      players: { [A]: createSimPlayer(arena.spawns[0]!), [B]: createSimPlayer(arena.spawns[1]!) },
+      arena,
+      rngSeed: 1,
+      hazards: createHazardState(arena.hazards),
+    };
+    sim = runTicks(director, sim, COUNTDOWN_TICKS + 1);
+    expect(director.phase.phase).toBe("RoundActive");
+    expect(director.phase.round).toBe(1);
+
+    // A heavy attack (or a landing, for `breakOn: "landing"`) broke the
+    // floor sometime during round 1 — `hazards/breakableFloor.test.ts`
+    // already covers exactly how; this test only cares what happens to
+    // that broken state across a round boundary.
+    sim = {
+      ...sim,
+      hazards: { ...sim.hazards, balconyBreakA: { ...sim.hazards!["balconyBreakA"]!, hp: 0, active: false, phase: "broken" } },
+    };
+    expect(sim.hazards!["balconyBreakA"]!.active).toBe(false);
+
+    sim = {
+      ...sim,
+      players: { ...sim.players, [B]: { ...sim.players[B]!, lastHitBy: A, lastHitTick: sim.tick } },
+    };
+    const { tickResult } = killByFalling(director, sim, B);
+    sim = tickResult.state;
+    expect(director.phase.phase).toBe("RoundOver");
+
+    sim = playThroughToNextRound(director, sim);
+    expect(director.phase.phase).toBe("RoundActive");
+    expect(director.phase.round).toBe(2);
+
+    expect(sim.hazards!["balconyBreakA"]!.active).toBe(true);
+    expect(sim.hazards!["balconyBreakA"]!.hp).toBe(16);
+    expect(sim.hazards!["balconyBreakA"]!.phase).toBe("solid");
   });
 });

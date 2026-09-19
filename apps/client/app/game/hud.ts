@@ -7,6 +7,9 @@ export interface HudPlayerSnapshot {
   stamina: number;
   weapon: string;
   action: string;
+  /** Owned power-up ids, one entry per stack (plan Phase 7) — public on the
+   *  wire (`PlayerState.powerups`), so opponents' builds show here too. */
+  powerups: string[];
 }
 
 /**
@@ -26,6 +29,7 @@ export function matchStateToHud(state: MatchState, localId: string | null): HudP
       stamina: player.stamina,
       weapon: player.weapon,
       action: player.action,
+      powerups: player.powerups.toArray(),
     });
   });
   return snapshots.sort((a, b) => Number(b.isLocal) - Number(a.isLocal));

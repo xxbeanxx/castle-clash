@@ -23,8 +23,16 @@ describe("matchStateToHud", () => {
     addPlayer(state, "p1", { hp: 80, stamina: 50, weapon: "sword", action: "Block" });
 
     expect(matchStateToHud(state, "p1")).toEqual([
-      { id: "p1", isLocal: true, hp: 80, stamina: 50, weapon: "sword", action: "Block" },
+      { id: "p1", isLocal: true, hp: 80, stamina: 50, weapon: "sword", action: "Block", powerups: [] },
     ]);
+  });
+
+  it("maps owned power-up stacks", () => {
+    const state = new MatchState();
+    addPlayer(state, "p1");
+    state.players.get("p1")!.powerups.push("sharpEdge", "sharpEdge");
+
+    expect(matchStateToHud(state, "p1")[0]?.powerups).toEqual(["sharpEdge", "sharpEdge"]);
   });
 
   it("marks a non-matching id as not local", () => {

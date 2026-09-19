@@ -12,6 +12,11 @@ function fakeSchemaPlayer(overrides: Partial<Record<string, number | boolean>> =
     jumpBufferTicks: 0,
     dropThroughTicks: 0,
     lastProcessedSeq: 0,
+    // `playersToRects` (Phase 9) reads `.cosmetics.helmetId`/`.capeId` off
+    // every player unconditionally, same as a real `PlayerState` schema
+    // instance always has a `cosmetics` field — this fake needs one too,
+    // even though nothing in this file exercises cosmetics rendering.
+    cosmetics: { helmetId: "helmet-none", capeId: "cape-none", weaponStyleId: "weaponStyle-none" },
     ...overrides,
   };
 }
@@ -50,6 +55,19 @@ const { mockApp, mockRoom, joinOrCreate, playersMap } = vi.hoisted(() => {
 vi.mock("pixi.js", () => ({
   Application: vi.fn().mockImplementation(function Application() {
     return mockApp;
+  }),
+  Container: vi.fn().mockImplementation(function Container() {
+    return { addChild: vi.fn() };
+  }),
+  Graphics: vi.fn().mockImplementation(function Graphics() {
+    const graphics = {
+      position: { set: vi.fn() },
+      destroy: vi.fn(),
+      clear: vi.fn().mockReturnThis(),
+      rect: vi.fn().mockReturnThis(),
+      fill: vi.fn().mockReturnThis(),
+    };
+    return graphics;
   }),
   Sprite: vi.fn().mockImplementation(function Sprite() {
     return { position: { set: vi.fn() }, destroy: vi.fn() };

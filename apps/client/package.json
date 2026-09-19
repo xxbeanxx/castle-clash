@@ -10,13 +10,14 @@
     "format:fix": "oxfmt",
     "lint:check": "oxlint",
     "lint:fix": "oxlint --fix",
-    "test": "vitest run",
+    "test": "vitest run && sh docker/entrypoint.test.sh",
     "test:browser": "vitest run --config vitest.browser.config.ts",
     "typecheck": "react-router typegen && tsc"
   },
   "dependencies": {
     "@castle-clash/shared": "workspace:*",
     "@colyseus/sdk": "0.18",
+    "@supabase/supabase-js": "2.116.0",
     "isbot": "^5.2",
     "pixi.js": "8.20",
     "react": "^19.3",

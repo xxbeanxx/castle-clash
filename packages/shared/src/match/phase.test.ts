@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { COUNTDOWN_TICKS, ROUND_OVER_TICKS, ROUND_TIME_LIMIT, ROUNDS_TO_WIN } from "../config/game.js";
+import {
+  COUNTDOWN_TICKS,
+  DRAFT_TICKS,
+  ROUND_OVER_TICKS,
+  ROUND_TIME_LIMIT,
+  ROUNDS_TO_WIN,
+} from "../config/game.js";
 import { playerId } from "../types/ids.js";
 import { advanceMatchPhase, createMatchPhaseState, type MatchPhaseState } from "./phase.js";
 
@@ -8,12 +14,23 @@ const B = playerId("b");
 
 function tick(
   state: MatchPhaseState,
-  input: Partial<{ tick: number; playerCount: number; aliveIds: readonly (typeof A)[] }> = {},
+  input: Partial<{
+    tick: number;
+    playerCount: number;
+    aliveIds: readonly (typeof A)[];
+    draftComplete: boolean;
+  }> = {},
 ) {
   return advanceMatchPhase(state, {
     tick: input.tick ?? 0,
     playerCount: input.playerCount ?? 2,
     aliveIds: input.aliveIds ?? [A, B],
+    // Every pre-Phase-7 test here doesn't care about draft timing at all —
+    // defaulting to `true` reproduces the exact one-tick Draft pass-through
+    // those tests already assert (see "moves RoundOver -> Draft ->
+    // Countdown" below), so only the new draft-specific tests need to
+    // override it.
+    draftComplete: input.draftComplete ?? true,
   });
 }
 
@@ -106,13 +123,63 @@ describe("advanceMatchPhase", () => {
     state = tick(state, { aliveIds: [A] }).state;
     expect(state.phase).toBe("RoundOver");
 
+    let lastEvents: ReturnType<typeof tick>["events"] = [];
+    for (let i = 0; i < ROUND_OVER_TICKS; i++) {
+      const result = tick(state);
+      state = result.state;
+      lastEvents = result.events;
+    }
+    expect(state.phase).toBe("Draft");
+    expect(lastEvents).toContainEqual({ type: "draftStart", round: 1 });
+
+    state = tick(state).state;
+    expect(state.phase).toBe("Countdown");
+  });
+
+  it("stays in Draft until draftComplete, even past what a pass-through would take", () => {
+    let state = startRound1();
+    state = tick(state, { aliveIds: [A] }).state;
     for (let i = 0; i < ROUND_OVER_TICKS; i++) {
       state = tick(state).state;
     }
     expect(state.phase).toBe("Draft");
 
-    state = tick(state).state;
+    for (let i = 0; i < 50; i++) {
+      const result = tick(state, { draftComplete: false });
+      state = result.state;
+      expect(state.phase).toBe("Draft");
+    }
+
+    state = tick(state, { draftComplete: true }).state;
     expect(state.phase).toBe("Countdown");
+  });
+
+  it("falls back to Countdown after DRAFT_TICKS even if draftComplete never fires", () => {
+    let state = startRound1();
+    state = tick(state, { aliveIds: [A] }).state;
+    for (let i = 0; i < ROUND_OVER_TICKS; i++) {
+      state = tick(state).state;
+    }
+    expect(state.phase).toBe("Draft");
+
+    for (let i = 0; i < DRAFT_TICKS - 1; i++) {
+      state = tick(state, { draftComplete: false }).state;
+      expect(state.phase).toBe("Draft");
+    }
+    state = tick(state, { draftComplete: false }).state;
+    expect(state.phase).toBe("Countdown");
+  });
+
+  it("aborts Draft back to Waiting if players drop below minimum", () => {
+    let state = startRound1();
+    state = tick(state, { aliveIds: [A] }).state;
+    for (let i = 0; i < ROUND_OVER_TICKS; i++) {
+      state = tick(state).state;
+    }
+    expect(state.phase).toBe("Draft");
+
+    const result = tick(state, { draftComplete: false, playerCount: 1 });
+    expect(result.state.phase).toBe("Waiting");
   });
 
   it("ends the match once a player reaches ROUNDS_TO_WIN rounds", () => {

@@ -193,8 +193,12 @@ export default function Loadout() {
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <span>Primary tint</span>
-            <div style={{ display: "flex", gap: 6 }}>
+            <span id="tint-primary-label">Primary tint</span>
+            <div
+              role="group"
+              aria-labelledby="tint-primary-label"
+              style={{ display: "flex", gap: 6 }}
+            >
               {TINT_PALETTE.map((color) => (
                 <TintSwatch
                   key={color}
@@ -210,8 +214,12 @@ export default function Loadout() {
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <span>Secondary tint</span>
-            <div style={{ display: "flex", gap: 6 }}>
+            <span id="tint-secondary-label">Secondary tint</span>
+            <div
+              role="group"
+              aria-labelledby="tint-secondary-label"
+              style={{ display: "flex", gap: 6 }}
+            >
               {TINT_PALETTE.map((color) => (
                 <TintSwatch
                   key={color}

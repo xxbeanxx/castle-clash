@@ -15,3 +15,10 @@ coverage/
 playwright-report/
 test-results/
 balance-report/
+
+# Terraform: provider cache, local state, and saved plans (the lock file IS committed)
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log

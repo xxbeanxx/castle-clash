@@ -22,7 +22,10 @@ import "./pixiCsp.js";
 import { matchStateToHud, type HudPlayerSnapshot } from "./hud.js";
 import { CompositeInput } from "./input/CompositeInput.js";
 import type { InputSource } from "./input/InputSource.js";
+import { GamepadInput } from "./input/GamepadInput.js";
 import { KeyboardInput } from "./input/KeyboardInput.js";
+import { FrameStats, type FrameSummary } from "./FrameStats.js";
+import { planSteps } from "./fixedStep.js";
 import { matchStateToPhaseBanner, type MatchFlowSnapshot } from "./matchFlow.js";
 import { Interpolator } from "./net/Interpolator.js";
 import { Reconciler } from "./net/Reconciler.js";
@@ -92,6 +95,8 @@ class Emitter<T> {
   }
 }
 
+export type ConnectionState = "connected" | "reconnecting" | "lost";
+
 interface Resources {
   readonly app: Application;
   readonly room: Room<unknown, MatchState>;
@@ -140,6 +145,18 @@ export class GameClient {
   #resolvedArena: ArenaDefinition | null = null;
   #camera: CameraController | null = null;
 
+  readonly #frameStats = new FrameStats();
+
+  /** Rolling frame-time summary, for the `VITE_E2E` hook (Phase 13 step 12's perf budget). */
+  get frameSummary(): FrameSummary | null {
+    return this.#frameStats.summary();
+  }
+
+  /** Whether the room's socket is up. `reconnecting` while the SDK retries a dropped socket (a
+   *  backgrounded phone tab, a tunnel); `lost` once it gives up or the server ends the session. */
+  #connectionState: ConnectionState = "connected";
+  readonly #connection = new Emitter<ConnectionState>();
+
   readonly #hud = new Emitter<HudPlayerSnapshot[]>();
   readonly #matchFlow = new Emitter<MatchFlowSnapshot>();
   readonly #matchCode = new Emitter<string>();
@@ -150,6 +167,22 @@ export class GameClient {
   /** Subscribes to HUD snapshots (hp/stamina/weapon/action per player),
    *  pushed once per server patch — no polling, no per-frame React
    *  re-render. Returns an unsubscribe function. */
+  /** Closes the socket with the SDK's "may try reconnect" code (4010), for the `VITE_E2E` hook to
+   *  exercise its reconnection path without a flaky network. Any other code from the client side
+   *  (a consented 1000, or an arbitrary 4000) is reported by the SDK as a final leave, and a drop
+   *  inside the SDK's 5 s `minUptime` after joining is not retried either. */
+  simulateDrop(): void {
+    const phase = this.#getPhase();
+    if (phase.tag === "connected" || phase.tag === "predicting") {
+      phase.resources.room.connection.close(4010, "e2e simulated drop");
+    }
+  }
+
+  subscribeConnection(listener: (state: ConnectionState) => void): () => void {
+    listener(this.#connectionState);
+    return this.#connection.subscribe(listener);
+  }
+
   subscribeHud(listener: (snapshots: HudPlayerSnapshot[]) => void): () => void {
     return this.#hud.subscribe(listener);
   }
@@ -303,6 +336,11 @@ export class GameClient {
       return;
     }
 
+    // `onDrop` = socket lost, SDK retrying with the reconnection token; `onReconnect` = back;
+    // `onLeave` = final (also fires after our own `leave()`, hence the destroyed guard).
+    room.onDrop(() => this.#setConnection("reconnecting"));
+    room.onReconnect(() => this.#setConnection("connected"));
+    room.onLeave(() => this.#setConnection("lost"));
     room.onMessage(MESSAGE_TYPES.MATCH_CODE, (code: string) => this.#matchCode.emit(code));
     room.onMessage(MESSAGE_TYPES.MATCH_RESULT, (result: MatchResult) =>
       this.#matchResult.emit(result),
@@ -323,7 +361,11 @@ export class GameClient {
       },
     );
 
-    const input = new CompositeInput([new KeyboardInput(), ...this.#extraInputs]);
+    const input = new CompositeInput([
+      new KeyboardInput(),
+      new GamepadInput(),
+      ...this.#extraInputs,
+    ]);
     input.attach();
 
     const resources: Resources = {
@@ -397,15 +439,15 @@ export class GameClient {
       if (this.#getPhase().tag === "destroyed") {
         return;
       }
-      this.#accumulatorMs += ticker.deltaMS;
-
-      while (this.#accumulatorMs >= FIXED_DT_MS) {
+      this.#frameStats.record(ticker.elapsedMS);
+      const plan = planSteps(this.#accumulatorMs, ticker.deltaMS, FIXED_DT_MS);
+      this.#accumulatorMs = plan.accumulatorMs;
+      for (let step = 0; step < plan.steps; step += 1) {
         const phase = this.#getPhase();
         if (phase.tag === "predicting") {
           this.#prevLocalPos = { ...phase.reconciler.visualPosition };
         }
         this.#fixedUpdate();
-        this.#accumulatorMs -= FIXED_DT_MS;
       }
 
       const alpha = this.#accumulatorMs / FIXED_DT_MS;
@@ -545,9 +587,19 @@ export class GameClient {
     );
   }
 
+  #setConnection(state: ConnectionState): void {
+    if (this.#getPhase().tag === "destroyed" || state === this.#connectionState) {
+      return;
+    }
+    this.#connectionState = state;
+    this.#connection.emit(state);
+  }
+
   #fixedUpdate(): void {
     const phase = this.#getPhase();
-    if (phase.tag !== "predicting") {
+    // No prediction and no input while the socket is down: the SDK would buffer the input and
+    // flush a burst on reconnect, and the prediction would run ahead of a server that is not there.
+    if (phase.tag !== "predicting" || this.#connectionState !== "connected") {
       return;
     }
     const { resources, reconciler } = phase;

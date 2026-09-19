@@ -7,6 +7,7 @@ import { GameClient } from "../game/GameClient.js";
 import { TouchInput } from "../game/input/TouchInput.js";
 import { resolveJoinIntent, storeReconnectionToken } from "../game/reconnection.js";
 import { CombatHud } from "./CombatHud.js";
+import { ConnectionOverlay } from "./ConnectionOverlay.js";
 import { DraftOverlay } from "./DraftOverlay.js";
 import { MatchBanner } from "./MatchBanner.js";
 import { ResultsOverlay } from "./ResultsOverlay.js";
@@ -79,6 +80,7 @@ export function GameCanvas({ roomId }: { roomId: string }) {
       {client && <DraftOverlay client={client} />}
       {client && <ResultsOverlay client={client} />}
       {client && <UnlockToast client={client} />}
+      {client && <ConnectionOverlay client={client} />}
       <TouchControls input={touch} />
       <RotatePrompt />
     </div>

@@ -216,3 +216,4 @@ anonymous users with no `player_stats` row from the Auth dashboard.
   verified. HTTP probes on `/healthz` (liveness) and `/readyz` (readiness) are a worthwhile follow-up,
   but Container Apps can only set probes via YAML (`az containerapp update --yaml`), whose merge
   behaviour for secrets this pipeline deliberately avoided depending on without a live test.
+

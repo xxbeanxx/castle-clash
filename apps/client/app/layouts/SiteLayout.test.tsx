@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import NotFound from "../routes/not-found.js";
@@ -73,8 +73,10 @@ describe("SiteLayout", () => {
   it("labels a guest and offers Sign out, which returns home", async () => {
     getSessionMock.mockResolvedValue({ user: { is_anonymous: true } });
     const router = renderAt("/lobby-ish");
-    expect(await screen.findByText("Guest")).toBeTruthy();
-    screen.getByRole("button", { name: "Sign out" }).click();
+    fireEvent.click(await screen.findByRole("button", { name: /Guest/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
+    // A guest is asked first: signing out discards their progress.
+    fireEvent.click(await screen.findByRole("button", { name: "Sign out anyway" }));
     await waitFor(() => expect(signOutMock).toHaveBeenCalled());
     await waitFor(() => expect(router.state.location.pathname).toBe("/"));
   });

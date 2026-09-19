@@ -6,6 +6,7 @@ export default [
     index("routes/home.tsx"),
     route("login", "routes/login.tsx"),
     route("auth/callback", "routes/auth.callback.tsx"),
+    route("account", "routes/account.tsx"),
     route("lobby", "routes/lobby.tsx"),
     route("loadout", "routes/loadout.tsx"),
     route("stats", "routes/stats.tsx"),

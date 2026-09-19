@@ -1,13 +1,16 @@
 import {
   isWeaponId,
+  validateDisplayName,
   WEAPON_IDS,
   type Database,
+  type DisplayNameProblem,
   type LeaderboardRow,
   type WeaponId,
 } from "@castle-clash/shared";
 import { createClient, type Session } from "@supabase/supabase-js";
 import { getRuntimeConfig } from "../config/runtime.js";
 import { rememberNext } from "./pendingNext.js";
+import { PROFILE_CHANGED_EVENT } from "./profileEvents.js";
 
 /**
  * The ONLY module in `apps/client` that imports `@supabase/supabase-js`
@@ -73,16 +76,21 @@ export function onAuthStateChange(callback: (session: Session | null) => void): 
  *  (`signInWithGoogle`). Upgrading a guest by email would be
  *  `updateUser({ email })`, which has not been verified against the hosted project. */
 export async function signInWithMagicLink(email: string): Promise<void> {
-  const { error } = await client().auth.signInWithOtp({ email });
+  // The link is emailed, so it usually opens in another tab: `next` cannot follow it, but landing on
+  // `/auth/callback` still gets a new account the name prompt.
+  const { error } = await client().auth.signInWithOtp({
+    email,
+    options: { emailRedirectTo: authCallbackUrl() },
+  });
   if (error) {
     throw error;
   }
 }
 
-/** Where Google sends the browser back to. A bare path on purpose: Supabase
+/** Where Google, and an emailed magic link, send the browser back to. A bare path on purpose: Supabase
  *  matches it against its redirect allow-list including any query string, so the
  *  post-login destination travels in `pendingNext` instead. */
-function googleRedirectTo(): string {
+function authCallbackUrl(): string {
   return `${window.location.origin}/auth/callback`;
 }
 
@@ -102,7 +110,7 @@ function googleRedirectTo(): string {
 export async function signInWithGoogle(next?: string | null): Promise<void> {
   rememberNext(next);
   const session = await getSession();
-  const options = { redirectTo: googleRedirectTo() };
+  const options = { redirectTo: authCallbackUrl() };
   const { error } = session?.user.is_anonymous
     ? await client().auth.linkIdentity({ provider: "google", options })
     : await client().auth.signInWithOAuth({ provider: "google", options });
@@ -118,7 +126,7 @@ export async function signInToExistingGoogleAccount(next?: string | null): Promi
   rememberNext(next);
   const { error } = await client().auth.signInWithOAuth({
     provider: "google",
-    options: { redirectTo: googleRedirectTo() },
+    options: { redirectTo: authCallbackUrl() },
   });
   if (error) {
     throw error;
@@ -238,6 +246,71 @@ const ZERO_STATS: ClientStats = {
   deaths: 0,
   roundsWon: 0,
 };
+
+export interface MyProfile {
+  /** The player's chosen name; `null` for every guest and for anyone who never picked one. */
+  readonly displayName: string | null;
+  readonly isAnonymous: boolean;
+}
+
+/** The signed-in player's own profile (RLS: profiles are readable by any
+ *  authenticated user, and this reads only the caller's row). */
+export async function getMyProfile(): Promise<MyProfile> {
+  const session = await getSession();
+  if (!session) {
+    throw new Error("expected an active session — this route should be clientLoader-guarded");
+  }
+  const { data, error } = await client()
+    .from("profiles")
+    .select("display_name")
+    .eq("id", session.user.id)
+    .maybeSingle();
+  if (error) {
+    throw error;
+  }
+  return { displayName: data?.display_name ?? null, isAnonymous: session.user.is_anonymous === true };
+}
+
+export type SetNameResult =
+  | { readonly ok: true; readonly name: string }
+  | { readonly ok: false; readonly reason: DisplayNameProblem | "taken" | "guest" };
+
+/** Sets the caller's display name. Shape and word rules are checked here first
+ *  (`validateDisplayName`, shared with the database's own constraint) so a bad
+ *  name never costs a round trip. The database is still the authority: it
+ *  answers 23505 for a name someone else has (citext, so `sir_kay` = `Sir_Kay`)
+ *  and refuses guests outright (RLS, plan decision D3: guests stay off the
+ *  leaderboard until they link an account). Both come back as a `reason`, since
+ *  they are ordinary outcomes for a form, not failures. */
+export async function setMyDisplayName(raw: string): Promise<SetNameResult> {
+  const checked = validateDisplayName(raw);
+  if (!checked.ok) {
+    return checked;
+  }
+  const userId = await requireUserId();
+  const { data, error } = await client()
+    .from("profiles")
+    .update({ display_name: checked.name })
+    .eq("id", userId)
+    .select("display_name")
+    .maybeSingle();
+
+  if (error) {
+    if (error.code === "23505") {
+      return { ok: false, reason: "taken" };
+    }
+    if (error.code === "42501") {
+      return { ok: false, reason: "guest" };
+    }
+    throw error;
+  }
+  // RLS filters a row it will not let this user update to "no rows", not an error.
+  if (!data) {
+    return { ok: false, reason: "guest" };
+  }
+  window.dispatchEvent(new Event(PROFILE_CHANGED_EVENT));
+  return { ok: true, name: checked.name };
+}
 
 /** Reads the signed-in player's own `player_stats` row via the "players can
  *  view their own stats" RLS policy added in Phase 9's migration —

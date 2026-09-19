@@ -83,6 +83,27 @@
   font-size: var(--text-xl);
 }
 
+/* "Save your progress", under the results. Quiet: the way back to the lobby stays the main action. */
+.cc-nudge {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-width: 26rem;
+  padding: var(--space-3) var(--space-4);
+  background: var(--stone-850);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  text-align: center;
+}
+.cc-nudge .cc-row {
+  justify-content: center;
+}
+.cc-nudge__title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--gold-300);
+}
+
 .cc-draft-cards {
   display: flex;
   flex-wrap: wrap;

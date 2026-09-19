@@ -2,7 +2,12 @@ import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { readCallbackError, type CallbackError } from "../auth/callbackError.js";
 import { forgetNext, peekNext } from "../auth/pendingNext.js";
-import { getMyStats, getSession, signInToExistingGoogleAccount } from "../auth/supabase.js";
+import {
+  getMyProfile,
+  getMyStats,
+  getSession,
+  signInToExistingGoogleAccount,
+} from "../auth/supabase.js";
 import { privatePageMeta } from "../meta.js";
 import { Button, ButtonLink, Modal, Panel } from "../ui/kit/index.js";
 
@@ -48,8 +53,23 @@ export default function AuthCallback() {
       }
       if (session && !error) {
         const destination = peekNext() ?? "/lobby";
+        // A real account with no name yet is invited to pick one, on its way to where it was headed.
+        // Never blocks: a failed profile read or a guest just carries on.
+        let needsName = false;
+        try {
+          const profile = await getMyProfile();
+          needsName = !profile.isAnonymous && profile.displayName === null;
+        } catch {
+          // Carry on to the destination.
+        }
+        if (cancelled) {
+          return;
+        }
         forgetNext();
-        navigate(destination, { replace: true });
+        navigate(
+          needsName ? `/account?welcome=1&next=${encodeURIComponent(destination)}` : destination,
+          { replace: true },
+        );
         return;
       }
       setOutcome({
@@ -77,7 +97,7 @@ export default function AuthCallback() {
 
   const { error, guest } = outcome;
   if (error?.kind === "account-exists") {
-    return <AccountExists reason={error.code} guest={guest} />;
+    return <AccountExists error={error} guest={guest} />;
   }
   return <Failed error={error} guest={guest} />;
 }
@@ -117,7 +137,7 @@ function Failed({ error, guest }: { error: CallbackError | null; guest: boolean 
   );
 }
 
-function AccountExists({ reason, guest }: { reason: string | null; guest: boolean }) {
+function AccountExists({ error, guest }: { error: CallbackError; guest: boolean }) {
   const navigate = useNavigate();
   const [confirming, setConfirming] = useState(false);
   const [matches, setMatches] = useState<number | null>(null);
@@ -158,14 +178,14 @@ function AccountExists({ reason, guest }: { reason: string | null; guest: boolea
   }
 
   const explanation =
-    (reason === "email_exists"
+    (error.code === "email_exists"
       ? "That email address already has an account, so it can’t be added to a second one."
       : "That Google account is already linked to another player, so it can’t be added to a second one.") +
     (guest ? " We couldn’t attach your guest progress to it." : "");
   const lost =
     matches !== null && matches > 0
-      ? `this guest’s ${matches} ${matches === 1 ? "match" : "matches"}, stats, unlocks and loadout`
-      : "this guest’s stats, unlocks and loadout";
+      ? `This guest’s ${matches} ${matches === 1 ? "match" : "matches"}, stats, unlocks and loadout`
+      : "This guest’s stats, unlocks and loadout";
 
   return (
     <div className="cc-page">
@@ -223,16 +243,12 @@ function AccountExists({ reason, guest }: { reason: string | null; guest: boolea
           }
         >
           <p>
-            Signing in to your other account switches you to it. {capitalise(lost)} stay behind and
-            can’t be brought over or recovered from this browser afterwards.
+            Signing in to your other account switches you to it. {lost} stay behind and can’t be
+            brought over or recovered from this browser afterwards.
           </p>
           <p>Your other account keeps everything it already has.</p>
         </Modal>
       )}
     </div>
   );
-}
-
-function capitalise(text: string): string {
-  return text.charAt(0).toUpperCase() + text.slice(1);
 }

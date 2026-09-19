@@ -59,9 +59,57 @@
   align-items: center;
   gap: var(--space-2);
 }
-.cc-header__who {
+
+/* Account menu: a disclosure button and a small panel of links. Items are full-width rows at least
+   44px tall, so they are easy to hit on a phone. */
+.cc-menu {
+  position: relative;
+}
+.cc-menu__label {
+  max-width: 12ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cc-menu__caret {
+  margin-left: var(--space-1);
+  font-size: 0.75em;
+}
+.cc-menu__panel {
+  position: absolute;
+  top: calc(100% + var(--space-1));
+  right: 0;
+  z-index: var(--z-overlay);
+  min-width: 13rem;
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-1);
+  background: var(--stone-850);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-overlay);
+}
+.cc-menu__item {
+  display: flex;
+  align-items: center;
+  min-height: 2.75rem;
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--ink);
+  font: inherit;
   font-size: var(--text-sm);
-  color: var(--ink-muted);
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.cc-menu__item:hover,
+.cc-menu__item:focus-visible {
+  background: var(--stone-700);
+}
+.cc-menu__item--accent {
+  color: var(--gold-300);
 }
 
 .cc-brand {

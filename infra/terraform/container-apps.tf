@@ -1,6 +1,6 @@
 locals {
   # Both apps start life on Microsoft's placeholder image; the deploy workflow
-  # (.github/workflows/deploy-environment.yml) then owns everything that changes
+  # (.github/workflows/deploy-environment.yaml) then owns everything that changes
   # per release: image, cpu/memory, scale, env vars, revision suffix and the ingress
   # target port. The lifecycle block below hands those to the workflow. Terraform
   # owns the shape (environment, ingress exposure, custom domains, DNS, identity)

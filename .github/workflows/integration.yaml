@@ -6,7 +6,7 @@ on:
       - "supabase/**"
       - "apps/server/**"
       - "packages/shared/**"
-      - ".github/workflows/integration.yml"
+      - ".github/workflows/integration.yaml"
   workflow_dispatch: {}
 
 concurrency:
@@ -54,6 +54,8 @@ jobs:
       - name: Generated types freshness check
         run: |
           pnpm exec supabase gen types typescript --local > packages/shared/src/db/database.types.ts
+          # The committed file is oxfmt-formatted; the generator's raw output isn't.
+          pnpm exec oxfmt packages/shared/src/db/database.types.ts
           git diff --exit-code -- packages/shared/src/db/database.types.ts
 
       - run: pnpm exec supabase stop

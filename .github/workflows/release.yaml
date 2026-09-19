@@ -3,7 +3,7 @@ name: release
 # Every push to main runs release-please, which keeps a "release PR" open
 # (version bump + CHANGELOG from Conventional Commits). Merging that PR makes it
 # create the `vX.Y.Z` tag and GitHub release, and *this same run* then builds the
-# images (docker.yml) and rolls them out (deploy.yml: staging, then production
+# images (docker.yaml) and rolls them out (deploy.yaml: staging, then production
 # behind required reviewers). Chained with `uses:` rather than triggered by the
 # tag because a tag created with GITHUB_TOKEN starts no workflows.
 on:
@@ -47,7 +47,7 @@ jobs:
     permissions:
       contents: read
       packages: write
-    uses: ./.github/workflows/docker.yml
+    uses: ./.github/workflows/docker.yaml
     with:
       tag: ${{ needs.release-please.outputs.tag_name }}
 
@@ -58,7 +58,7 @@ jobs:
       contents: read
       packages: read
       id-token: write
-    uses: ./.github/workflows/deploy.yml
+    uses: ./.github/workflows/deploy.yaml
     with:
       version: ${{ needs.release-please.outputs.tag_name }}
       server_digest: ${{ needs.images.outputs.server_digest }}

@@ -125,8 +125,8 @@ right before `smoke-join` for exactly this reason; a fresh runner that skips str
 ### Releases and deployment (Azure Container Apps)
 
 `docs/hosting.md` is the runbook; `docs/research/phase10-deploy-decisions.md` records the decisions,
-the facts checked, and what is still unproven. In short: `release.yaml` (release-please) → `docker.yml`
-(multi-arch, provenance/SBOM, Trivy gate, then release tags) → `deploy.yml` → `deploy-environment.yml`
+the facts checked, and what is still unproven. In short: `release.yaml` (release-please) → `docker.yaml`
+(multi-arch, provenance/SBOM, Trivy gate, then release tags) → `deploy.yaml` → `deploy-environment.yaml`
 for `staging`, then `production` behind a required reviewer, deploying by image digest and finishing
 with `pnpm --filter @castle-clash/server run deploy-smoke`. `infra/terraform/` manages the Azure
 resources, the `atomic-nucleus.com` DNS records, the Supabase project, and the GitHub repo (a
@@ -168,7 +168,7 @@ isomorphic-safe: no DOM/Node APIs). `apps/server/src/rooms/MatchRoom.ts` is the 
 in D2: `onJoin`/`onLeave` add/remove a `PlayerState`, and an injected `TickDriver`
 (`apps/server/src/rooms/TickDriver.ts`) drives the tick — `IntervalTickDriver` wraps the room's
 `setFixedTimestep` in prod (not `setSimulationInterval`, which the plan's prose names, nor
-`setTimestep`, which Phase 2's first pass used; both hand a *measured*, jittery wall-clock delta,
+`setTimestep`, which Phase 2's first pass used; both hand a _measured_, jittery wall-clock delta,
 which `GameSimulation.step()`'s determinism can't tolerate — `setFixedTimestep` hands a
 framework-owned, always-`1/tickRate` `dt` instead, per `docs/research/phase3-colyseus-input-
 prediction-api.md`), and `ManualTickDriver.step(n)` drives it synchronously in tests — built ahead
@@ -225,6 +225,7 @@ interpolated between steps by `alpha`.
 `destroyed`), not independent optional fields — that refactor (`8607e33`) followed two real bugs
 found only by loading the game in an actual browser, not from the (all-green) test suite, which
 mocks `GameClient` wholesale or hands it state that already has the local player in it:
+
 1. React StrictMode double-invokes the mount effect in dev, so `destroy()` can race `start()`'s own
    in-flight `await`s; every post-`await` continuation in `start()` has to check the phase (via a
    `#getPhase()` method, not a direct field read — tsc's control-flow narrowing doesn't know
@@ -235,7 +236,7 @@ mocks `GameClient` wholesale or hands it state that already has the local player
    seeded lazily from whichever `onStateChange` patch first carries the local player's schema entry,
    not just once right after join.
 
-`ci.yml` turns on Vitest coverage for `packages/shared` (`sim/**` ≥ 90% lines) and sets `FC_SEED`
+`ci.yaml` turns on Vitest coverage for `packages/shared` (`sim/**` ≥ 90% lines) and sets `FC_SEED`
 from `github.run_id` on both the main verify step and the coverage step, so a `fast-check`
 property-test failure in CI reproduces locally with the exact same seed.
 

@@ -183,7 +183,7 @@ Plan line references are to `docs/IMPLEMENTATION_PLAN.md` as it stands today.
 - Supabase **is** renaming/replacing the legacy `anon`/`service_role` JWT keys with new opaque, prefixed keys: **publishable key** (`sb_publishable_...`, replaces `anon`, safe to ship client-side since RLS still applies) and **secret key** (`sb_secret_...`, replaces `service_role`, carries `BYPASSRLS`, server-only). Both key systems currently work side by side; Supabase's own docs state legacy `anon`/`service_role` keys are being **deprecated by the end of 2026** (i.e., within months of this research date), and recommend using the new publishable/secret keys for anything built now. Sources: https://supabase.com/docs/guides/getting-started/api-keys, https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys, https://github.com/orgs/supabase/discussions/29260
 - JWKS endpoint path is confirmed exactly as the plan assumes: `https://<project-ref>.supabase.co/auth/v1/.well-known/jwks.json`, returning public keys only, used to verify asymmetric (RS256/ES256) JWT signing keys; it returns nothing if the project isn't using asymmetric signing keys yet. Source: https://supabase.com/docs/guides/auth/signing-keys, https://supabase.com/docs/guides/auth/jwts
 - `supabase.auth.signInAnonymously()` (and its option bag, e.g. `{ options: { captchaToken } }`) is the current, documented JS client API for anonymous sign-in, unchanged. Source: https://supabase.com/docs/reference/javascript/auth-signinanonymously, https://supabase.com/docs/guides/auth/auth-anonymous
-- The GitHub Action is `supabase/setup-cli` (correct repo/action name), currently at **v3.0.0** (released ~July 2026), which switched to installing the CLI from the npm package rather than GitHub releases and dropped the `github-token` input. `uses: supabase/setup-cli@v1` still resolves (major-version tag), but the underlying implementation has changed; the plan's use of the action name is correct. Source: https://github.com/supabase/setup-cli/releases, https://github.com/supabase/setup-cli/blob/main/action.yml
+- The GitHub Action is `supabase/setup-cli` (correct repo/action name), currently at **v3.0.0** (released ~July 2026), which switched to installing the CLI from the npm package rather than GitHub releases and dropped the `github-token` input. `uses: supabase/setup-cli@v1` still resolves (major-version tag), but the underlying implementation has changed; the plan's use of the action name is correct. Source: https://github.com/supabase/setup-cli/releases, https://github.com/supabase/setup-cli/blob/main/action.yaml
 
 **(b) Was the plan correct?**
 
@@ -203,7 +203,7 @@ Plan line references are to `docs/IMPLEMENTATION_PLAN.md` as it stands today.
 - https://supabase.com/docs/reference/javascript/auth-signinanonymously
 - https://supabase.com/docs/guides/auth/auth-anonymous
 - https://github.com/supabase/setup-cli/releases
-- https://github.com/supabase/setup-cli/blob/main/action.yml
+- https://github.com/supabase/setup-cli/blob/main/action.yaml
 
 ---
 

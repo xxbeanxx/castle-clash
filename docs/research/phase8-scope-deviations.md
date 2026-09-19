@@ -58,14 +58,14 @@ couldn't finish responsibly. None of these are silent.
      task, not a hard blocker on Phase 8's own gate (which is about a signed-
      in player finishing a match and their stats persisting — verified live
      against the dev server, not the container images).
-2. **`.github/workflows/integration.yml` is new and untested in real GitHub
+2. **`.github/workflows/integration.yaml` is new and untested in real GitHub
    Actions** (this session has no CI runner access) — every step it runs
    (`supabase start`, `db reset`, `db lint`, `test db`, the Supabase contract
    suite, the types-freshness check) was verified by hand, in this exact
    sequence, against this session's local instance, so the commands
    themselves are proven; only the GitHub Actions environment specifics
    (Ubuntu's Docker, `jq` availability, action versions) are unverified.
-   `e2e.yml` (the plan's "specs sign in as anonymous users") was not touched
+   `e2e.yaml` (the plan's "specs sign in as anonymous users") was not touched
    at all — Phase 8 didn't reach e2e Playwright coverage this session.
 3. **No real OAuth provider (Discord/Google) was exercised** — `signInWithOAuth`
    calls the real `supabase-js` API correctly, but testing it live needs a

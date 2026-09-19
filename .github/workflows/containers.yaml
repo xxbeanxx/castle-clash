@@ -4,7 +4,7 @@ on:
   pull_request:
   push:
     branches: [main]
-    # Release (`vX.Y.Z`) images are built by docker.yml, not here: they need
+    # Release (`vX.Y.Z`) images are built by docker.yaml, not here: they need
     # multi-arch, provenance/SBOM and a Trivy gate this smoke-first flow lacks.
 
 concurrency:
@@ -74,7 +74,7 @@ jobs:
       - run: pnpm --filter @castle-clash/shared run build
       # Since Phase 8 the server rejects any join without a real Supabase JWT,
       # so this job needs a real (local) Supabase, started the same way
-      # integration.yml does it (the pinned `supabase` devDependency; the
+      # integration.yaml does it (the pinned `supabase` devDependency; the
       # runner's preinstalled Docker). `start` applies supabase/migrations.
       - run: pnpm exec supabase start --exclude studio,logflare,vector,imgproxy
       - name: Export local Supabase connection info

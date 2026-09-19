@@ -14,7 +14,7 @@ driven by velocity for secondary motion), `body` (tint primary), `trim` (tint se
 and `weapon` (a style texture keyed by `weaponId + styleId`), all sharing one animation clip/frame.
 It also names `cosmetics/catalog.ts`'s `CosmeticItem` shape as `{ id, slot, textureKey, unlock }`
 and a `catalog.test.ts` check that "every `textureKey` exists in the client asset manifest," plus a
-`ci.yml` `assets:check` step cross-validating the catalog against `apps/client/public/assets/
+`ci.yaml` `assets:check` step cross-validating the catalog against `apps/client/public/assets/
 manifest.json`.
 
 ## What actually exists in this repo

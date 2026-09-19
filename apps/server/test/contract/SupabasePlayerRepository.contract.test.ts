@@ -9,7 +9,7 @@ import { runPlayerRepositoryContractTests } from "./PlayerRepository.contract.js
  * instance (plan Phase 8 testing strategy). Skipped unless `SUPABASE_URL`/
  * `SUPABASE_SECRET_KEY` are set — unit CI never sets them (it doesn't start
  * Supabase at all), so this file contributes zero tests there rather than
- * failing; `.github/workflows/integration.yml` sets them to the CLI-started
+ * failing; `.github/workflows/integration.yaml` sets them to the CLI-started
  * local stack's own printed values before running the suite.
  */
 const canRunAgainstSupabase = Boolean(

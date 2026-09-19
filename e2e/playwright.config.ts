@@ -2,7 +2,7 @@ import { defineConfig } from "@playwright/test";
 
 /**
  * Runs against a real client + server, not `pnpm dev` in-process — CI's
- * `e2e.yml` points `CLIENT_URL` at the compose stack's client container
+ * `e2e.yaml` points `CLIENT_URL` at the compose stack's client container
  * (see `compose.yaml`/`containers.yaml`'s `smoke` job for the equivalent
  * server-side stack). Locally: `pnpm dev`, then `CLIENT_URL=http://localhost:5173
  * pnpm --filter @castle-clash/e2e run test:e2e` (an e2e build needs
@@ -16,7 +16,7 @@ export default defineConfig({
   // The default ("list") reporter doesn't persist anything — the html
   // reporter both writes a self-contained report AND embeds each failed
   // test's trace.zip/video.webm into it, so uploading just this one
-  // directory (as e2e.yml does) is enough to get both on a CI failure.
+  // directory (as e2e.yaml does) is enough to get both on a CI failure.
   reporter: [["html", { outputFolder: "playwright-report", open: "never" }]],
   use: {
     baseURL: process.env.CLIENT_URL ?? "http://localhost:8080",

@@ -1,7 +1,7 @@
 # Phase 5 e2e CI: deviations from the plan's prose
 
 `docs/IMPLEMENTATION_PLAN.md`'s Phase 5 "CI/CD integration" section describes
-`.github/workflows/e2e.yml` as building images, running `docker compose up -d
+`.github/workflows/e2e.yaml` as building images, running `docker compose up -d
 --wait`, and running Playwright "in the `mcr.microsoft.com/playwright`
 container." Two of those three assumptions don't hold in this repo, for
 reasons already established (not re-derived here) by Phase 1/`containers.yaml`
@@ -11,7 +11,7 @@ research and CLAUDE.md's own "Local stack" section:
    project's dev machine, and `containers.yaml`'s `smoke` job already hit the
    identical gap and solved it by building both images with `podman build`
    and starting them with two `podman run` invocations that mirror
-   `compose.yaml`'s ports/env by hand. `e2e.yml` reuses that exact,
+   `compose.yaml`'s ports/env by hand. `e2e.yaml` reuses that exact,
    already-proven pattern rather than introducing a new one — see
    `containers.yaml`'s `smoke` job for the healthcheck/wait-loop this was
    copied from.
@@ -19,7 +19,7 @@ research and CLAUDE.md's own "Local stack" section:
    `browser` job already runs Playwright-driven browser tests (Vitest browser
    mode, not `@playwright/test`, but the same underlying `playwright` package)
    directly on `ubuntu-latest` with `playwright install --with-deps chromium`,
-   cached by Playwright version. `e2e.yml` reuses that pattern instead of a
+   cached by Playwright version. `e2e.yaml` reuses that pattern instead of a
    separate container image, for the same reason as (1): match what this repo
    has already gotten working rather than adding an unverified alternative.
 
@@ -31,7 +31,7 @@ at build time, so this is a build-time flag, not a runtime `config.js` one
 (contrast with `GAME_SERVER_URL`/`SUPABASE_*`, which are runtime). Only this
 flavor of the client image compiles in `apps/client/app/game/debug.ts`'s
 `window.__CC_DEBUG__` hook, which `e2e/private-match.spec.ts` reads to assert
-real predicted movement happened — `e2e.yml` builds it as
+real predicted movement happened — `e2e.yaml` builds it as
 `castle-clash-client:e2e`, tagged separately from the plain
 `castle-clash-client:local` `containers.yaml` builds and publishes.
 

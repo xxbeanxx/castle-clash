@@ -6,7 +6,7 @@ prose asked for that this pass did not build, and the facts checked against inst
 ## Scope decision (made with the user, not assumed)
 
 Phase 10 mixes pure code with real infrastructure. The plan itself lists "hosting target" as an
-open decision to resolve *before* this phase (Appendix B, item 4), and no cloud accounts, registry
+open decision to resolve _before_ this phase (Appendix B, item 4), and no cloud accounts, registry
 credentials, or deploy secrets exist in this repo. The user chose **code + tests only; defer deploy
 infra**.
 
@@ -35,7 +35,7 @@ infra**.
 ### Deferred (needs decisions or credentials only the user has)
 
 - **Since built (2026-09-19, Azure Container Apps chosen): see `phase10-deploy-decisions.md` and
-  `docs/hosting.md`.** `docker.yml` multi-arch/provenance/SBOM/Trivy, `deploy.yml` (staging →
+  `docs/hosting.md`.** `docker.yaml` multi-arch/provenance/SBOM/Trivy, `deploy.yaml` (staging →
   production → rollback), release-please, the `deploy smoke` script, hosting docs. Written and linted,
   but never run on GitHub/Azure; the cloud provisioning has not been executed.
 - `@colyseus/redis-presence`/`redis-driver` and `publicAddress`: the plan says to start
@@ -50,7 +50,7 @@ infra**.
   is its only bound. Not verified against the installed `ws-transport` whether a hook exists there.
 - `context.ip` honours whatever proxy-header handling Colyseus does; behind a reverse proxy, confirm
   it can't be spoofed via `X-Forwarded-For` before trusting the per-IP limit.
-- Drain: clients can still join non-full *running* rooms while draining (only room *creation* is
+- Drain: clients can still join non-full _running_ rooms while draining (only room _creation_ is
   blocked, matching the plan's "stops accepting new rooms").
 - The load-test budget comparison is a live-run observation in this document, not an automated gate.
 
@@ -67,10 +67,10 @@ infra**.
 3. **`roomCount` is incremented after `onCreate` resolves**, so the capacity check is `>=`, not `>`.
 4. **`prom-client@15.1.3` is deprecated but still npm's `latest`**; the announced successor
    `@prometheus-io/client` is `0.16.x`. Kept `prom-client`, per the plan.
-5a. **The CSP broke the game canvas (found by the first real CI e2e run, 2026-09-19).** Pixi v8 builds
+   5a. **The CSP broke the game canvas (found by the first real CI e2e run, 2026-09-19).** Pixi v8 builds
    shader-sync code with `new Function`; under `script-src` without `'unsafe-eval'`, `Application.init`
    throws "Current environment does not allow unsafe-eval, please use pixi.js/unsafe-eval" and the game
-   never starts. The earlier live check only confirmed the *page* rendered under the CSP, not a Pixi
+   never starts. The earlier live check only confirmed the _page_ rendered under the CSP, not a Pixi
    canvas. Fixed by importing Pixi's own `pixi.js/unsafe-eval` entry point (`app/game/pixiCsp.ts`), which
    keeps `'unsafe-eval'` out of the policy. Lesson: verify the CSP against a real match, not just `/`.
 5. **CSP needs `script-src 'unsafe-inline'`.** React Router's SPA-mode `index.html` inlines its

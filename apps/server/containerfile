@@ -33,7 +33,7 @@ RUN addgroup -S app && adduser -S app -G app
 WORKDIR /app
 COPY --from=deployer --chown=app:app /out .
 USER app
-# Stamped by .github/workflows/docker.yml from the release tag; recorded in
+# Stamped by .github/workflows/docker.yaml from the release tag; recorded in
 # `matches.server_version` and reported by /healthz (see src/serverVersion.ts).
 # Declared late so a version bump only invalidates this layer, not the build.
 ARG SERVER_VERSION=0.0.0-dev

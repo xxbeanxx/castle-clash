@@ -41,7 +41,7 @@ resource "github_repository_vulnerability_alerts" "main" {
   enabled    = true
 }
 
-# Dependabot already opens version-update PRs (.github/dependabot.yml); this adds
+# Dependabot already opens version-update PRs (.github/dependabot.yaml); this adds
 # the automatic security-update PRs on top (which need the alerts above).
 resource "github_repository_dependabot_security_updates" "main" {
   repository = github_repository.main.name
@@ -187,7 +187,7 @@ locals {
   # so another app cannot satisfy the check by posting a status of the same name.
   github_actions_app_id = 15368
 
-  # Read by .github/workflows/deploy-environment.yml. Derived from the resources
+  # Read by .github/workflows/deploy-environment.yaml. Derived from the resources
   # above where possible so a rename cannot leave the workflow pointing at the old name.
   production_variables = {
     AZURE_RESOURCE_GROUP = azurerm_resource_group.main.name

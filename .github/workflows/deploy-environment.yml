@@ -61,15 +61,28 @@ jobs:
       SERVER_CPU: ${{ vars.SERVER_CPU || '1.0' }}
       SERVER_MEMORY: ${{ vars.SERVER_MEMORY || '2Gi' }}
       CLIENT_MIN_REPLICAS: ${{ vars.CLIENT_MIN_REPLICAS || '0' }}
-      # Colyseus is not given the platform's full termination grace period
-      # (600 s, Container Apps' maximum): its own drain timeout must expire
-      # first so it exits cleanly instead of being SIGKILLed mid-write.
+      # Colyseus's own drain timeout must expire before the platform's
+      # termination grace period (set to 600 s below; docs/hosting.md explains
+      # why that number is unverified) so it exits cleanly instead of being
+      # SIGKILLed mid-write.
       DRAIN_TIMEOUT_MS: "540000"
       EXPECTED_VERSION: ${{ inputs.version }}
     steps:
       - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.version }}
+          persist-credentials: false
+
+      # Dependencies are installed (and the smoke script's workspace dependency
+      # built) BEFORE any credential exists in this job, so a compromised
+      # package from the tag being deployed never runs with an Azure session.
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @castle-clash/shared run build
 
       - uses: azure/login@v3
         with:
@@ -156,13 +169,6 @@ jobs:
         env:
           CLIENT_IMAGE: ${{ inputs.client_image }}
 
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @castle-clash/shared run build
       - name: Deploy smoke
         run: pnpm --filter @castle-clash/server run deploy-smoke
         env:

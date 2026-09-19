@@ -13,21 +13,9 @@
 # not set here: infra/azure/set-runtime-secrets.sh owns it.
 set -euo pipefail
 
-ENVIRONMENT="${1:?usage: configure-environment.sh staging|production}"
-REPO="${REPO:-xxbeanxx/castle-clash}"
-DNS_ZONE="${DNS_ZONE:-atomic-nucleus.com}"
-
-case "$ENVIRONMENT" in
-  staging)
-    SUFFIX="staging"; CLIENT_HOST="castle-clash-staging"; GAME_HOST="castle-clash-game-staging"
-    CLIENT_MIN_REPLICAS=0; SERVER_CPU="1.0"; SERVER_MEMORY="2Gi"
-    ;;
-  production)
-    SUFFIX="prod"; CLIENT_HOST="castle-clash"; GAME_HOST="castle-clash-game"
-    CLIENT_MIN_REPLICAS=1; SERVER_CPU="2.0"; SERVER_MEMORY="4Gi"
-    ;;
-  *) echo "environment must be staging or production" >&2; exit 2 ;;
-esac
+# shellcheck source=../lib/env.sh
+source "$(dirname "${BASH_SOURCE[0]}")/../lib/env.sh"
+load_environment "${1:?usage: configure-environment.sh staging|production}"
 
 for name in AZURE_CLIENT_ID AZURE_TENANT_ID AZURE_SUBSCRIPTION_ID SUPABASE_URL SUPABASE_PUBLISHABLE_KEY SUPABASE_DB_URL; do
   if [ -z "${!name:-}" ]; then
@@ -36,22 +24,31 @@ for name in AZURE_CLIENT_ID AZURE_TENANT_ID AZURE_SUBSCRIPTION_ID SUPABASE_URL S
   fi
 done
 
+# Both environments only accept deployments from `main`: a workflow on any other
+# branch could otherwise request `staging` (no reviewer) and receive an Azure
+# token, because the federated credential trusts the environment name alone.
+reviewers='[]'
 if [ "$ENVIRONMENT" = "production" ]; then
   reviewer="${REVIEWER_LOGIN:-${REPO%%/*}}"
   reviewer_id="$(gh api "users/${reviewer}" --jq .id)"
-  gh api --method PUT "repos/${REPO}/environments/${ENVIRONMENT}" \
-    --input - <<JSON >/dev/null
-{"reviewers":[{"type":"User","id":${reviewer_id}}],"prevent_self_review":false,"deployment_branch_policy":null}
+  reviewers="[{\"type\":\"User\",\"id\":${reviewer_id}}]"
+fi
+gh api --method PUT "repos/${REPO}/environments/${ENVIRONMENT}" --input - >/dev/null <<JSON
+{"reviewers":${reviewers},"prevent_self_review":false,"deployment_branch_policy":{"protected_branches":false,"custom_branch_policies":true}}
 JSON
+if [ "$(gh api "repos/${REPO}/environments/${ENVIRONMENT}/deployment-branch-policies" \
+  --jq '[.branch_policies[] | select(.name=="main")] | length')" = "0" ]; then
+  gh api --method POST "repos/${REPO}/environments/${ENVIRONMENT}/deployment-branch-policies" \
+    -f name=main -f type=branch >/dev/null
+fi
+if [ "$ENVIRONMENT" = "production" ]; then
   echo "environment 'production' requires approval from ${reviewer}"
-else
-  gh api --method PUT "repos/${REPO}/environments/${ENVIRONMENT}" >/dev/null
 fi
 
 setvar() { gh variable set "$1" --repo "$REPO" --env "$ENVIRONMENT" --body "$2"; }
-setvar AZURE_RESOURCE_GROUP "rg-castle-clash-${SUFFIX}"
-setvar SERVER_APP "ca-castle-clash-server-${SUFFIX}"
-setvar CLIENT_APP "ca-castle-clash-client-${SUFFIX}"
+setvar AZURE_RESOURCE_GROUP "$RG"
+setvar SERVER_APP "$SERVER_APP"
+setvar CLIENT_APP "$CLIENT_APP"
 setvar GAME_SERVER_URL "wss://${GAME_HOST}.${DNS_ZONE}"
 setvar CLIENT_URL "https://${CLIENT_HOST}.${DNS_ZONE}"
 setvar SERVER_CPU "$SERVER_CPU"

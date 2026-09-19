@@ -6,6 +6,9 @@ name: docker
 # GITHUB_TOKEN, and events raised by that token start no workflows, so
 # `release.yaml` calls this file instead (see docs/hosting.md, "Releases").
 # `containers.yaml` still builds/smokes/pushes the `main` and `sha-` images.
+#
+#   build (server, client)  push only `sha-<short>`, scan that exact digest
+#   promote                 once BOTH scans pass, add vX.Y.Z and X.Y to those digests
 on:
   workflow_call:
     inputs:
@@ -16,14 +19,14 @@ on:
     outputs:
       server_digest:
         description: "sha256 digest of the published server image index"
-        value: ${{ jobs.digests.outputs.server_digest }}
+        value: ${{ jobs.promote.outputs.server_digest }}
       client_digest:
         description: "sha256 digest of the published client image index"
-        value: ${{ jobs.digests.outputs.client_digest }}
+        value: ${{ jobs.promote.outputs.client_digest }}
   workflow_dispatch:
     inputs:
       tag:
-        description: "Existing release tag to (re)build, e.g. v1.2.3"
+        description: "Release tag to build, e.g. v1.2.3 (refused if that tag already points at a different image)"
         type: string
         required: true
 
@@ -58,6 +61,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.tag }}
+          persist-credentials: false
       - uses: docker/setup-qemu-action@v4
       - uses: docker/setup-buildx-action@v4
       - uses: docker/login-action@v4
@@ -72,14 +76,13 @@ jobs:
           {
             echo "image=${REGISTRY}/${OWNER}/castle-clash-${APP}"
             echo "version=${version}"
-            echo "minor=${version%.*}"
             echo "short_sha=$(git rev-parse --short=7 HEAD)"
           } >> "$GITHUB_OUTPUT"
         env:
           TAG: ${{ inputs.tag }}
           APP: ${{ matrix.app }}
       # Only the `sha-` tag is published here. The release tags (vX.Y.Z, X.Y)
-      # are added by the "Promote" step after the scan passes, so a vulnerable
+      # are added by `promote`, after every scan has passed, so a vulnerable
       # image never carries a tag anything deploys from.
       - id: build
         uses: docker/build-push-action@v7
@@ -111,58 +114,63 @@ jobs:
         env:
           TRIVY_USERNAME: ${{ github.actor }}
           TRIVY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-      - name: Promote to release tags
-        run: |
-          docker buildx imagetools create \
-            --tag "${IMAGE}:${TAG}" \
-            --tag "${IMAGE}:${MINOR}" \
-            "${IMAGE}@${DIGEST}"
-        env:
-          IMAGE: ${{ steps.names.outputs.image }}
-          TAG: ${{ inputs.tag }}
-          MINOR: ${{ steps.names.outputs.minor }}
-          DIGEST: ${{ steps.build.outputs.digest }}
-      - name: Summary
-        run: |
-          {
-            echo "### ${APP} ${TAG}"
-            echo ""
-            echo "- image: \`${IMAGE}\`"
-            echo "- digest: \`${DIGEST}\`"
-            echo "- tags: \`${TAG}\`, \`${MINOR}\`, \`sha-${SHORT}\`"
-          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Record digest
+        run: echo "$DIGEST" > "${APP}.txt"
         env:
           APP: ${{ matrix.app }}
-          TAG: ${{ inputs.tag }}
-          IMAGE: ${{ steps.names.outputs.image }}
           DIGEST: ${{ steps.build.outputs.digest }}
-          MINOR: ${{ steps.names.outputs.minor }}
-          SHORT: ${{ steps.names.outputs.short_sha }}
+      - uses: actions/upload-artifact@v7
+        with:
+          name: digest-${{ matrix.app }}
+          path: ${{ matrix.app }}.txt
+          retention-days: 1
 
-  # A matrix job's outputs collide (last writer wins), so the two digests are
-  # read back from the registry under their release tag instead.
-  digests:
+  promote:
     needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
-      packages: read
+      packages: write
     outputs:
-      server_digest: ${{ steps.read.outputs.server }}
-      client_digest: ${{ steps.read.outputs.client }}
+      server_digest: ${{ steps.promote.outputs.server }}
+      client_digest: ${{ steps.promote.outputs.client }}
     steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: digest-*
+          path: digests
+          merge-multiple: true
       - uses: docker/setup-buildx-action@v4
       - uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - id: read
+      # A matrix job's outputs collide (last writer wins), which is why the
+      # digests travel as artifacts; they are read here from the builds
+      # themselves, never re-resolved from a movable tag.
+      - id: promote
         run: |
+          version="${TAG#v}"
+          minor="${version%.*}"
           for app in server client; do
-            digest="$(docker buildx imagetools inspect "${REGISTRY}/${OWNER}/castle-clash-${app}:${TAG}" --format '{{.Manifest.Digest}}')"
+            image="${REGISTRY}/${OWNER}/castle-clash-${app}"
+            digest="$(cat "digests/${app}.txt")"
+            case "$digest" in
+              sha256:????????????????????????????????????????????????????????????????) ;;
+              *) echo "::error::no valid digest for ${app} (got '${digest}')"; exit 1 ;;
+            esac
+            # Release tags are immutable: re-running for a tag that already
+            # points at a different image would silently move a shipped release.
+            existing="$(docker buildx imagetools inspect "${image}:${TAG}" --format '{{.Manifest.Digest}}' 2>/dev/null || true)"
+            if [ -n "$existing" ] && [ "$existing" != "$digest" ]; then
+              echo "::error::${image}:${TAG} already points at ${existing}, refusing to move it to ${digest}"
+              exit 1
+            fi
+            docker buildx imagetools create --tag "${image}:${TAG}" --tag "${image}:${minor}" "${image}@${digest}"
             echo "${app}=${digest}" >> "$GITHUB_OUTPUT"
-            echo "${app}: ${digest}" >> "$GITHUB_STEP_SUMMARY"
+            echo "- ${app}: \`${digest}\` tagged \`${TAG}\`, \`${minor}\`" >> "$GITHUB_STEP_SUMMARY"
           done
         env:
           TAG: ${{ inputs.tag }}

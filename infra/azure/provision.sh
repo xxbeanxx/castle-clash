@@ -11,39 +11,18 @@
 # (no client secret exists to leak). See docs/hosting.md.
 set -euo pipefail
 
-ENVIRONMENT="${1:?usage: provision.sh staging|production}"
+# shellcheck source=../lib/env.sh
+source "$(dirname "${BASH_SOURCE[0]}")/../lib/env.sh"
+load_environment "${1:?usage: provision.sh staging|production}"
 
 LOCATION="${LOCATION:-canadacentral}"
-DNS_ZONE="${DNS_ZONE:-atomic-nucleus.com}"
 DNS_RG="${DNS_RG:-DefaultResourceGroup-CCAN}"
-REPO="${REPO:-xxbeanxx/castle-clash}"
 # GitHub issues OIDC tokens with the repo's *immutable* subject prefix (owner
 # and repo ids baked in) when the repo has opted in — `gh api
 # repos/<repo>/actions/oidc/customization/sub` shows it. The federated
 # credential must match that exactly or `azure/login` is rejected.
 SUB_PREFIX="${SUB_PREFIX:-$(gh api "repos/${REPO}/actions/oidc/customization/sub" --jq .sub_claim_prefix)}"
 
-case "$ENVIRONMENT" in
-  staging)
-    SUFFIX="staging"
-    CLIENT_HOST="castle-clash-staging"
-    GAME_HOST="castle-clash-game-staging"
-    ;;
-  production)
-    SUFFIX="prod"
-    CLIENT_HOST="castle-clash"
-    GAME_HOST="castle-clash-game"
-    ;;
-  *)
-    echo "environment must be staging or production" >&2
-    exit 2
-    ;;
-esac
-
-RG="rg-castle-clash-${SUFFIX}"
-CAE="cae-castle-clash-${SUFFIX}"
-SERVER_APP="ca-castle-clash-server-${SUFFIX}"
-CLIENT_APP="ca-castle-clash-client-${SUFFIX}"
 IDENTITY="castle-clash-deploy-${SUFFIX}"
 PLACEHOLDER_IMAGE="mcr.microsoft.com/k8se/quickstart:latest"
 
@@ -60,10 +39,10 @@ if ! az containerapp env show --name "$CAE" --resource-group "$RG" --output none
   az containerapp env create --name "$CAE" --resource-group "$RG" --location "$LOCATION" --output none
 fi
 
-# The apps start on Microsoft's placeholder image. The first deploy replaces
-# the whole template (image, port, probes, scale, env) from infra/azure/*.yaml,
-# so nothing here needs to know about the real images, which do not exist until
-# a release has been built.
+# The apps start on Microsoft's placeholder image. The first deploy
+# (deploy-environment.yml) switches the ingress port, image, scale and env via
+# `az containerapp update` flags, so nothing here needs to know about the real
+# images, which do not exist until a release has been built.
 ensure_app() {
   local name="$1"
   if ! az containerapp show --name "$name" --resource-group "$RG" --output none 2>/dev/null; then

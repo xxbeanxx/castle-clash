@@ -8,9 +8,10 @@ name: deploy
 #   deploy   version=v1.2.3 target=staging               staging only
 #   rollback version=v1.2.2 rollback=true target=production
 #
-# Both apps are deployed by the *digest* the tag points at when this run starts,
-# not by tag, so what was scanned and smoke-tested is exactly what runs even if
-# a tag is later moved. A rollback is a deploy of an older tag with the database
+# Both apps are deployed by *digest*, not tag. From a release run the digests are
+# the ones docker.yml's builds produced (scanned, then promoted); a manual run
+# resolves the tag once at the start. Either way what is smoke-tested is exactly
+# what runs, even if the tag is moved afterwards. A rollback is a deploy of an older tag with the database
 # push skipped: database changes are never rolled back automatically (which is
 # why migrations follow expand/contract, see docs/hosting.md).
 on:
@@ -25,6 +26,13 @@ on:
       target:
         type: string
         default: both
+      server_digest:
+        description: "Digest docker.yml just published (skips re-resolving the tag)"
+        type: string
+        default: ""
+      client_digest:
+        type: string
+        default: ""
   workflow_dispatch:
     inputs:
       version:
@@ -72,13 +80,21 @@ jobs:
         run: |
           for app in server client; do
             image="ghcr.io/${OWNER}/castle-clash-${app}"
-            digest="$(docker buildx imagetools inspect "${image}:${VERSION}" --format '{{.Manifest.Digest}}')"
+            # The chained path hands over the digest the build itself produced;
+            # a manual run has only the tag, so it resolves that once, here.
+            digest_var="${app^^}_DIGEST"
+            digest="${!digest_var:-}"
+            if [ -z "$digest" ]; then
+              digest="$(docker buildx imagetools inspect "${image}:${VERSION}" --format '{{.Manifest.Digest}}')"
+            fi
             echo "${app}=${image}@${digest}" >> "$GITHUB_OUTPUT"
             echo "${app}: ${image}@${digest}" >> "$GITHUB_STEP_SUMMARY"
           done
         env:
           OWNER: ${{ github.repository_owner }}
           VERSION: ${{ inputs.version }}
+          SERVER_DIGEST: ${{ inputs.server_digest }}
+          CLIENT_DIGEST: ${{ inputs.client_digest }}
 
   staging:
     needs: resolve

@@ -6,7 +6,7 @@ import { envNumber } from "./env.js";
 import { registerHealthRoutes } from "./http.js";
 import { logger } from "./logger.js";
 import { registerMetricsRoute } from "./observability/metrics.js";
-import { createDefaultPlayerRepository } from "./persistence/createPlayerRepository.js";
+import { createSupabasePlayerRepository } from "./persistence/createPlayerRepository.js";
 import { FixedWindowRateLimiter } from "./rateLimit.js";
 import { MatchRoom } from "./rooms/MatchRoom.js";
 import { serverVersion } from "./serverVersion.js";
@@ -49,12 +49,19 @@ export const server = defineServer({
     registerMetricsRoute(app);
     const smokeToken = process.env["SMOKE_TOKEN"];
     if (smokeToken) {
-      registerSmokeRoutes(app, {
-        smokeToken,
-        verifyToken: createDefaultTokenVerifier(),
-        repository: createDefaultPlayerRepository(),
-        serverVersion: serverVersion(),
-      });
+      const repository = createSupabasePlayerRepository();
+      if (repository) {
+        registerSmokeRoutes(app, {
+          smokeToken,
+          verifyToken: createDefaultTokenVerifier(),
+          repository,
+          serverVersion: serverVersion(),
+        });
+      } else {
+        // Not registering (a 404 fails the deploy smoke) beats registering a
+        // route that would "record" into memory and pass without Supabase.
+        logger.error("SMOKE_TOKEN is set but Supabase is not configured — smoke route disabled");
+      }
     }
     if (process.env.NODE_ENV !== "production") {
       app.use("/colyseus", monitor());

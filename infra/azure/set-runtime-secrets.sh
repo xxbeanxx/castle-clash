@@ -4,23 +4,19 @@
 #
 #   SUPABASE_SECRET_KEY=sb_secret_... infra/azure/set-runtime-secrets.sh staging|production
 #
-# The Supabase secret key comes from the environment, never a file or argv (it
-# would show in `ps` and shell history). The smoke token is generated here the
-# first time and reused afterwards (re-running rotates nothing unless
-# ROTATE_SMOKE_TOKEN=1). No value is ever printed.
+# The Supabase secret key is read from the environment, not typed as an
+# argument, so it stays out of shell history and this script's own argv. Note
+# `az containerapp secret set --secrets` has no stdin/file form, so both values
+# are briefly visible in `ps` on this machine while that one command runs:
+# run it from your own workstation, never a shared runner. The smoke token is
+# generated here the first time and reused afterwards (re-running rotates
+# nothing unless ROTATE_SMOKE_TOKEN=1). No value is ever printed.
 set -euo pipefail
 
-ENVIRONMENT="${1:?usage: set-runtime-secrets.sh staging|production}"
-REPO="${REPO:-xxbeanxx/castle-clash}"
+# shellcheck source=../lib/env.sh
+source "$(dirname "${BASH_SOURCE[0]}")/../lib/env.sh"
+load_environment "${1:?usage: set-runtime-secrets.sh staging|production}"
 : "${SUPABASE_SECRET_KEY:?SUPABASE_SECRET_KEY must be set in the environment}"
-
-case "$ENVIRONMENT" in
-  staging) SUFFIX="staging" ;;
-  production) SUFFIX="prod" ;;
-  *) echo "environment must be staging or production" >&2; exit 2 ;;
-esac
-RG="rg-castle-clash-${SUFFIX}"
-SERVER_APP="ca-castle-clash-server-${SUFFIX}"
 
 # Secret *values* are unreadable on both sides, so "generate a new token" is
 # decided by presence: if either the GitHub environment or the Container App

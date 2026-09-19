@@ -42,6 +42,16 @@ deploy.yml ──── resolves each tag to its digest, then:
                 the images they were running before, the database is left alone
 ```
 
+**Required checks are not enforced by these workflows.** The plan says the `verify`, `browser`,
+`integration`, `e2e`, `docker` and `smoke` checks must pass before tagging. `release.yaml` runs on the
+push to `main` in parallel with CI, so that gate has to live in **branch protection on `main`**
+(require those checks on PRs, including the release PR — which needs `RELEASE_PLEASE_TOKEN`, below).
+Note `e2e` and the `containers.yaml` smoke currently cannot pass (Phase 8's missing-Supabase gap).
+
+Release tags are immutable: `docker.yml` refuses to move an existing `vX.Y.Z` to a different image.
+If a release build must be redone, delete that version of the two GHCR packages first. Tags are
+promoted only after **both** images pass the Trivy scan.
+
 `docker.yml` is called by `release.yaml` rather than triggered by the tag push: release-please tags
 with the built-in `GITHUB_TOKEN`, and events raised by that token start no workflows. (The plan's
 "`docker.yml` on `v*` tags" is met by the same run.) A tag pushed by hand builds nothing: use
@@ -97,10 +107,11 @@ no Redis presence/driver, so a second replica could not see the first's rooms. S
 and `publicAddress` are added (the plan's "only when more than one process is needed").
 
 Ingress: HTTP ingress supports WebSockets out of the box (documented request timeout: 240 s; Colyseus
-pings far more often than that). Container Apps runs only `linux/amd64` images — the release build is
+pings every 3 s by default — `WebSocketTransport`'s `pingInterval`). Container Apps runs only `linux/amd64` images — the release build is
 multi-arch, and Azure pulls the amd64 variant. Clients already connected to a draining server stay connected until
-their match ends or the drain timeout, but a *reconnect* after traffic has moved lands on the new
-revision, which has no such room — an accepted limitation of the single-process design.
+their match ends or the drain timeout, but a *reconnect* — or a join by private-room code — after
+traffic has moved lands on the new revision, which has no such room. An accepted limitation of the
+single-process design.
 
 ## One-time setup
 
@@ -120,7 +131,9 @@ registrations, and to edit the `atomic-nucleus.com` DNS zone), `gh`, and `supaba
    (no client secret). It prints the `AZURE_*` ids for the next step.
 3. **GitHub environments** — `infra/github/configure-environment.sh staging|production` with the ids
    and Supabase values in the environment. Creates the environment (production gets the required
-   reviewer), its variables, and the `AZURE_*` / `SUPABASE_DB_URL` secrets.
+   reviewer), restricts both environments to deployments from `main` (the Azure credential trusts the
+   environment name alone, so without this any branch's workflow could request `staging`), and sets
+   its variables and the `AZURE_*` / `SUPABASE_DB_URL` secrets.
 4. **Runtime secrets** — `SUPABASE_SECRET_KEY=… infra/azure/set-runtime-secrets.sh staging|production`
    stores the Supabase secret key as a Container App secret and generates the `SMOKE_TOKEN` in both
    the Container App and the GitHub environment.
@@ -157,8 +170,14 @@ The match write is `POST /smoke/record-match` — a route that only exists when 
 `SMOKE_TOKEN`, and needs it (constant-time compared) plus a valid Supabase user JWT. It records a
 `mode = 'smoke'` match through the normal `record_match_result()` path; that function stores the match
 and participant rows but never touches `player_stats`, so a smoke match cannot appear on the
-leaderboard. Smoke rows accumulate in `matches`; prune with
-`delete from matches where mode = 'smoke'` when wanted.
+leaderboard. If `SMOKE_TOKEN` is set but Supabase is not configured the route is **not registered**
+(the smoke then fails with a 404) rather than falling back to the in-memory repository, which would
+"record" the match without touching the database. The check proves the write path by the RPC
+succeeding; it does not read the row back.
+
+Every run also creates one anonymous Supabase user and one `matches` row. Prune with
+`delete from matches where mode = 'smoke'` (participant rows cascade) and, if wanted, delete
+anonymous users with no `player_stats` row from the Auth dashboard.
 
 ## Operating notes
 

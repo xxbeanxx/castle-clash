@@ -28,17 +28,27 @@ import { SupabasePlayerRepository } from "./SupabasePlayerRepository.js";
 let cachedSupabaseRepository: PlayerRepository | undefined;
 
 export function createDefaultPlayerRepository(): PlayerRepository {
+  const supabase = createSupabasePlayerRepository();
+  if (supabase) {
+    return supabase;
+  }
+  logger.warn(
+    "SUPABASE_URL/SUPABASE_SECRET_KEY not set — falling back to InMemoryPlayerRepository " +
+      "(loadouts/match history will not persist)",
+  );
+  return new InMemoryPlayerRepository();
+}
+
+/** The real repository, or `undefined` when Supabase isn't configured — for
+ *  callers (the deploy smoke's write route) for which the in-memory fallback
+ *  would be a *false pass*: it would answer "recorded" without ever touching
+ *  the database the check exists to prove. */
+export function createSupabasePlayerRepository(): PlayerRepository | undefined {
   const url = process.env["SUPABASE_URL"];
   const secretKey = process.env["SUPABASE_SECRET_KEY"];
-
   if (!url || !secretKey) {
-    logger.warn(
-      "SUPABASE_URL/SUPABASE_SECRET_KEY not set — falling back to InMemoryPlayerRepository " +
-        "(loadouts/match history will not persist)",
-    );
-    return new InMemoryPlayerRepository();
+    return undefined;
   }
-
   cachedSupabaseRepository ??= new SupabasePlayerRepository(createClient<Database>(url, secretKey));
   return cachedSupabaseRepository;
 }

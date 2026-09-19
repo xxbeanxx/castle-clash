@@ -66,6 +66,20 @@ named the mismatch. The resulting `matches` row had `mode=smoke`, `server_versio
 `player_stats` stayed empty. `supabase test db`: 26 tests pass, including the new
 `record_match_result_smoke.test.sql`.
 
+## Code-review outcome (Standards + Spec sub-agents)
+
+Fixed after review: the smoke route could false-pass on the in-memory repository fallback (now not
+registered without Supabase); environments accepted deployments from any branch (now restricted to
+`main`); digests from `docker.yml` were never passed to `deploy.yml`, which re-resolved a movable tag
+(now chained, with tags promoted only after *both* scans pass and never moved once set); a
+workflow-level concurrency group would have blocked later releases behind a pending production
+approval (now on the release-please job only); dependencies were installed with an Azure session live
+(now before login); the three infra scripts each copied the environment mapping (now `infra/lib/env.sh`).
+Documented rather than built: required-checks-before-tagging must be branch protection; the smoke does
+not read the `matches` row back; smoke users/rows accumulate; rollback goes through the production
+reviewer gate; actions are pinned by tag, not SHA, and `supabase/setup-cli` is `latest`; no nightly
+Trivy re-scan (plan's nightly workflow) was added.
+
 ## Unproven (nothing here has run on GitHub or Azure)
 
 1. **No workflow has executed.** Workflow files cannot be dispatched before they exist on the default

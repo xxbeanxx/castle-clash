@@ -79,9 +79,10 @@ test("a phone player drives the stick and buttons against a keyboard player", as
     { ...start, x: 220 },
     { id: 2, ...jump },
   ]);
-  await phonePage.waitForTimeout(120);
-  const airborne = (await position(phonePage))!;
-  expect(airborne.y).toBeLessThan(groundY - 5);
+  // Poll rather than sleep: under load the jump can take a few frames to show up.
+  await expect
+    .poll(async () => (await position(phonePage))!.y, { timeout: 3000 })
+    .toBeLessThan(groundY - 5);
   await expect(phonePage.locator('[data-touch-button="JUMP"]')).toHaveAttribute(
     "data-pressed",
     "true",

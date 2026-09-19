@@ -1,17 +1,14 @@
 import type { LeaderboardRow } from "@castle-clash/shared";
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
-import { getLeaderboard } from "../auth/supabase.js";
 
 const TEASER_SIZE = 10;
-/** Over-fetch so that skipping unnamed rows still leaves a full list. */
-const FETCH_SIZE = 40;
 
 type NamedRow = LeaderboardRow & { display_name: string };
 
-/** Only players who chose a name: guests have none, and "Anonymous" ten times over says nothing. */
-export function namedTopRows(rows: readonly LeaderboardRow[], limit = TEASER_SIZE): NamedRow[] {
-  return rows.filter((row): row is NamedRow => Boolean(row.display_name)).slice(0, limit);
+/** The query only returns named players, but the column is nullable, so narrow it for the type. */
+function named(rows: readonly LeaderboardRow[]): NamedRow[] {
+  return rows.filter((row): row is NamedRow => Boolean(row.display_name));
 }
 
 /**
@@ -24,14 +21,16 @@ export function LeaderboardTeaser() {
 
   useEffect(() => {
     let cancelled = false;
-    getLeaderboard(0, FETCH_SIZE).then(
-      (result) => {
-        if (!cancelled) {
-          setRows(namedTopRows(result));
-        }
-      },
-      () => {},
-    );
+    import("../auth/supabase.js")
+      .then(({ getLeaderboard }) => getLeaderboard(0, TEASER_SIZE))
+      .then(
+        (result) => {
+          if (!cancelled) {
+            setRows(named(result));
+          }
+        },
+        () => {},
+      );
     return () => {
       cancelled = true;
     };

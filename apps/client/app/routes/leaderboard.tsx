@@ -1,7 +1,6 @@
 import type { LeaderboardRow } from "@castle-clash/shared";
 import { useState } from "react";
 import { useLoaderData } from "react-router";
-import { requireSession } from "../auth/requireSession.js";
 import { getLeaderboard } from "../auth/supabase.js";
 import { Button, Panel } from "../ui/kit/index.js";
 import { pageMeta } from "../meta.js";
@@ -16,7 +15,6 @@ export const meta = () =>
 const PAGE_SIZE = 20;
 
 export async function clientLoader(): Promise<{ page: readonly LeaderboardRow[] }> {
-  await requireSession();
   const page = await getLeaderboard(0, PAGE_SIZE);
   return { page };
 }

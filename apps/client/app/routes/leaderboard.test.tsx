@@ -41,11 +41,14 @@ describe("Leaderboard route", () => {
     getLeaderboardMock.mockReset().mockResolvedValue([makeRow("alice", 10)]);
   });
 
-  it("redirects to /login when clientLoader runs with no session", async () => {
+  it("is public: it loads its rows without ever asking for a session", async () => {
     getSessionMock.mockResolvedValue(null);
+    getLeaderboardMock.mockResolvedValue([makeRow("alice", 10)]);
     const { router } = renderLeaderboard();
 
-    await waitFor(() => expect(router.state.location.pathname).toBe("/login"));
+    expect(await screen.findByText("alice")).toBeDefined();
+    expect(router.state.location.pathname).toBe("/leaderboard");
+    expect(getSessionMock).not.toHaveBeenCalled();
   });
 
   it("renders the first page of rows from the loader", async () => {

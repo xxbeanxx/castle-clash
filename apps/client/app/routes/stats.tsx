@@ -13,11 +13,11 @@ const MATCH_HISTORY_LIMIT = 20;
 
 export const meta = () => privatePageMeta("Your stats");
 
-export async function clientLoader(): Promise<{
+export async function clientLoader({ request }: { request: Request }): Promise<{
   stats: ClientStats;
   matches: readonly MatchHistoryEntry[];
 }> {
-  await requireSession();
+  await requireSession(request);
   const [stats, matches] = await Promise.all([
     getMyStats(),
     getMyMatchHistory(MATCH_HISTORY_LIMIT),

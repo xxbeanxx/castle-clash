@@ -5,8 +5,8 @@ import { GameCanvas } from "../ui/GameCanvas.js";
 
 export const meta = () => privatePageMeta("Match");
 
-export async function clientLoader(): Promise<null> {
-  await requireSession();
+export async function clientLoader({ request }: { request: Request }): Promise<null> {
+  await requireSession(request);
   return null;
 }
 

@@ -52,7 +52,7 @@ test("a guest customizes, saves, and sees their cosmetic in another browser", as
   await signInAsGuest(pageB);
   await pageB.goto("/lobby");
   await pageB.getByLabel("Room code").fill(code!);
-  await pageB.getByText("Join").click();
+  await pageB.getByRole("button", { name: "Join", exact: true }).click();
   await pageB.waitForURL(/\/play\/(?!new\b)/);
 
   await expect(pageA.getByTestId("match-banner")).toContainText("Fight", { timeout: 15000 });

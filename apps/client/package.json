@@ -12,7 +12,8 @@
     "lint:fix": "oxlint --fix",
     "test": "vitest run && sh docker/entrypoint.test.sh",
     "test:browser": "vitest run --config vitest.browser.config.ts",
-    "typecheck": "react-router typegen && tsc"
+    "typecheck": "react-router typegen && tsc",
+    "check:landing": "node scripts/web-quality.mjs bundle build/client"
   },
   "dependencies": {
     "@castle-clash/shared": "workspace:*",

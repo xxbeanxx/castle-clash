@@ -19,13 +19,14 @@ vi.mock("../auth/supabase.js", () => ({
   },
 }));
 
-function renderLogin() {
+function renderLogin(entry = "/login") {
   const router = createMemoryRouter(
     [
       { path: "/login", Component: Login },
       { path: "/lobby", Component: () => <p>lobby route</p> },
+      { path: "/play/:roomId", Component: () => <p>play route</p> },
     ],
-    { initialEntries: ["/login"] },
+    { initialEntries: [entry] },
   );
   render(<RouterProvider router={router} />);
   return { router };
@@ -54,7 +55,9 @@ describe("Login route", () => {
     fireEvent.change(screen.getByLabelText("Email"), { target: { value: "player@example.test" } });
     fireEvent.click(screen.getByText("Send magic link"));
 
-    await waitFor(() => expect(signInWithMagicLinkMock).toHaveBeenCalledWith("player@example.test"));
+    await waitFor(() =>
+      expect(signInWithMagicLinkMock).toHaveBeenCalledWith("player@example.test"),
+    );
     expect(screen.getByText("Check your email for a link")).toBeDefined();
   });
 
@@ -82,5 +85,26 @@ describe("Login route", () => {
     fireEvent.click(screen.getByText("Play as guest"));
 
     await waitFor(() => expect(screen.getByRole("alert").textContent).toBe("network down"));
+  });
+  it("returns to the page it was sent from once signed in (?next=)", async () => {
+    const { router } = renderLogin(
+      `/login?next=${encodeURIComponent("/play/new?mode=private&code=ABC123")}`,
+    );
+
+    authStateCallback?.({ access_token: "t" });
+
+    await waitFor(() =>
+      expect(router.state.location.pathname + router.state.location.search).toBe(
+        "/play/new?mode=private&code=ABC123",
+      ),
+    );
+  });
+
+  it("ignores a ?next= that leaves the site, and goes to the lobby", async () => {
+    const { router } = renderLogin(`/login?next=${encodeURIComponent("https://evil.example/x")}`);
+
+    authStateCallback?.({ access_token: "t" });
+
+    await waitFor(() => expect(router.state.location.pathname).toBe("/lobby"));
   });
 });

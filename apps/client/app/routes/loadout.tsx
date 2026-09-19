@@ -56,11 +56,11 @@ function errorMessage(error: unknown): string {
 
 export const meta = () => privatePageMeta("Loadout");
 
-export async function clientLoader(): Promise<{
+export async function clientLoader({ request }: { request: Request }): Promise<{
   loadout: ClientLoadout;
   unlocks: readonly string[];
 }> {
-  await requireSession();
+  await requireSession(request);
   const [loadout, unlocks] = await Promise.all([getMyLoadout(), getMyUnlocks()]);
   return { loadout, unlocks };
 }

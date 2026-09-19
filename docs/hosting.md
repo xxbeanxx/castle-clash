@@ -42,7 +42,7 @@ conventional commits on main
 release.yaml ── release-please keeps a "release PR" open (version + CHANGELOG)
         │        merging it creates the vX.Y.Z tag + GitHub release, and in the same run:
         ▼
-docker.yaml ──── build server+client for linux/amd64,arm64 with provenance + SBOM, push as sha-<short>,
+docker.yaml ──── build server+client (linux/amd64 only, see below) with provenance + SBOM, push as sha-<short>,
         │        Trivy fails the job on any fixable CRITICAL, then promotes vX.Y.Z and X.Y to that digest
         ▼
 deploy.yaml ──── resolves each tag to its digest, then:
@@ -117,7 +117,7 @@ and `publicAddress` are added (the plan's "only when more than one process is ne
 
 Ingress: HTTP ingress supports WebSockets out of the box (documented request timeout: 240 s; Colyseus
 pings every 3 s by default — `WebSocketTransport`'s `pingInterval`). Container Apps runs only `linux/amd64` images — the release build is
-multi-arch, and Azure pulls the amd64 variant. Clients already connected to a draining server stay connected until
+amd64-only (the arm64 half was OOM-killed under QEMU emulation on the first release run; restore it with a native arm64 build, not emulation). Clients already connected to a draining server stay connected until
 their match ends or the drain timeout, but a _reconnect_ — or a join by private-room code — after
 traffic has moved lands on the new revision, which has no such room. An accepted limitation of the
 single-process design.

@@ -3,9 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const getSession = vi.fn();
 const linkIdentity = vi.fn();
 const signInWithOAuth = vi.fn();
+const signInWithOtp = vi.fn();
 
 vi.mock("@supabase/supabase-js", () => ({
-  createClient: () => ({ auth: { getSession, linkIdentity, signInWithOAuth } }),
+  createClient: () => ({ auth: { getSession, linkIdentity, signInWithOAuth, signInWithOtp } }),
 }));
 vi.mock("../config/runtime.js", () => ({
   getRuntimeConfig: () => ({
@@ -15,7 +16,8 @@ vi.mock("../config/runtime.js", () => ({
   }),
 }));
 
-const { signInToExistingGoogleAccount, signInWithGoogle } = await import("./supabase.js");
+const { signInToExistingGoogleAccount, signInWithGoogle, signInWithMagicLink } =
+  await import("./supabase.js");
 const { peekNext } = await import("./pendingNext.js");
 
 const CALLBACK = `${window.location.origin}/auth/callback`;
@@ -114,5 +116,26 @@ describe("signInToExistingGoogleAccount", () => {
     });
     expect(linkIdentity).not.toHaveBeenCalled();
     expect(peekNext()).toBe("/lobby");
+  });
+});
+
+describe("signInWithMagicLink", () => {
+  afterEach(() => vi.clearAllMocks());
+
+  it("sends the emailed link to /auth/callback, so a new account is invited to pick a name", async () => {
+    signInWithOtp.mockResolvedValue({ error: null });
+
+    await signInWithMagicLink("player@example.test");
+
+    expect(signInWithOtp).toHaveBeenCalledWith({
+      email: "player@example.test",
+      options: { emailRedirectTo: CALLBACK },
+    });
+  });
+
+  it("surfaces a failure to send", async () => {
+    signInWithOtp.mockResolvedValue({ error: new Error("rate limited") });
+
+    await expect(signInWithMagicLink("player@example.test")).rejects.toThrow("rate limited");
   });
 });

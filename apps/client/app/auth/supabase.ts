@@ -76,16 +76,21 @@ export function onAuthStateChange(callback: (session: Session | null) => void): 
  *  (`signInWithGoogle`). Upgrading a guest by email would be
  *  `updateUser({ email })`, which has not been verified against the hosted project. */
 export async function signInWithMagicLink(email: string): Promise<void> {
-  const { error } = await client().auth.signInWithOtp({ email });
+  // The link is emailed, so it usually opens in another tab: `next` cannot follow it, but landing on
+  // `/auth/callback` still gets a new account the name prompt.
+  const { error } = await client().auth.signInWithOtp({
+    email,
+    options: { emailRedirectTo: authCallbackUrl() },
+  });
   if (error) {
     throw error;
   }
 }
 
-/** Where Google sends the browser back to. A bare path on purpose: Supabase
+/** Where Google, and an emailed magic link, send the browser back to. A bare path on purpose: Supabase
  *  matches it against its redirect allow-list including any query string, so the
  *  post-login destination travels in `pendingNext` instead. */
-function googleRedirectTo(): string {
+function authCallbackUrl(): string {
   return `${window.location.origin}/auth/callback`;
 }
 
@@ -105,7 +110,7 @@ function googleRedirectTo(): string {
 export async function signInWithGoogle(next?: string | null): Promise<void> {
   rememberNext(next);
   const session = await getSession();
-  const options = { redirectTo: googleRedirectTo() };
+  const options = { redirectTo: authCallbackUrl() };
   const { error } = session?.user.is_anonymous
     ? await client().auth.linkIdentity({ provider: "google", options })
     : await client().auth.signInWithOAuth({ provider: "google", options });
@@ -121,7 +126,7 @@ export async function signInToExistingGoogleAccount(next?: string | null): Promi
   rememberNext(next);
   const { error } = await client().auth.signInWithOAuth({
     provider: "google",
-    options: { redirectTo: googleRedirectTo() },
+    options: { redirectTo: authCallbackUrl() },
   });
   if (error) {
     throw error;

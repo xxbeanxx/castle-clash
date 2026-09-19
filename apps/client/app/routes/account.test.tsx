@@ -164,6 +164,15 @@ describe("Account route", () => {
       await waitFor(() => expect(signInWithGoogleMock).toHaveBeenCalledWith("/account"));
     });
 
+    it("makes a guest confirm before signing out", async () => {
+      renderAccount();
+
+      fireEvent.click(await screen.findByRole("button", { name: /^sign out$/i }));
+
+      await screen.findByRole("dialog", { name: /sign out as a guest/i });
+      expect(signOutMock).not.toHaveBeenCalled();
+    });
+
     it("shows why if starting Google failed", async () => {
       signInWithGoogleMock.mockRejectedValueOnce(new Error("Manual linking is disabled"));
       renderAccount();

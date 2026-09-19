@@ -1,7 +1,10 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router";
-import { useProfile } from "../auth/useProfile.js";
+import { Link } from "react-router";
 import type { Session } from "../auth/supabase.js";
+import { useProfile } from "../auth/useProfile.js";
+import { useSignOut } from "../auth/useSignOut.js";
+import { GuestSignOutModal } from "./GuestSignOutModal.js";
+import { Button } from "./kit/index.js";
 
 /**
  * The header's account area for a signed-in player: their name (or "Guest") as a button that opens
@@ -15,8 +18,9 @@ import type { Session } from "../auth/supabase.js";
 export function AccountMenu({ session }: { session: Session }) {
   const guest = session.user.is_anonymous === true;
   const profile = useProfile(guest ? null : session.user.id);
-  const navigate = useNavigate();
+  const signOut = useSignOut();
   const [open, setOpen] = useState(false);
+  const [confirmingSignOut, setConfirmingSignOut] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const panelId = useId();
@@ -37,14 +41,12 @@ export function AccountMenu({ session }: { session: Session }) {
   const name = guest ? null : (profile?.displayName ?? null);
   const label = guest ? "Guest" : (name ?? "Account");
 
-  async function handleSignOut(): Promise<void> {
+  function handleSignOutClick(): void {
     setOpen(false);
-    try {
-      // Loaded on demand: keeps supabase-js off the public pages' critical path.
-      const { signOut } = await import("../auth/supabase.js");
-      await signOut();
-    } finally {
-      navigate("/");
+    if (guest) {
+      setConfirmingSignOut(true);
+    } else {
+      void signOut();
     }
   }
 
@@ -60,11 +62,10 @@ export function AccountMenu({ session }: { session: Session }) {
         }
       }}
     >
-      {/* A native button: it needs a ref for returning focus, which the kit's `Button` doesn't expose. */}
-      <button
+      <Button
         ref={buttonRef}
-        type="button"
-        className="cc-btn cc-btn--ghost cc-btn--sm"
+        variant="ghost"
+        size="sm"
         aria-expanded={open}
         aria-controls={open ? panelId : undefined}
         onClick={() => setOpen((current) => !current)}
@@ -73,7 +74,7 @@ export function AccountMenu({ session }: { session: Session }) {
         <span aria-hidden="true" className="cc-menu__caret">
           ▾
         </span>
-      </button>
+      </Button>
       {open && (
         <div id={panelId} className="cc-menu__panel">
           {guest && (
@@ -96,10 +97,19 @@ export function AccountMenu({ session }: { session: Session }) {
               {profile && profile.displayName === null ? "Choose a name" : "Account"}
             </Link>
           )}
-          <button type="button" className="cc-menu__item" onClick={() => void handleSignOut()}>
+          <button type="button" className="cc-menu__item" onClick={handleSignOutClick}>
             Sign out
           </button>
         </div>
+      )}
+      {confirmingSignOut && (
+        <GuestSignOutModal
+          onCancel={() => setConfirmingSignOut(false)}
+          onConfirm={() => {
+            setConfirmingSignOut(false);
+            void signOut();
+          }}
+        />
       )}
     </div>
   );

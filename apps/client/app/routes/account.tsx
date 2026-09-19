@@ -7,11 +7,12 @@ import {
   getMyProfile,
   setMyDisplayName,
   signInWithGoogle,
-  signOut,
   type MyProfile,
   type SetNameResult,
 } from "../auth/supabase.js";
+import { useSignOut } from "../auth/useSignOut.js";
 import { privatePageMeta } from "../meta.js";
+import { GuestSignOutModal } from "../ui/GuestSignOutModal.js";
 import { Button, ButtonLink, Field, Input, Panel } from "../ui/kit/index.js";
 
 export const meta = () => privatePageMeta("Your account");
@@ -47,14 +48,8 @@ export default function Account() {
   const welcome = searchParams.get("welcome") === "1";
   const destination = safeNextPath(searchParams.get("next")) ?? "/lobby";
   const navigate = useNavigate();
-
-  async function handleSignOut(): Promise<void> {
-    try {
-      await signOut();
-    } finally {
-      navigate("/");
-    }
-  }
+  const signOut = useSignOut();
+  const [confirmingSignOut, setConfirmingSignOut] = useState(false);
 
   return (
     <div className="cc-page">
@@ -79,10 +74,22 @@ export default function Account() {
             ? "Signing out as a guest leaves this progress behind."
             : "You can sign back in with the same account any time."}
         </p>
-        <Button variant="ghost" onClick={() => void handleSignOut()}>
+        <Button
+          variant="ghost"
+          onClick={() => (profile.isAnonymous ? setConfirmingSignOut(true) : void signOut())}
+        >
           Sign out
         </Button>
       </Panel>
+      {confirmingSignOut && (
+        <GuestSignOutModal
+          onCancel={() => setConfirmingSignOut(false)}
+          onConfirm={() => {
+            setConfirmingSignOut(false);
+            void signOut();
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -141,6 +148,8 @@ function NamePanel({
             <Input
               {...props}
               value={name}
+              // Slack beyond the limit: the name is trimmed before it is checked, so a pasted
+              // name with stray spaces around it must not be cut short by the browser first.
               maxLength={DISPLAY_NAME_MAX + 8}
               autoComplete="nickname"
               autoCapitalize="none"

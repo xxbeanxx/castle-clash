@@ -75,6 +75,8 @@ describe("SiteLayout", () => {
     const router = renderAt("/lobby-ish");
     fireEvent.click(await screen.findByRole("button", { name: /Guest/ }));
     fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
+    // A guest is asked first: signing out discards their progress.
+    fireEvent.click(await screen.findByRole("button", { name: "Sign out anyway" }));
     await waitFor(() => expect(signOutMock).toHaveBeenCalled());
     await waitFor(() => expect(router.state.location.pathname).toBe("/"));
   });

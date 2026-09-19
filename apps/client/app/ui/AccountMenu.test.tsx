@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PROFILE_CHANGED_EVENT } from "../auth/profileEvents.js";
@@ -131,6 +131,32 @@ describe("AccountMenu", () => {
     fireEvent.mouseDown(screen.getByRole("button", { name: "outside" }));
 
     expect(screen.queryByRole("link", { name: "Loadout" })).toBeNull();
+  });
+
+  it("makes a guest confirm before signing out, since that discards their progress", async () => {
+    const { router } = renderMenu(GUEST);
+    fireEvent.click(trigger());
+
+    fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
+
+    const dialog = await screen.findByRole("dialog", { name: /sign out as a guest/i });
+    expect(signOutMock).not.toHaveBeenCalled();
+    expect(within(dialog).getByText(/can.t be recovered/i)).toBeDefined();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: /^sign out anyway$/i }));
+    await waitFor(() => expect(signOutMock).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/"));
+  });
+
+  it("stays signed in when a guest backs out of the confirmation", async () => {
+    renderMenu(GUEST);
+    fireEvent.click(trigger());
+    fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
+
+    fireEvent.click(await screen.findByRole("button", { name: /^cancel$/i }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(signOutMock).not.toHaveBeenCalled();
   });
 
   it("signs out and returns home", async () => {

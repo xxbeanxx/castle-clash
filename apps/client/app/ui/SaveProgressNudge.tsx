@@ -3,11 +3,15 @@ import { signInWithGoogle } from "../auth/supabase.js";
 import { useSession } from "../auth/useSession.js";
 import { Button } from "./kit/index.js";
 
-const DISMISSED_KEY = "cc:nudge:save-progress";
+/** Per user, so dismissing it as one guest doesn't hide it from the next guest on this browser. */
+const dismissedKey = (userId: string) => `cc:nudge:save-progress:${userId}`;
 
-function wasDismissed(): boolean {
+function wasDismissed(userId: string | undefined): boolean {
+  if (!userId) {
+    return false;
+  }
   try {
-    return localStorage.getItem(DISMISSED_KEY) === "1";
+    return localStorage.getItem(dismissedKey(userId)) === "1";
   } catch {
     return false;
   }
@@ -24,18 +28,20 @@ function wasDismissed(): boolean {
  */
 export function SaveProgressNudge() {
   const session = useSession();
-  const [dismissed, setDismissed] = useState(wasDismissed);
+  const userId = session?.user.id;
+  // Remembered in memory too, so it still goes away this visit if storage is blocked.
+  const [dismissedNow, setDismissedNow] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  if (!session?.user.is_anonymous || dismissed) {
+  if (!session?.user.is_anonymous || dismissedNow === userId || wasDismissed(userId)) {
     return null;
   }
 
   function dismiss(): void {
-    setDismissed(true);
+    setDismissedNow(userId ?? null);
     try {
-      localStorage.setItem(DISMISSED_KEY, "1");
+      localStorage.setItem(dismissedKey(session!.user.id), "1");
     } catch {
       // Dismissed for this visit only.
     }

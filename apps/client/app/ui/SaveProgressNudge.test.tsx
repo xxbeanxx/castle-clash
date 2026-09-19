@@ -60,6 +60,18 @@ describe("SaveProgressNudge", () => {
     expect(screen.queryByText(/save your progress/i)).toBeNull();
   });
 
+  it("remembers the dismissal for that guest only, not for the next guest on this browser", () => {
+    useSessionMock.mockReturnValue(GUEST);
+    const first = render(<SaveProgressNudge />);
+    fireEvent.click(screen.getByRole("button", { name: /not now/i }));
+    first.unmount();
+
+    useSessionMock.mockReturnValue({ user: { id: "g2", is_anonymous: true } });
+    render(<SaveProgressNudge />);
+
+    expect(screen.getByText(/save your progress/i)).toBeDefined();
+  });
+
   it("still shows, and can be dismissed for now, when storage is unavailable", () => {
     useSessionMock.mockReturnValue(GUEST);
     vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {

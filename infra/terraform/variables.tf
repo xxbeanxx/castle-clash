@@ -105,3 +105,35 @@ variable "github_oidc_subject_prefix" {
   type        = string
   default     = "repo:xxbeanxx@997639/castle-clash@1370518775"
 }
+
+variable "supabase_google_client_id" {
+  description = <<-EOT
+    OAuth client id of the Google Cloud web client (created by scripts/setup-google-login.sh). Not a
+    secret. While empty, Terraform does not manage Google sign-in at all; once set it enables the
+    provider. The wizard writes it to google.auto.tfvars, which Terraform loads automatically.
+  EOT
+  type        = string
+  default     = ""
+}
+
+variable "supabase_google_client_secret" {
+  description = <<-EOT
+    OAuth client secret for the Google web client. Pass it only when setting or rotating it, as
+    TF_VAR_supabase_google_client_secret in the environment, never in a file. Left null, the secret
+    is not sent and Supabase keeps the one it has. Google shows a secret once, when it is created.
+  EOT
+  type        = string
+  default     = null
+  sensitive   = true
+}
+
+variable "supabase_extra_redirect_urls" {
+  description = <<-EOT
+    Other redirect URLs Supabase Auth must keep allowing, besides the client's /auth/callback. The
+    project's allow-list is managed here as a whole, so anything set in the dashboard that is not
+    listed is removed by the next apply: read the first plan's uri_allow_list line for what is there.
+    Entries are glob-matched including any query string (docs/research/phase12-supabase-google-oauth.md, finding 11).
+  EOT
+  type        = list(string)
+  default     = []
+}

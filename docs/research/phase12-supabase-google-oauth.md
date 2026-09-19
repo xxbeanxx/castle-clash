@@ -280,3 +280,23 @@ Local `supabase start` checks for the unverified rows: set `auth.enable_manual_l
 `auth.enable_anonymous_sign_ins = true`, a real Google client with `http://127.0.0.1:54321/auth/v1/callback`,
 then link the same Google account from two guests to see the exact callback params, and link a Google account
 whose email matches a seeded email user to see `email_exists`.
+
+## Outcome: decision D2
+
+Decided 2026-09-20: **Terraform owns the Supabase auth settings** (`supabase_settings.main` in
+`infra/terraform/supabase.tf`), not the Management-API script this note first led to. Finding 16 is what
+made that viable, and the provider's schema (read with `terraform providers schema -json`) confirms it:
+`auth` is a JSON string, `external_google_secret` is preserved from prior state, and the attribute is not
+itself marked sensitive, so the Google secret is passed as a `sensitive` variable, which makes the whole
+value sensitive in any plan that includes it (and only then).
+
+Two things found while writing it, both checked by evaluating the expression in an isolated config:
+
+- A conditional between two objects of different shape (`cond ? {} : { enabled = true, id = "..." }`) is
+  unified into a `map(string)`, which sent `external_google_enabled` as the **string** `"true"`. The
+  configuration builds the optional keys with filtered `for` expressions instead, which keep each key's type.
+- Marking is by data flow, so `var.secret != null` is itself sensitive and would have hidden the entire
+  plan even when no secret was passed. `nonsensitive()` on that boolean keeps normal plans readable.
+
+Still unverified, because nothing was applied: the first plan's exact diff after
+`terraform import supabase_settings.main <ref>`, and that a later plan without the secret settles to no change.

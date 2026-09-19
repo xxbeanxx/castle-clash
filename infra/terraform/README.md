@@ -13,7 +13,7 @@ environment), and every secret the pipeline uses. Terraform >= 1.9; providers `a
 | `dns.tf`            | CNAME + `asuid` TXT records in the `atomic-nucleus.com` zone, managed certificates, custom domains                                                                                 |
 | `identity.tf`       | `castle-clash-deploy-prod` app registration, service principal, GitHub OIDC federated credential, RG-scoped `Container Apps Contributor`                                           |
 | `github.tf`         | the repository and its settings, the `main` and release-tag rulesets, Actions permissions, the `production` environment (reviewer, `main`-only deploys), its variables and secrets |
-| `supabase.tf`       | the Supabase project, the server's secret API key, and the URLs/keys derived from them                                                                                             |
+| `supabase.tf`       | the Supabase project, the server's secret API key, the URLs/keys derived from them, and the auth settings the game needs (Google, guest linking; see below)                       |
 | `secrets.tf`        | the generated secrets and where each one goes                                                                                                                                      |
 | `backend.tf`        | remote state (below)                                                                                                                                                               |
 
@@ -86,11 +86,38 @@ wired to that one source. Nothing is typed into a dashboard or `gh secret set`.
 Read one back with `terraform output -raw smoke_token | supabase_secret_key | supabase_db_url`.
 Rotate with `terraform apply -replace=random_password.smoke_token` (likewise
 `-replace=supabase_apikey.server`); the new value propagates to every consumer in the same apply.
-The one credential outside Terraform is the optional `RELEASE_PLEASE_TOKEN` personal access token
-(GitHub has no API to mint one).
+The credentials Terraform cannot mint are the optional `RELEASE_PLEASE_TOKEN` personal access token
+(GitHub has no API to mint one) and the Google OAuth client secret (Google has no API for it): the
+latter is passed in once as `TF_VAR_supabase_google_client_secret`, see "Supabase auth settings".
 
 Because Container App secrets are only read at container start, a rotated value reaches the running
 server on its next revision (the next deploy, or `az containerapp revision restart`).
+
+## Supabase auth settings
+
+`supabase_settings.main` manages **only** these keys of the project's auth config (the provider tracks
+just the keys in the JSON and PATCHes just those; see `docs/research/phase12-supabase-google-oauth.md`,
+finding 16): `site_url` (the client origin), `uri_allow_list`, `external_anonymous_users_enabled`,
+`security_manual_linking_enabled` (both needed for a guest to link Google with `linkIdentity`),
+`mailer_allow_unverified_email_sign_ins = false`, and, once `supabase_google_client_id` is set,
+`external_google_enabled` and `external_google_client_id`.
+
+- **First run: import, then read the plan.** `terraform import supabase_settings.main <project ref>`
+  (the wizard does this), then `terraform plan`. `uri_allow_list` is managed **as a whole**, so anything
+  in the dashboard that must stay has to be in `var.supabase_extra_redirect_urls`; read that line in the
+  first plan before applying. The plan may also show cosmetic differences on unrelated keys right after
+  the import (the state starts as the full config, the configuration is a subset); one apply settles it.
+- **The Google client id** is not a secret: it lives in `google.auto.tfvars` (commit it), which Terraform
+  loads on its own. While it is empty Terraform does not manage Google at all.
+- **The Google client secret** is `var.supabase_google_client_secret` (sensitive). Pass it only when
+  setting or rotating it, as `TF_VAR_supabase_google_client_secret` in the environment, never in a file.
+  Left unset it is not sent and Supabase keeps the one it has. It ends up in state (already sensitive),
+  and Supabase stores it hashed, so Terraform cannot detect out-of-band changes to it. A plan that
+  includes the secret prints `(sensitive value)` for the whole `auth` block, so **plan without the secret
+  first** to review the diff; saved plans hold the secret, so delete them after applying.
+- **Not proven:** none of this has been applied. What is unverified: the exact first-plan diff after the
+  import, and that a plan with the secret omitted afterwards settles to no change (the provider reads back
+  only the configured keys, per its source, so at worst one in-place update that sends nothing new).
 
 ## GitHub rules
 
@@ -120,12 +147,9 @@ fight it:
 - `template` (image, cpu/memory, replicas, env vars, revision suffix, termination grace period)
 - `ingress[0].target_port` (2567 / 8080, set with `az containerapp ingress update`)
 
-Also not managed here: `RELEASE_PLEASE_TOKEN`; the Supabase auth/API settings (decision D2 in the v2 plan is still open. The
-locked provider does support a partial `supabase_settings.auth` block, contrary to what this file used to say:
-`docs/research/phase12-supabase-google-oauth.md`, finding 16, read from source, not applied. Until then
-Google sign-in's settings are applied by the `auth-config` script, and the two manual Google Cloud
-steps by `scripts/setup-google-login.sh`; see `docs/hosting.md`, "Google sign-in". The game needs anonymous
-sign-ins ON, manual linking ON, Google enabled, and `site_url` set to the client origin); the `atomic-nucleus.com`
+Also not managed here: `RELEASE_PLEASE_TOKEN`; every Supabase auth setting except the handful listed in
+"Supabase auth settings" above (mail templates, other providers, rate limits stay in the dashboard); the
+Google Cloud OAuth client (no API exists; `scripts/setup-google-login.sh` walks the console); the `atomic-nucleus.com`
 zone itself (another repo's Terraform; read via a `data` source), the DefaultResourceGroup-CCAN
 resource group, and GHCR package visibility (no API).
 

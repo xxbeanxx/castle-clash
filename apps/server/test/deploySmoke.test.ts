@@ -25,6 +25,12 @@ function json(res: ServerResponse, status: number, body: unknown): void {
   res.end(JSON.stringify(body));
 }
 
+/** What `react-router build` (SPA mode) actually emits: a shell with the title and
+ *  module preloads, and no `<div>` — React renders the root itself. */
+const SPA_SHELL =
+  '<!DOCTYPE html><html lang="en"><head><title>Castle Clash</title>' +
+  '<link rel="modulepreload" href="/assets/entry.client-abc.js"/></head><body></body></html>';
+
 interface Fakes {
   gameUrl: string;
   clientUrl: string;
@@ -34,7 +40,12 @@ interface Fakes {
 }
 
 async function startFakes(
-  overrides: { serverVersion?: string; recordStatus?: number; configGameUrl?: string } = {},
+  overrides: {
+    serverVersion?: string;
+    recordStatus?: number;
+    configGameUrl?: string;
+    clientHtml?: string;
+  } = {},
 ): Promise<Fakes> {
   const smokeCalls: Fakes["smokeCalls"] = [];
   const joins: string[] = [];
@@ -64,7 +75,7 @@ async function startFakes(
       return;
     }
     res.writeHead(200, { "content-type": "text/html" });
-    res.end('<!doctype html><div id="root"></div>');
+    res.end(overrides.clientHtml ?? SPA_SHELL);
   });
 
   const supabaseUrl = await listen((req, res) => {
@@ -124,6 +135,14 @@ describe("runDeploySmoke", () => {
     await expect(runDeploySmoke(configFor(fakes, { expectedVersion: "1.2.3" }))).rejects.toThrow(
       /version.*1\.2\.2.*1\.2\.3/s,
     );
+  });
+
+  it("fails when the client URL serves something other than the app (a placeholder or error page)", async () => {
+    const fakes = await startFakes({
+      clientHtml:
+        "<html><head><title>Welcome to nginx!</title></head><body><div>hi</div></body></html>",
+    });
+    await expect(runDeploySmoke(configFor(fakes))).rejects.toThrow(/client loads.*Castle Clash/s);
   });
 
   it("fails when the client's runtime config points at a different game server", async () => {

@@ -1,13 +1,15 @@
+import { logger } from "../logger.js";
 import type { MatchResultRecord, PlayerRepository } from "./PlayerRepository.js";
 
 const MAX_ATTEMPTS = 5;
 const BASE_DELAY_MS = 200;
 
-/** This codebase has no metrics client anywhere else (checked: no
- *  prometheus/statsd dependency exists) — an exported counter is the
- *  simplest honest way to satisfy plan step 5's "failures are ... exported
- *  as a metric" without inventing infrastructure the rest of the server
- *  doesn't use. Wiring this to a real metrics backend is future work. */
+/** Plan Phase 8 step 5's "failures are ... exported as a metric" — this
+ *  plain counter is what `RecordMatchQueue.test.ts` asserts against
+ *  directly; `observability/metrics.ts`'s `record_match_failures_total`
+ *  Gauge (Phase 10) reads it via a `collect()` callback rather than this
+ *  file also incrementing a `prom-client` counter in parallel, so there's
+ *  exactly one source of truth for the count. */
 export const recordMatchFailureCount = { value: 0 };
 
 /**
@@ -45,16 +47,16 @@ async function attempt(
   } catch (error) {
     if (attemptNumber >= MAX_ATTEMPTS) {
       recordMatchFailureCount.value += 1;
-      console.error(
-        `[recordMatch] giving up after ${attemptNumber} attempts for match ${result.matchId}:`,
-        error,
+      logger.error(
+        { err: error, matchId: result.matchId, attemptNumber },
+        "recordMatch: giving up after max attempts",
       );
       return false;
     }
     const backoffMs = BASE_DELAY_MS * 2 ** (attemptNumber - 1);
-    console.warn(
-      `[recordMatch] attempt ${attemptNumber} failed for match ${result.matchId}, retrying in ${backoffMs}ms:`,
-      error,
+    logger.warn(
+      { err: error, matchId: result.matchId, attemptNumber, backoffMs },
+      "recordMatch: attempt failed, retrying",
     );
     await delayFn(backoffMs);
     return attempt(repo, result, attemptNumber + 1, delayFn);

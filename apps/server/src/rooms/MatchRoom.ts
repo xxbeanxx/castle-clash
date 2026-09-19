@@ -9,6 +9,7 @@ import {
   isDraftPick,
   isInputFrame,
   MatchState,
+  MAX_PLAYERS,
   MESSAGE_TYPES,
   PATCH_RATE,
   playerId,
@@ -24,18 +25,28 @@ import {
   type SimState,
   type WeaponId,
 } from "@castle-clash/shared";
-import { type AuthContext, type Client, Room } from "colyseus";
+import { type AuthContext, type Client, CloseCode, matchMaker, Room } from "colyseus";
+import type pino from "pino";
 import {
   createDefaultTokenVerifier,
   type TokenVerifier,
   type VerifiedUser,
 } from "../auth/verifyToken.js";
+import { logger } from "../logger.js";
 import { DraftService, type DraftRoundPlayer } from "../match/DraftService.js";
 import { MatchDirector, type MatchResult } from "../match/MatchDirector.js";
 import { evaluateAndGrantUnlocks } from "../match/unlocks.js";
+import {
+  inputDropsTotal,
+  removeRoomPhase,
+  setRoomPhase,
+  tickDurationSeconds,
+} from "../observability/metrics.js";
 import { createDefaultPlayerRepository } from "../persistence/createPlayerRepository.js";
 import type { MatchResultRecord, PlayerRepository } from "../persistence/PlayerRepository.js";
 import { enqueueRecordMatch } from "../persistence/RecordMatchQueue.js";
+import { FixedWindowRateLimiter } from "../rateLimit.js";
+import { isDraining } from "../shutdown.js";
 import { InputQueue } from "./InputQueue.js";
 import { generateRoomCode } from "./roomCode.js";
 import { IntervalTickDriver, type TickDriver } from "./TickDriver.js";
@@ -51,12 +62,44 @@ const MAX_MESSAGES_PER_SECOND = TICK_RATE * 2;
 /** A pick happens once per round at most for a legitimate client — this is
  *  headroom for retries/misclicks, not a budget anyone should ever need to
  *  spend fast. Deliberately its own, much smaller bucket (see
- *  `#withinRateLimit`'s `key` param): sharing `MAX_MESSAGES_PER_SECOND`'s
+ *  `#draftRateLimiter`): sharing `MAX_MESSAGES_PER_SECOND`'s
  *  bucket with `input` would let a tick's worth of combat-input spam starve
  *  a `draft:pick` sent in the same real-time window, dropping a legitimate
  *  pick with no draft-side validation ever running on it. */
 const MAX_DRAFT_PICKS_PER_SECOND = 5;
 const RATE_LIMIT_WINDOW_MS = 1000;
+
+/** Plan Phase 10 step 1's "room-level input abuse kick" — a connection with
+ *  this many CONSECUTIVE rate-limited messages (any accepted message resets
+ *  the streak) is disconnected outright rather than perpetually throttled.
+ *  A legitimate client stays far under `MAX_MESSAGES_PER_SECOND` and never
+ *  builds a streak; a flooder exhausts its window and every further message
+ *  in it extends one. */
+const ABUSE_KICK_THRESHOLD = 30;
+/** Application-range WebSocket close code (4000-4999) for the kick above. */
+const ABUSE_KICK_CLOSE_CODE = 4008;
+
+/** Plan Phase 10 step 1's "join rate limit per ... user" — module-scoped
+ *  (not per-`MatchRoom` instance) because a malicious client repeatedly
+ *  joining/leaving DIFFERENT rooms would otherwise reset its budget on
+ *  every attempt; this is the one guardrail that has to see across every
+ *  room this process ever creates. Generous: a legitimate client calls
+ *  `onJoin` once per real join, ever. */
+const MAX_JOINS_PER_USER_PER_MINUTE = 10;
+const JOIN_RATE_LIMIT_WINDOW_MS = 60_000;
+const userJoinRateLimiter = new FixedWindowRateLimiter(
+  MAX_JOINS_PER_USER_PER_MINUTE,
+  JOIN_RATE_LIMIT_WINDOW_MS,
+);
+
+/** Plan Phase 10 step 1's "max rooms per process" — checked in `onCreate`
+ *  against `matchMaker.stats.local.roomCount`. The load-test budget (plan
+ *  step 5) targets 20 concurrent 6-player rooms on one instance; this is
+ *  deliberately well above that so it only ever fires as a genuine runaway-
+ *  creation guardrail, not a normal-operation ceiling. */
+function maxRoomsPerProcess(): number {
+  return Number(process.env["MAX_ROOMS_PER_PROCESS"] ?? 500);
+}
 
 /** How long a dropped connection's seat stays reserved before the player is
  *  finally removed from the match (plan Phase 5 step 3). */
@@ -126,7 +169,23 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
   #matchId!: string;
   #startedAt!: Date;
   readonly #inputQueue = new InputQueue();
-  readonly #messageWindows = new Map<string, { windowStartMs: number; count: number }>();
+  readonly #inputRateLimiter = new FixedWindowRateLimiter(
+    MAX_MESSAGES_PER_SECOND,
+    RATE_LIMIT_WINDOW_MS,
+  );
+  /** Its own, much smaller bucket — sharing `#inputRateLimiter`'s would let
+   *  a tick's worth of combat-input spam starve a `draft:pick` sent in the
+   *  same real-time window, dropping a legitimate pick with no draft-side
+   *  validation ever running on it. */
+  readonly #draftRateLimiter = new FixedWindowRateLimiter(
+    MAX_DRAFT_PICKS_PER_SECOND,
+    RATE_LIMIT_WINDOW_MS,
+  );
+  /** Consecutive rate-limit hits per `client.sessionId`, across BOTH
+   *  buckets above — incremented on every drop, reset to 0 the moment a
+   *  message from that session is accepted again. Feeds the
+   *  `ABUSE_KICK_THRESHOLD` disconnect in `#onInput`/`#onDraftPick`. */
+  readonly #violationStreaks = new Map<string, number>();
   readonly #director = new MatchDirector();
   /** Session ids that joined mid-`RoundActive` and are watching, not
    *  playing, until the next round starts (plan step 3: "late joiners wait
@@ -153,6 +212,13 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
    *  weapon back from at `MatchOver`, regardless of when they left or
    *  whether they spent part of the match spectating. */
   readonly #weaponByPlayerId = new Map<PlayerId, WeaponId>();
+  /** Plan Phase 10 step 1: "Structured logs with pino (roomId, matchId,
+   *  userId)." Bound with `roomId`/`matchId` once both are known (right
+   *  after `#matchId` is generated in `onCreate`) so every log line this
+   *  room ever writes carries both without repeating them at each call
+   *  site; a per-connection call adds `userId`/`sessionId` on top via
+   *  `.child(...)` again where relevant. */
+  #logger!: pino.Logger;
   #sim!: SimState;
   #draftService!: DraftService;
   /** Set from the most recent `roundEnd` event, read back when the
@@ -161,8 +227,27 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
    *  `DraftService`'s doc comment on the 2-tier simplification this implies
    *  for 3+ player matches. */
   #lastRoundWinner: PlayerId | null = null;
+  /** Set by `onBeforeShutdown()` for a room whose match is mid-flight. */
+  #disconnectWhenMatchOver = false;
 
   async onCreate(options: MatchRoomOptions = {}): Promise<void> {
+    // Plan Phase 10 step 1: "on SIGTERM the server stops accepting new
+    // rooms." Thrown before any state/tick-driver setup, so a draining
+    // process never leaves a half-initialized room behind — the matchmaker
+    // turns this into the join failing, the same way an `onAuth` rejection
+    // already does.
+    if (isDraining()) {
+      throw new Error("server is draining — not accepting new rooms");
+    }
+    // Colyseus increments `roomCount` only AFTER `onCreate` resolves (checked
+    // in `MatchMaker.handleCreateRoom`), so it does not yet include this room.
+    if (matchMaker.stats.local.roomCount >= maxRoomsPerProcess()) {
+      throw new Error("server is at its room capacity — not accepting new rooms");
+    }
+    // Found by Phase 10's load test: nothing ever set this, so Colyseus's
+    // default (unlimited) let quick play stuff every waiting client into ONE
+    // room — 24 bots produced a single 24-player match, not four 6-player ones.
+    this.maxClients = MAX_PLAYERS;
     this.setState(new MatchState());
     this.setPatchRate(1000 / PATCH_RATE);
     this.#playerRepository = options.playerRepository ?? createDefaultPlayerRepository();
@@ -174,6 +259,7 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
     // actual idempotency guarantee rather than a coincidence.
     this.#matchId = crypto.randomUUID();
     this.#startedAt = new Date();
+    this.#logger = logger.child({ roomId: this.roomId, matchId: this.#matchId });
 
     const arenaId: ArenaId =
       options.arenaId && isArenaId(options.arenaId) ? options.arenaId : randomArenaId();
@@ -223,6 +309,9 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
     // to for this token — always set by the time `onJoin` runs, since
     // `onAuth` throwing rejects the join before `onJoin` is ever called.
     const auth = client.auth as VerifiedUser;
+    if (!userJoinRateLimiter.consume(auth.userId)) {
+      throw new Error(`user ${auth.userId} is joining too frequently`);
+    }
     if (this.#sessionIdByUserId.has(auth.userId)) {
       // Plan step 5: "the same user can't hold two seats." Throwing here
       // (rather than silently ignoring the join) is what makes the second
@@ -329,8 +418,9 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
     delete remainingPlayers[id];
     this.#sim = { ...this.#sim, players: remainingPlayers };
     this.#inputQueue.removePlayer(client.sessionId);
-    this.#messageWindows.delete(`${client.sessionId}:input`);
-    this.#messageWindows.delete(`${client.sessionId}:draft`);
+    this.#inputRateLimiter.delete(client.sessionId);
+    this.#draftRateLimiter.delete(client.sessionId);
+    this.#violationStreaks.delete(client.sessionId);
     this.#spectatorIds.delete(client.sessionId);
     this.#director.removePlayer(id);
     this.#draftService.removePlayer(id);
@@ -358,54 +448,71 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
 
   onDispose(): void {
     this.#tickDriver.stop();
+    removeRoomPhase(this.roomId);
   }
 
   #onInput(client: Client, payload: unknown): void {
-    if (!this.#withinRateLimit(`${client.sessionId}:input`, MAX_MESSAGES_PER_SECOND)) {
-      console.warn(`[MatchRoom] rate-limited input from ${client.sessionId}, dropping`);
+    if (!this.#acceptWithinRateLimit(client, this.#inputRateLimiter, "input")) {
       return;
     }
     if (!isInputFrame(payload)) {
-      console.warn(`[MatchRoom] malformed input from ${client.sessionId}, dropping`, payload);
+      inputDropsTotal.labels("malformed").inc();
+      this.#logger.warn({ sessionId: client.sessionId }, "malformed input, dropping");
       return;
     }
     this.#inputQueue.push(client.sessionId, payload);
   }
 
   #onDraftPick(client: Client, payload: unknown): void {
-    if (!this.#withinRateLimit(`${client.sessionId}:draft`, MAX_DRAFT_PICKS_PER_SECOND)) {
-      console.warn(`[MatchRoom] rate-limited draft pick from ${client.sessionId}, dropping`);
+    if (!this.#acceptWithinRateLimit(client, this.#draftRateLimiter, "draft pick")) {
       return;
     }
     if (!isDraftPick(payload)) {
-      console.warn(`[MatchRoom] malformed draft pick from ${client.sessionId}, dropping`, payload);
+      inputDropsTotal.labels("malformed").inc();
+      this.#logger.warn({ sessionId: client.sessionId }, "malformed draft pick, dropping");
       return;
     }
     this.#draftService.pick(playerId(client.sessionId), payload.id);
   }
 
-  /** `key` namespaces the window per message type as well as per session
-   *  (`"<sessionId>:input"` vs `"<sessionId>:draft"`) — two independent
-   *  buckets, so a burst on one message type can never starve the other's
-   *  budget for the same connection. */
-  #withinRateLimit(key: string, limit: number): boolean {
-    const now = Date.now();
-    const window = this.#messageWindows.get(key);
-
-    if (!window || now - window.windowStartMs >= RATE_LIMIT_WINDOW_MS) {
-      this.#messageWindows.set(key, { windowStartMs: now, count: 1 });
+  /** Two independent limiters (input vs draft pick) so a burst on one
+   *  message type can never starve the other's budget for the same
+   *  connection; both feed ONE per-session `#violationStreaks` count, since
+   *  "abuse" is a property of the connection, not of a message type. A
+   *  dropped message extends the streak and, at `ABUSE_KICK_THRESHOLD`,
+   *  disconnects the client (plan Phase 10 step 1's "room-level input abuse
+   *  kick"); an accepted one resets it. */
+  #acceptWithinRateLimit(client: Client, limiter: FixedWindowRateLimiter, label: string): boolean {
+    if (limiter.consume(client.sessionId)) {
+      this.#violationStreaks.delete(client.sessionId);
       return true;
     }
 
-    if (window.count >= limit) {
-      return false;
-    }
+    inputDropsTotal.labels("rate_limited").inc();
+    const streak = (this.#violationStreaks.get(client.sessionId) ?? 0) + 1;
+    this.#violationStreaks.set(client.sessionId, streak);
+    this.#logger.warn({ sessionId: client.sessionId, streak }, `rate-limited ${label}, dropping`);
 
-    window.count += 1;
-    return true;
+    if (streak >= ABUSE_KICK_THRESHOLD) {
+      this.#logger.warn({ sessionId: client.sessionId }, "kicking client for input abuse");
+      this.#violationStreaks.delete(client.sessionId);
+      client.leave(ABUSE_KICK_CLOSE_CODE, "input abuse");
+    }
+    return false;
   }
 
+  /** Plan Phase 10 step 1's tick-duration histogram — a thin timing wrapper
+   *  around `#tickInner()` rather than instrumenting inline, so the tick
+   *  logic itself doesn't have to thread a start-time variable through
+   *  every early return it doesn't have (it has none today, but this keeps
+   *  it that way). */
   #tick(): void {
+    const endTimer = tickDurationSeconds.startTimer();
+    this.#tickInner();
+    endTimer();
+  }
+
+  #tickInner(): void {
     // Applies whatever `DraftService` resolved (manual or auto-picked) as of
     // the END of the PREVIOUS tick — one tick behind `#draftService.tick()`
     // below on purpose, the same "read prev, compute next" convention
@@ -489,9 +596,39 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
           );
         })
         .catch((error: unknown) => {
-          console.error(`[MatchRoom] unlock evaluation failed for match ${record.matchId}:`, error);
+          this.#logger.error({ err: error }, "unlock evaluation failed");
+        })
+        .finally(() => {
+          // Draining (`onBeforeShutdown`): this match was allowed to run to
+          // completion, and its result is now recorded — release the room so
+          // the process can exit. Deliberately AFTER `recordMatch`, never
+          // before: plan Phase 10's shutdown gate says an in-progress match
+          // "completes and calls `recordMatch` before exit."
+          if (this.#disconnectWhenMatchOver) {
+            void this.disconnect(CloseCode.SERVER_SHUTDOWN).catch(() => {});
+          }
         });
     }
+  }
+
+  /** Plan Phase 10 step 1: "lets running matches finish." Colyseus's default
+   *  `Room.onBeforeShutdown()` disconnects every client immediately —
+   *  verified in `@colyseus/core`'s `Room.mjs`, and observed live: a SIGTERM
+   *  mid-match exited in ~2 seconds. Overridden so a room with a match in
+   *  progress keeps running until `MatchOver` (then releases itself, see the
+   *  `.finally` above), while a room with no match to protect — still
+   *  `Waiting` for players, or already `MatchOver` — goes at once. */
+  onBeforeShutdown(): void {
+    const phase = this.#director.phase.phase;
+    // Only the drain path (`shutdown.ts`, which bounds the wait with
+    // `DRAIN_TIMEOUT`) may hold a room open. Any other caller of Colyseus's
+    // shutdown — notably `@colyseus/testing`'s `shutdown()` — has no timeout,
+    // so a room left mid-match would hang it forever.
+    if (!isDraining() || phase === "Waiting" || phase === "MatchOver") {
+      void this.disconnect(CloseCode.SERVER_SHUTDOWN).catch(() => {});
+      return;
+    }
+    this.#disconnectWhenMatchOver = true;
   }
 
   /** Generates and privately sends each active player's draft offer (plan
@@ -574,6 +711,7 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
   #syncMatchFlow(): void {
     const phase = this.#director.phase;
     this.state.phase = phase.phase;
+    setRoomPhase(this.roomId, phase.phase);
     this.state.round = phase.round;
     this.state.phaseEndsAtTick = phase.phaseEndsAtTick ?? -1;
 

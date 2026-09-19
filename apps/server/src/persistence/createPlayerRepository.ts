@@ -1,5 +1,6 @@
 import type { Database } from "@castle-clash/shared";
 import { createClient } from "@supabase/supabase-js";
+import { logger } from "../logger.js";
 import { InMemoryPlayerRepository } from "./InMemoryPlayerRepository.js";
 import type { PlayerRepository } from "./PlayerRepository.js";
 import { SupabasePlayerRepository } from "./SupabasePlayerRepository.js";
@@ -31,9 +32,9 @@ export function createDefaultPlayerRepository(): PlayerRepository {
   const secretKey = process.env["SUPABASE_SECRET_KEY"];
 
   if (!url || !secretKey) {
-    console.warn(
-      "[createDefaultPlayerRepository] SUPABASE_URL/SUPABASE_SECRET_KEY not set — " +
-        "falling back to InMemoryPlayerRepository (loadouts/match history will not persist).",
+    logger.warn(
+      "SUPABASE_URL/SUPABASE_SECRET_KEY not set — falling back to InMemoryPlayerRepository " +
+        "(loadouts/match history will not persist)",
     );
     return new InMemoryPlayerRepository();
   }

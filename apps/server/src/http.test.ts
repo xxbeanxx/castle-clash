@@ -3,9 +3,9 @@ import request from "supertest";
 import { describe, expect, it } from "vitest";
 import { registerHealthRoutes } from "./http.js";
 
-function createApp() {
+function createApp(isDraining?: () => boolean) {
   const app = express();
-  registerHealthRoutes(app);
+  registerHealthRoutes(app, isDraining);
   return app;
 }
 
@@ -17,6 +17,16 @@ describe("registerHealthRoutes", () => {
 
   it("returns 200 from /readyz", async () => {
     const response = await request(createApp()).get("/readyz");
+    expect(response.status).toBe(200);
+  });
+
+  it("returns 503 from /readyz while draining (plan Phase 10 step 1)", async () => {
+    const response = await request(createApp(() => true)).get("/readyz");
+    expect(response.status).toBe(503);
+  });
+
+  it("still returns 200 from /healthz while draining — it's liveness, not readiness", async () => {
+    const response = await request(createApp(() => true)).get("/healthz");
     expect(response.status).toBe(200);
   });
 });

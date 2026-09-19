@@ -10,7 +10,7 @@
     "format:fix": "oxfmt",
     "lint:check": "oxlint",
     "lint:fix": "oxlint --fix",
-    "test": "vitest run",
+    "test": "vitest run && sh docker/entrypoint.test.sh",
     "test:browser": "vitest run --config vitest.browser.config.ts",
     "typecheck": "react-router typegen && tsc"
   },

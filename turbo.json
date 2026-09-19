@@ -11,6 +11,9 @@
       "dependsOn": [
         "^build"
       ],
+      "env": [
+        "VITE_E2E"
+      ],
       "outputs": [
         "dist/**",
         "build/**"

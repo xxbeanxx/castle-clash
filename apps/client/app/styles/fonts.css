@@ -1,0 +1,33 @@
+/*
+ * Self-hosted, OFL-licensed (licenses sit beside the files in /fonts).
+ * The CSP has no font-src, so default-src 'self' applies: nothing here may
+ * point at a CDN. Latin subset only.
+ */
+@font-face {
+  font-family: "Pixelify Sans";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/fonts/pixelify-sans-latin-500-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Pixelify Sans";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/fonts/pixelify-sans-latin-700-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Alegreya Sans";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/alegreya-sans-latin-400-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Alegreya Sans";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/fonts/alegreya-sans-latin-700-normal.woff2") format("woff2");
+}

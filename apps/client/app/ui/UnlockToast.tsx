@@ -39,21 +39,9 @@ export function UnlockToast({ client }: { client: GameClient }) {
   }
 
   return (
-    <div
-      data-testid="unlock-toast"
-      style={{
-        position: "absolute",
-        top: 12,
-        right: 12,
-        background: "rgba(20,20,20,0.9)",
-        color: "white",
-        padding: "10px 16px",
-        borderRadius: 6,
-        maxWidth: 240,
-      }}
-    >
+    <div data-testid="unlock-toast" className="cc-toast" role="status">
       <strong>New unlock{items.length > 1 ? "s" : ""}!</strong>
-      <ul style={{ margin: "4px 0 0", paddingLeft: 18 }}>
+      <ul>
         {items.map((itemId) => (
           <li key={itemId}>{itemName(itemId)}</li>
         ))}

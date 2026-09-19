@@ -2,6 +2,7 @@ import { ARENA_IDS, type ArenaId } from "@castle-clash/shared";
 import { useState } from "react";
 import { useNavigate } from "react-router";
 import { requireSession } from "../auth/requireSession.js";
+import { Button, ButtonLink, Field, Input, Panel, Select } from "../ui/kit/index.js";
 
 /** Display names for the lobby's arena picker (Phase 6) — quick play skips
  *  this entirely and takes `MatchRoom`'s random default, since there's no
@@ -37,45 +38,47 @@ export default function Lobby() {
   const [arena, setArena] = useState<string>(RANDOM_ARENA);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16, padding: 24, maxWidth: 320 }}>
+    <div className="cc-page cc-page--narrow">
       <h1>Castle Clash</h1>
 
-      <div style={{ display: "flex", gap: 8 }}>
-        <button type="button" onClick={() => navigate("/loadout")}>
+      <div className="cc-row">
+        <ButtonLink to="/loadout" size="sm">
           Loadout
-        </button>
-        <button type="button" onClick={() => navigate("/stats")}>
+        </ButtonLink>
+        <ButtonLink to="/stats" size="sm">
           Stats
-        </button>
-        <button type="button" onClick={() => navigate("/leaderboard")}>
+        </ButtonLink>
+        <ButtonLink to="/leaderboard" size="sm">
           Leaderboard
-        </button>
+        </ButtonLink>
       </div>
 
-      <button type="button" onClick={() => navigate("/play/new")}>
+      <Button variant="primary" size="lg" onClick={() => navigate("/play/new")}>
         Quick play
-      </button>
+      </Button>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <label htmlFor="arena-select">Arena</label>
-        <select id="arena-select" value={arena} onChange={(event) => setArena(event.target.value)}>
-          <option value={RANDOM_ARENA}>Random</option>
-          {ARENA_OPTIONS.map((id) => (
-            <option key={id} value={id}>
-              {ARENA_LABELS[id]}
-            </option>
-          ))}
-        </select>
-        <button
-          type="button"
+      <Panel>
+        <Field label="Arena">
+          {(props) => (
+            <Select {...props} value={arena} onChange={(event) => setArena(event.target.value)}>
+              <option value={RANDOM_ARENA}>Random</option>
+              {ARENA_OPTIONS.map((id) => (
+                <option key={id} value={id}>
+                  {ARENA_LABELS[id]}
+                </option>
+              ))}
+            </Select>
+          )}
+        </Field>
+        <Button
           onClick={() => {
             const arenaParam = arena === RANDOM_ARENA ? "" : `&arena=${encodeURIComponent(arena)}`;
             navigate(`/play/new?mode=private${arenaParam}`);
           }}
         >
           Create private room
-        </button>
-      </div>
+        </Button>
+      </Panel>
 
       <form
         onSubmit={(event) => {
@@ -85,16 +88,17 @@ export default function Lobby() {
             navigate(`/play/new?mode=private&code=${encodeURIComponent(trimmed)}`);
           }
         }}
-        style={{ display: "flex", gap: 8 }}
+        className="cc-row"
       >
-        <input
+        <Input
           aria-label="Room code"
           placeholder="Room code"
           value={code}
           onChange={(event) => setCode(event.target.value.toUpperCase())}
           maxLength={6}
+          className="cc-grow"
         />
-        <button type="submit">Join</button>
+        <Button type="submit">Join</Button>
       </form>
     </div>
   );

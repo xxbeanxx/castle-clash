@@ -7,6 +7,7 @@ import {
   signInWithMagicLink,
   signInWithOAuth,
 } from "../auth/supabase.js";
+import { Button, Field, Input, Panel } from "../ui/kit/index.js";
 
 /**
  * The one route that isn't `clientLoader`-guarded (plan Phase 8 step 6) —
@@ -61,36 +62,48 @@ export default function Login() {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16, padding: 24, maxWidth: 320 }}>
-      <h1>Sign in to Castle Clash</h1>
+    <div className="cc-page">
+      <Panel className="cc-login">
+        <h1>Sign in to Castle Clash</h1>
 
-      <form onSubmit={handleMagicLinkSubmit} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        <label htmlFor="email">Email</label>
-        <input
-          id="email"
-          type="email"
-          required
-          value={email}
-          onChange={(event) => setEmail(event.target.value)}
-          disabled={pending}
-        />
-        <button type="submit" disabled={pending || magicLinkSent}>
-          {magicLinkSent ? "Check your email for a link" : "Send magic link"}
-        </button>
-      </form>
+        <form onSubmit={handleMagicLinkSubmit} className="cc-stack">
+          <Field label="Email">
+            {(props) => (
+              <Input
+                {...props}
+                type="email"
+                required
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                disabled={pending}
+              />
+            )}
+          </Field>
+          <Button type="submit" variant="primary" block disabled={pending || magicLinkSent}>
+            {magicLinkSent ? "Check your email for a link" : "Send magic link"}
+          </Button>
+        </form>
 
-      <button type="button" onClick={() => handleOAuth("discord")} disabled={pending}>
-        Continue with Discord
-      </button>
-      <button type="button" onClick={() => handleOAuth("google")} disabled={pending}>
-        Continue with Google
-      </button>
+        <div className="cc-divider">or</div>
 
-      <button type="button" onClick={handleGuest} disabled={pending}>
-        Play as guest
-      </button>
+        <div className="cc-stack">
+          <Button block onClick={() => handleOAuth("discord")} disabled={pending}>
+            Continue with Discord
+          </Button>
+          <Button block onClick={() => handleOAuth("google")} disabled={pending}>
+            Continue with Google
+          </Button>
+          <Button block variant="ghost" onClick={handleGuest} disabled={pending}>
+            Play as guest
+          </Button>
+        </div>
 
-      {error && <p role="alert">{error}</p>}
+        {error && (
+          <p role="alert" className="cc-alert">
+            {error}
+          </p>
+        )}
+      </Panel>
     </div>
   );
 }

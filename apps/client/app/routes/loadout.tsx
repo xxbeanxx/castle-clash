@@ -9,6 +9,7 @@ import { useState } from "react";
 import { useLoaderData } from "react-router";
 import { requireSession } from "../auth/requireSession.js";
 import { getMyLoadout, getMyUnlocks, saveMyLoadout, type ClientLoadout } from "../auth/supabase.js";
+import { Button, Field, Panel, Select } from "../ui/kit/index.js";
 import { LoadoutPreview } from "../ui/LoadoutPreview.js";
 
 /** A small, fixed set of selectable colors (plan Phase 9 step 4: "color
@@ -82,14 +83,8 @@ function TintSwatch({
       onClick={onSelect}
       aria-label={hex}
       aria-pressed={selected}
-      style={{
-        width: 28,
-        height: 28,
-        background: hex,
-        border: selected ? "3px solid white" : "1px solid #666",
-        borderRadius: 4,
-        cursor: "pointer",
-      }}
+      className="cc-swatch"
+      style={{ background: hex }}
     />
   );
 }
@@ -107,9 +102,9 @@ function CosmeticSlotPicker({
 }) {
   const items = COSMETIC_CATALOG.filter((item) => item.slot === slot);
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-      <span>{SLOT_LABELS[slot]}</span>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+    <div className="cc-field">
+      <span className="cc-field__label">{SLOT_LABELS[slot]}</span>
+      <div className="cc-row">
         {items.map((item) => {
           const isOwned = item.unlock.type === "default" || owned.has(item.id);
           const isSelected = item.id === selectedId;
@@ -120,14 +115,8 @@ function CosmeticSlotPicker({
               disabled={!isOwned}
               onClick={() => onSelect(item.id)}
               title={isOwned ? item.name : `${item.name} (locked)`}
-              style={{
-                padding: "4px 8px",
-                border: isSelected ? "2px solid white" : "1px solid #666",
-                borderRadius: 4,
-                background: isOwned ? "#222" : "#111",
-                color: isOwned ? "white" : "#666",
-                cursor: isOwned ? "pointer" : "not-allowed",
-              }}
+              aria-pressed={isSelected}
+              className={isSelected ? "cc-chip cc-chip--selected" : "cc-chip"}
             >
               {item.name}
               {!isOwned && " (locked)"}
@@ -168,37 +157,37 @@ export default function Loadout() {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16, padding: 24, maxWidth: 480 }}>
+    <div className="cc-page cc-page--narrow">
       <h1>Loadout</h1>
 
-      <div style={{ display: "flex", gap: 24, alignItems: "flex-start" }}>
+      <Panel className="cc-loadout">
         <LoadoutPreview tint={loadout.tintPrimary} helmetTint={helmetTint} capeTint={capeTint} />
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <span>Weapon</span>
-            <select
-              value={loadout.weapon}
-              onChange={(event) => {
-                setLoadout((prev) => ({ ...prev, weapon: event.target.value as WeaponId }));
-                setStatus(null);
-              }}
-            >
-              {Object.values(WEAPON_IDS).map((weapon) => (
-                <option key={weapon} value={weapon}>
-                  {WEAPON_LABELS[weapon]}
-                </option>
-              ))}
-            </select>
-          </div>
+        <div className="cc-stack">
+          <Field label="Weapon">
+            {(props) => (
+              <Select
+                {...props}
+                value={loadout.weapon}
+                onChange={(event) => {
+                  setLoadout((prev) => ({ ...prev, weapon: event.target.value as WeaponId }));
+                  setStatus(null);
+                }}
+              >
+                {Object.values(WEAPON_IDS).map((weapon) => (
+                  <option key={weapon} value={weapon}>
+                    {WEAPON_LABELS[weapon]}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </Field>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <span id="tint-primary-label">Primary tint</span>
-            <div
-              role="group"
-              aria-labelledby="tint-primary-label"
-              style={{ display: "flex", gap: 6 }}
-            >
+          <div className="cc-field">
+            <span id="tint-primary-label" className="cc-field__label">
+              Primary tint
+            </span>
+            <div role="group" aria-labelledby="tint-primary-label" className="cc-row">
               {TINT_PALETTE.map((color) => (
                 <TintSwatch
                   key={color}
@@ -213,13 +202,11 @@ export default function Loadout() {
             </div>
           </div>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <span id="tint-secondary-label">Secondary tint</span>
-            <div
-              role="group"
-              aria-labelledby="tint-secondary-label"
-              style={{ display: "flex", gap: 6 }}
-            >
+          <div className="cc-field">
+            <span id="tint-secondary-label" className="cc-field__label">
+              Secondary tint
+            </span>
+            <div role="group" aria-labelledby="tint-secondary-label" className="cc-row">
               {TINT_PALETTE.map((color) => (
                 <TintSwatch
                   key={color}
@@ -234,7 +221,7 @@ export default function Loadout() {
             </div>
           </div>
         </div>
-      </div>
+      </Panel>
 
       <CosmeticSlotPicker
         slot={COSMETIC_SLOTS.HELMET}
@@ -255,10 +242,12 @@ export default function Loadout() {
         onSelect={(itemId) => updateSlot(COSMETIC_SLOTS.WEAPON_STYLE, itemId)}
       />
 
-      <button type="button" onClick={() => void handleSave()} disabled={saving}>
-        {saving ? "Saving..." : "Save loadout"}
-      </button>
-      {status && <p>{status}</p>}
+      <div className="cc-row">
+        <Button variant="primary" onClick={() => void handleSave()} disabled={saving}>
+          {saving ? "Saving..." : "Save loadout"}
+        </Button>
+        {status && <p role="status">{status}</p>}
+      </div>
     </div>
   );
 }

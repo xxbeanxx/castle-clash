@@ -1,0 +1,169 @@
+/* In-match overlays that sit on top of the Pixi canvas (CombatHud, MatchBanner,
+   DraftOverlay, ResultsOverlay, UnlockToast). All are absolutely positioned
+   inside GameCanvas's relative wrapper. */
+
+.cc-hud {
+  position: absolute;
+  top: var(--space-3);
+  left: var(--space-3);
+  right: var(--space-3);
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-4);
+  pointer-events: none;
+  color: var(--ink);
+  text-shadow: 0 1px 2px oklch(0 0 0 / 0.85);
+}
+.cc-hud__player {
+  min-width: 11.25rem;
+}
+.cc-hud__label {
+  margin-bottom: var(--space-1);
+  font-size: var(--text-sm);
+}
+.cc-bar {
+  width: 11.25rem;
+  height: 0.625rem;
+  background: oklch(0 0 0 / 0.55);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.cc-bar + .cc-bar {
+  margin-top: var(--space-1);
+}
+.cc-bar__fill {
+  height: 100%;
+  transition: width 100ms linear;
+}
+.cc-bar__fill--hp {
+  background: var(--crimson-400);
+}
+.cc-bar__fill--stamina {
+  background: var(--gold-500);
+}
+
+.cc-banner {
+  position: absolute;
+  top: var(--space-3);
+  left: 50%;
+  transform: translateX(-50%);
+  text-align: center;
+  pointer-events: none;
+  color: var(--ink);
+  text-shadow: 0 1px 2px oklch(0 0 0 / 0.85);
+}
+.cc-banner__phase {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-lg);
+  white-space: nowrap;
+}
+.cc-banner__code {
+  margin-top: var(--space-1);
+  font-size: var(--text-sm);
+}
+
+.cc-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-overlay);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-5);
+  padding: var(--gutter);
+  background: oklch(0.12 0.012 60 / 0.82);
+  color: var(--ink);
+  overflow: auto;
+}
+.cc-overlay__title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-xl);
+}
+
+.cc-draft-cards {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-4);
+}
+.cc-draft-card {
+  width: 9rem;
+  min-height: 6.5rem;
+  padding: var(--space-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  background: var(--stone-850);
+  border: 2px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out);
+}
+.cc-draft-card:hover:not(:disabled) {
+  border-color: var(--gold-500);
+  background: var(--stone-800);
+}
+.cc-draft-card:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+.cc-draft-card--picked {
+  border-color: var(--moss-400);
+  background: oklch(0.3 0.05 145 / 0.5);
+  opacity: 1 !important;
+}
+.cc-draft-opponents {
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+  text-align: center;
+}
+
+.cc-results {
+  border-collapse: collapse;
+}
+.cc-results th,
+.cc-results td {
+  padding: var(--space-1) var(--space-3);
+  text-align: center;
+}
+.cc-results th:first-child,
+.cc-results td:first-child {
+  text-align: left;
+}
+
+.cc-toast {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  z-index: var(--z-toast);
+  max-width: 15rem;
+  padding: var(--space-3) var(--space-4);
+  background: var(--stone-850);
+  border: 1px solid var(--gold-600);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-raised);
+  color: var(--ink);
+}
+.cc-toast ul {
+  margin: var(--space-1) 0 0;
+  padding-left: 1.125rem;
+}
+
+.cc-game {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+.cc-game__canvas {
+  width: 100%;
+  height: 100%;
+}

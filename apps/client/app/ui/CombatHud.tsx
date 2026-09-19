@@ -3,28 +3,11 @@ import { useEffect, useState } from "react";
 import type { GameClient } from "../game/GameClient.js";
 import type { HudPlayerSnapshot } from "../game/hud.js";
 
-const BAR_WIDTH = 180;
-
-function Bar({ value, max, color }: { value: number; max: number; color: string }) {
+function Bar({ value, max, kind }: { value: number; max: number; kind: "hp" | "stamina" }) {
   const pct = max > 0 ? Math.max(0, Math.min(1, value / max)) * 100 : 0;
   return (
-    <div
-      style={{
-        width: BAR_WIDTH,
-        height: 10,
-        background: "rgba(0,0,0,0.5)",
-        borderRadius: 4,
-        overflow: "hidden",
-      }}
-    >
-      <div
-        style={{
-          width: `${pct}%`,
-          height: "100%",
-          background: color,
-          transition: "width 100ms linear",
-        }}
-      />
+    <div className="cc-bar">
+      <div className={`cc-bar__fill cc-bar__fill--${kind}`} style={{ width: `${pct}%` }} />
     </div>
   );
 }
@@ -56,29 +39,14 @@ export function CombatHud({ client }: { client: GameClient }) {
   };
 
   return (
-    <div
-      data-testid="combat-hud"
-      style={{
-        position: "absolute",
-        top: 12,
-        left: 12,
-        right: 12,
-        display: "flex",
-        justifyContent: "space-between",
-        pointerEvents: "none",
-        fontFamily: "sans-serif",
-        color: "#fff",
-        textShadow: "0 1px 2px rgba(0,0,0,0.8)",
-      }}
-    >
+    <div data-testid="combat-hud" className="cc-hud">
       {snapshots.map((player) => (
-        <div key={player.id} style={{ minWidth: BAR_WIDTH }}>
-          <div style={{ fontSize: 12, marginBottom: 2 }}>
+        <div key={player.id} className="cc-hud__player">
+          <div className="cc-hud__label">
             {labelFor(player)} · {player.weapon} · {player.action}
           </div>
-          <Bar value={player.hp} max={MAX_HP} color="#e33" />
-          <div style={{ height: 4 }} />
-          <Bar value={player.stamina} max={MAX_STAMINA} color="#fc3" />
+          <Bar value={player.hp} max={MAX_HP} kind="hp" />
+          <Bar value={player.stamina} max={MAX_STAMINA} kind="stamina" />
         </div>
       ))}
     </div>

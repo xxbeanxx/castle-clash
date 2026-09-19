@@ -30,26 +30,12 @@ export function DraftOverlay({ client }: { client: GameClient }) {
   const opponents = hud.filter((player) => !player.isLocal);
 
   return (
-    <div
-      data-testid="draft-overlay"
-      style={{
-        position: "absolute",
-        inset: 0,
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 20,
-        background: "rgba(0,0,0,0.75)",
-        color: "#fff",
-        fontFamily: "sans-serif",
-      }}
-    >
-      <div style={{ fontSize: 18, fontWeight: 600 }}>
+    <div data-testid="draft-overlay" className="cc-overlay">
+      <div className="cc-overlay__title">
         Choose a power-up{seconds !== null ? ` · ${seconds}s` : ""}
       </div>
 
-      <div style={{ display: "flex", gap: 16 }}>
+      <div className="cc-draft-cards">
         {offer.offers.map((id) => {
           const isPicked = offer.picked === id;
           const disabled = offer.picked !== null;
@@ -60,22 +46,7 @@ export function DraftOverlay({ client }: { client: GameClient }) {
               data-testid="draft-card"
               disabled={disabled}
               onClick={() => client.pickPowerUp(id)}
-              style={{
-                width: 140,
-                height: 100,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                textAlign: "center",
-                padding: 8,
-                borderRadius: 8,
-                border: isPicked ? "2px solid #6c6" : "2px solid #fff",
-                background: isPicked ? "rgba(102,204,102,0.25)" : "rgba(255,255,255,0.08)",
-                color: "#fff",
-                fontSize: 14,
-                cursor: disabled ? "default" : "pointer",
-                opacity: disabled && !isPicked ? 0.5 : 1,
-              }}
+              className={isPicked ? "cc-draft-card cc-draft-card--picked" : "cc-draft-card"}
             >
               {id}
             </button>
@@ -84,10 +55,11 @@ export function DraftOverlay({ client }: { client: GameClient }) {
       </div>
 
       {opponents.length > 0 && (
-        <div style={{ fontSize: 12, opacity: 0.85, textAlign: "center" }}>
+        <div className="cc-draft-opponents">
           {opponents.map((player) => (
             <div key={player.id}>
-              Opponent: {player.powerups.length > 0 ? player.powerups.join(", ") : "no power-ups yet"}
+              Opponent:{" "}
+              {player.powerups.length > 0 ? player.powerups.join(", ") : "no power-ups yet"}
             </div>
           ))}
         </div>

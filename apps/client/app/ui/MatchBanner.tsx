@@ -32,27 +32,14 @@ export function MatchBanner({ client }: { client: GameClient }) {
   const seconds = flow.ticksRemaining !== null ? Math.ceil(flow.ticksRemaining / TICK_RATE) : null;
 
   return (
-    <div
-      data-testid="match-banner"
-      style={{
-        position: "absolute",
-        top: 12,
-        left: "50%",
-        transform: "translateX(-50%)",
-        pointerEvents: "none",
-        fontFamily: "sans-serif",
-        color: "#fff",
-        textShadow: "0 1px 2px rgba(0,0,0,0.8)",
-        textAlign: "center",
-      }}
-    >
-      <div style={{ fontSize: 18, fontWeight: 600 }}>
+    <div data-testid="match-banner" className="cc-banner">
+      <div className="cc-banner__phase">
         {PHASE_LABEL[flow.phase] ?? flow.phase}
         {flow.round > 0 ? ` · Round ${flow.round}` : ""}
         {seconds !== null ? ` · ${seconds}s` : ""}
       </div>
       {code && flow.phase === "Waiting" && (
-        <div style={{ fontSize: 14, marginTop: 4 }}>Share this code: {code}</div>
+        <div className="cc-banner__code">Share this code: {code}</div>
       )}
     </div>
   );

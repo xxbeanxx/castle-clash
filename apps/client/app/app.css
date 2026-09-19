@@ -1,6 +1,5 @@
-html,
-body {
-  margin: 0;
-  height: 100%;
-  font-family: system-ui, sans-serif;
-}
+@import "./styles/tokens.css";
+@import "./styles/fonts.css";
+@import "./styles/base.css";
+@import "./styles/game.css";
+@import "./styles/pages.css";

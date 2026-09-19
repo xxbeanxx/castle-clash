@@ -2,6 +2,7 @@ import type { MatchResult } from "@castle-clash/shared";
 import { useEffect, useState } from "react";
 import type { GameClient } from "../game/GameClient.js";
 import { ButtonLink } from "./kit/index.js";
+import { SaveProgressNudge } from "./SaveProgressNudge.js";
 
 /**
  * The plan's Phase 5 gate wants a results screen at the end of a best-of-5 —
@@ -55,6 +56,7 @@ export function ResultsOverlay({ client }: { client: GameClient }) {
       <ButtonLink to="/lobby" variant="primary">
         Return to lobby
       </ButtonLink>
+      <SaveProgressNudge />
     </div>
   );
 }

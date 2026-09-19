@@ -289,8 +289,7 @@ you add to the prerender list needs a matching entry in `public/sitemap.xml` if 
 
 Auth: `/`, `/leaderboard` and the static pages are public; `lobby`, `play`, `loadout`, `stats` call
 `requireSession(request)`, which redirects to `/login?next=<path+query>`; `login` honours `next` only
-through `auth/nextPath.ts`'s `safeNextPath` (same-origin paths only). OAuth still returns to plain
-`/login`, so `next` is lost across a Google round trip until Phase 12 carries it in `redirectTo`.
+through `auth/nextPath.ts`'s `safeNextPath` (same-origin paths only, and never `/login` or `/auth/*`).
 The leaderboard query excludes players without a display name (v2 decision D3, no migration).
 `auth/supabase.js` is imported dynamically by anything on the landing page's path (`useSession`,
 `PlayNowButton`, `LeaderboardTeaser`, the header's sign-out) to keep `supabase-js` out of its
@@ -302,6 +301,34 @@ nothing". `pnpm --filter @castle-clash/client run check:landing` fails if Pixi o
 enter `/`'s script graph; CI's `web-quality` job also holds Lighthouse to performance >= 90,
 accessibility >= 95, LCP <= 2.5 s.
 
+### Accounts (Phase 12)
+
+`docs/research/phase12-supabase-google-oauth.md` has the evidence behind everything here, including
+what was **not** verified (no real Google round trip has been run; `docs/hosting.md`'s checklist is
+that gate).
+
+- **A guest links Google, never signs in with it.** `auth/supabase.ts`'s `signInWithGoogle` calls
+  `linkIdentity` for an anonymous session (same user id, so stats and unlocks stay) and
+  `signInWithOAuth` otherwise. `signInWithOAuth` for a guest creates or picks a different user and
+  orphans the guest. `signInWithMagicLink` does not upgrade a guest either (`signInWithOtp` sends no
+  session token), so the only upgrade path today is Google.
+- **`/auth/callback`** relies on supabase-js's default implicit flow: the session arrives in the URL
+  fragment and `getSession()` picks it up, so never call `exchangeCodeForSession`. Failures are URL
+  params, not a return value (`auth/callbackError.ts`), and there are two collision modes:
+  `identity_already_exists` and `email_exists`. The guest session survives either, so the page
+  offers "keep playing" and only switches accounts after a confirmation that names what is lost.
+- **`next` rides in `sessionStorage`** (`auth/pendingNext.ts`), not `redirectTo`: Supabase matches
+  redirect URLs against its allow-list including the query string. Reads must not consume (StrictMode
+  double-runs effects).
+- **Names.** `validateDisplayName` (shared) mirrors the `profiles_display_name_shape` check; the
+  blocked-word list is client/server only. Guests are named `Guest-XXXX` at join from their user id
+  and never stored, so `profiles.display_name` stays null for them (D3), and RLS refuses a guest's
+  name update. `PlayerState.name` and `MatchResult.names` carry names to the client, with fallbacks
+  for a server that predates them.
+- **Hosted Supabase auth config is not applied by CI or Terraform** (open decision D2). Use
+  `pnpm --filter @castle-clash/server run auth-config` (dry run unless `--apply`) or
+  `scripts/setup-google-login.sh`. Local `supabase/config.toml` needs `enable_manual_linking = true`.
+
 Gotchas from checking this live rather than trusting tests:
 
 - `<script src="/config.js">` must stay a plain synchronous script. React Router emits its own
@@ -309,9 +336,10 @@ Gotchas from checking this live rather than trusting tests:
 - nginx ships with gzip off; without `gzip on` the JS bundle is ~4x larger and the landing page's
   LCP misses its budget on a throttled phone.
 - Serving `build/client` from a podman bind mount: a rebuild replaces the directory, so restart the
-  container afterwards or it 500s. Run `docker/entrypoint.sh` (with `HTML_DIR`/`CSP_CONF`) to
-  generate `config.js` and the real CSP. `VITE_E2E=1` is needed at build time for the e2e specs'
-  `window.__CC_DEBUG__`.
+  container afterwards or it 500s. It also deletes `config.js`, so re-run `docker/entrypoint.sh`
+  (with `HTML_DIR`/`CSP_CONF`; it generates `config.js` and the real CSP) after every rebuild:
+  without `config.js` every Supabase call fails and the app reports a misleading "no session".
+  `VITE_E2E=1` is needed at build time for the e2e specs' `window.__CC_DEBUG__`.
 - `pnpm dev` is React StrictMode, which double-mounts `GameClient.start()`; quick play from a cold
   page can fail there with "user is already connected to this match". The production build doesn't
   do it, so run Playwright against a built client, not the dev server.

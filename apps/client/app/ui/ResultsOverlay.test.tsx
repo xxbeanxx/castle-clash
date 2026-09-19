@@ -1,9 +1,12 @@
 import type { MatchResult } from "@castle-clash/shared";
 import { cleanup, render, screen } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { GameClient } from "../game/GameClient.js";
 import { ResultsOverlay } from "./ResultsOverlay.js";
+
+// The nudge has its own tests; here the player is signed out, so it stays silent.
+vi.mock("../auth/useSession.js", () => ({ useSession: () => null }));
 
 const entry = { eliminations: 1, deaths: 0, damageDealt: 50, roundsWon: 3 };
 

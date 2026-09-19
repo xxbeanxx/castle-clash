@@ -7,11 +7,13 @@ import AuthCallback from "./auth.callback.js";
 
 const getSessionMock = vi.fn();
 const getMyStatsMock = vi.fn();
+const getMyProfileMock = vi.fn();
 const signInToExistingMock = vi.fn().mockResolvedValue(undefined);
 
 vi.mock("../auth/supabase.js", () => ({
   getSession: () => getSessionMock(),
   getMyStats: () => getMyStatsMock(),
+  getMyProfile: () => getMyProfileMock(),
   signInToExistingGoogleAccount: (next?: string) => signInToExistingMock(next),
 }));
 
@@ -27,6 +29,7 @@ function renderCallback(entry: string, options: { strict?: boolean } = {}) {
     [
       { path: "/auth/callback", Component: AuthCallback },
       { path: "/lobby", Component: () => <p>lobby route</p> },
+      { path: "/account", Component: () => <p>account route</p> },
       { path: "/login", Component: () => <p>login route</p> },
       { path: "/play/:roomId", Component: () => <p>play route</p> },
     ],
@@ -40,6 +43,7 @@ function renderCallback(entry: string, options: { strict?: boolean } = {}) {
 describe("/auth/callback", () => {
   beforeEach(() => {
     getMyStatsMock.mockResolvedValue(STATS);
+    getMyProfileMock.mockResolvedValue({ displayName: "Sir_Kay", isAnonymous: false });
   });
 
   afterEach(() => {
@@ -75,6 +79,35 @@ describe("/auth/callback", () => {
       const { router } = renderCallback("/auth/callback", { strict: true });
 
       await waitFor(() => expect(router.state.location.pathname).toBe("/play/new"));
+    });
+
+    it("invites a first-time account to pick a name, then carries on to where it was headed", async () => {
+      getSessionMock.mockResolvedValue(MEMBER);
+      getMyProfileMock.mockResolvedValue({ displayName: null, isAnonymous: false });
+      rememberNext("/play/new?mode=private&code=ABC123");
+      const { router } = renderCallback("/auth/callback");
+
+      await waitFor(() => expect(router.state.location.pathname).toBe("/account"));
+      const params = new URLSearchParams(router.state.location.search);
+      expect(params.get("welcome")).toBe("1");
+      expect(params.get("next")).toBe("/play/new?mode=private&code=ABC123");
+      expect(peekNext()).toBeNull();
+    });
+
+    it("does not nag a guest who is still a guest", async () => {
+      getSessionMock.mockResolvedValue(GUEST);
+      getMyProfileMock.mockResolvedValue({ displayName: null, isAnonymous: true });
+      const { router } = renderCallback("/auth/callback");
+
+      await waitFor(() => expect(router.state.location.pathname).toBe("/lobby"));
+    });
+
+    it("does not get in the way if the profile cannot be read", async () => {
+      getSessionMock.mockResolvedValue(MEMBER);
+      getMyProfileMock.mockRejectedValue(new Error("offline"));
+      const { router } = renderCallback("/auth/callback");
+
+      await waitFor(() => expect(router.state.location.pathname).toBe("/lobby"));
     });
 
     it("says so, and offers another try, if no session came back", async () => {

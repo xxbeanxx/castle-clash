@@ -2,7 +2,12 @@ import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { readCallbackError, type CallbackError } from "../auth/callbackError.js";
 import { forgetNext, peekNext } from "../auth/pendingNext.js";
-import { getMyStats, getSession, signInToExistingGoogleAccount } from "../auth/supabase.js";
+import {
+  getMyProfile,
+  getMyStats,
+  getSession,
+  signInToExistingGoogleAccount,
+} from "../auth/supabase.js";
 import { privatePageMeta } from "../meta.js";
 import { Button, ButtonLink, Modal, Panel } from "../ui/kit/index.js";
 
@@ -48,8 +53,23 @@ export default function AuthCallback() {
       }
       if (session && !error) {
         const destination = peekNext() ?? "/lobby";
+        // A real account with no name yet is invited to pick one, on its way to where it was headed.
+        // Never blocks: a failed profile read or a guest just carries on.
+        let needsName = false;
+        try {
+          const profile = await getMyProfile();
+          needsName = !profile.isAnonymous && profile.displayName === null;
+        } catch {
+          // Carry on to the destination.
+        }
+        if (cancelled) {
+          return;
+        }
         forgetNext();
-        navigate(destination, { replace: true });
+        navigate(
+          needsName ? `/account?welcome=1&next=${encodeURIComponent(destination)}` : destination,
+          { replace: true },
+        );
         return;
       }
       setOutcome({

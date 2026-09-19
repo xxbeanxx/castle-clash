@@ -1,11 +1,12 @@
 import { MATCH_ROOM_NAME } from "@castle-clash/shared";
 import { monitor } from "@colyseus/monitor";
-import { defineRoom, defineServer, WebSocketTransport } from "colyseus";
+import { defineRoom, defineServer, matchMaker, WebSocketTransport } from "colyseus";
 import { createDefaultTokenVerifier } from "./auth/verifyToken.js";
 import { envNumber } from "./env.js";
 import { registerHealthRoutes } from "./http.js";
 import { logger } from "./logger.js";
 import { registerMetricsRoute } from "./observability/metrics.js";
+import { registerPublicStatsRoute } from "./publicStats.js";
 import { createSupabasePlayerRepository } from "./persistence/createPlayerRepository.js";
 import { FixedWindowRateLimiter } from "./rateLimit.js";
 import { MatchRoom } from "./rooms/MatchRoom.js";
@@ -47,6 +48,17 @@ export const server = defineServer({
   express: (app) => {
     registerHealthRoutes(app, isDraining, serverVersion());
     registerMetricsRoute(app);
+    registerPublicStatsRoute(app, {
+      read: () => ({
+        players: matchMaker.stats.local.ccu,
+        rooms: matchMaker.stats.local.roomCount,
+      }),
+      version: serverVersion(),
+      allowedOrigins: (process.env["CORS_ORIGINS"] ?? "")
+        .split(",")
+        .map((origin) => origin.trim())
+        .filter(Boolean),
+    });
     const smokeToken = process.env["SMOKE_TOKEN"];
     if (smokeToken) {
       const repository = createSupabasePlayerRepository();

@@ -2,19 +2,9 @@ import { ARENA_IDS, type ArenaId } from "@castle-clash/shared";
 import { useState } from "react";
 import { useNavigate } from "react-router";
 import { requireSession } from "../auth/requireSession.js";
+import { ARENA_LABELS } from "../content/arenas.js";
 import { Button, ButtonLink, Field, Input, Panel, Select } from "../ui/kit/index.js";
 
-/** Display names for the lobby's arena picker (Phase 6) — quick play skips
- *  this entirely and takes `MatchRoom`'s random default, since there's no
- *  host to ask; only a private room's creator picks one. */
-const ARENA_LABELS: Record<ArenaId, string> = {
-  [ARENA_IDS.PIT]: "Pit",
-  [ARENA_IDS.CASTLE_ROOM]: "Castle Room",
-  [ARENA_IDS.COLOSSEUM]: "Colosseum",
-  [ARENA_IDS.BRIDGE]: "Bridge",
-  [ARENA_IDS.WOODEN_HALL]: "Wooden Hall",
-  [ARENA_IDS.DUNGEON]: "Dungeon",
-};
 const ARENA_OPTIONS = Object.values(ARENA_IDS) as ArenaId[];
 /** Matches `MatchRoomOptions.arenaId`'s own "random" behavior — an empty
  *  selection means "let the server pick," not a seventh named arena. */

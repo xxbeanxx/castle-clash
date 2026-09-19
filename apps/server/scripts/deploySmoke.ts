@@ -116,6 +116,18 @@ export async function runDeploySmoke(config: DeploySmokeConfig): Promise<StepRes
       },
     ],
     [
+      "server /stats",
+      async () => {
+        const body = (await (await fetchOk(config, `${gameHttp}/stats`)).json()) as {
+          players?: unknown;
+          rooms?: unknown;
+        };
+        if (typeof body.players !== "number" || typeof body.rooms !== "number") {
+          throw new Error("/stats did not report numeric players and rooms");
+        }
+      },
+    ],
+    [
       "anonymous sign-in",
       async () => {
         const response = await fetchOk(config, `${config.supabaseUrl}/auth/v1/signup`, {

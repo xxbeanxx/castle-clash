@@ -7,18 +7,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 A 2D Renaissance knight arena brawler: an authoritative Colyseus server, a React Router + PixiJS
 client, and Supabase for auth/persistence, in a pnpm + Turborepo monorepo.
 
-**`docs/IMPLEMENTATION_PLAN.md` is the source of truth** for architecture and the phase-by-phase
-build order — read it before making structural changes. It's being implemented phase by phase;
-check its "Phase N" sections against what actually exists in the tree to see how far the build has
-gotten (as of this writing: Phase 3, Deterministic Movement and Netcode, is done and its gate
-passed live — a browser predicts its own movement locally against `packages/shared/src/sim` and
-reconciles against the server's authoritative tick, while remote players are interpolated; combat,
-real arenas/hazards, matchmaking, and auth don't exist yet, so there's one placeholder `testbed`
-arena and no way to take or deal damage). `docs/adr/` records specific decisions (currently just
-ADR 0001, the isomorphic-sim boundary); `docs/research/` records version/API facts verified against
-live docs mid-implementation — check it before trusting a version number stated in the plan's
-prose, since several were wrong when written (pnpm "10" vs the actual 12, Colyseus's server
-bootstrap API, etc.). `docs/research/phase2-colyseus-client-compat.md` matters for anyone touching
+**`docs/IMPLEMENTATION_PLAN.md` is the source of truth** for architecture and Phases 1–10, all landed:
+deterministic sim and netcode, combat, six arenas with hazards, quick-play/private-room matchmaking,
+power-up draft, Supabase auth and persistence (guest sign-in, OAuth buttons, loadouts, stats,
+leaderboard), and a production deploy (live since 2026-09-19, currently `v1.1.0`). **What comes
+next is `docs/IMPLEMENTATION_PLAN_V2.md`, Phases 11–17** (landing page and UI kit, Google login,
+mobile controls, bots, pixel art, audio, hardening); its section 0 lists verified findings about
+today's tree, and its Appendix A lists decisions still open. Everything a _player_ sees is still
+placeholder: knights are tinted rects, there is no art, audio, or touch input, and a lone visitor
+cannot start a match (`MIN_PLAYERS = 2`, no bots). `docs/adr/` records specific decisions;
+`docs/research/` records version/API facts verified against live docs and every scope deviation
+from a plan — check it before trusting a version number stated in a plan's prose, since several
+were wrong when written (pnpm "10" vs the actual 12, Colyseus's server bootstrap API, etc.).
+`docs/research/phase2-colyseus-client-compat.md` matters for anyone touching
 the client's Colyseus connection: the plan's `colyseus.js` assumption is stale — the browser client
 dependency is `@colyseus/sdk`, not `colyseus.js` (which tops out at 0.16.x with an incompatible
 `@colyseus/schema` v3 decoder against this server's v5 schema). `docs/research/phase3-colyseus-
@@ -149,7 +150,7 @@ resources, the `atomic-nucleus.com` DNS records, the Supabase project, and the G
 `main` ruleset requires a PR plus the `verify`/`browser`/`build`/`smoke` checks, squash-only) and its
 `production` environment. It also generates every secret and wires each to its consumers, so nothing
 is set by hand; state is in an Azure storage account and is sensitive (its README says what Terraform
-leaves to the deploy workflow). **Production was first deployed 2026-09-19** (`v1.0.0`; server and client live, game verified in a real browser under the CSP) after several first-run fixes — see the "First production deploy" section of `docs/research/phase10-deploy-decisions.md`. Lessons that bite: re-running a failed run replays the *old* workflow commit (dispatch a new run instead); environment secrets need `secrets: inherit` in a reusable-workflow chain; Turborepo strict env mode drops `VITE_E2E` unless `turbo.json` declares it; PixiJS needs `pixi.js/unsafe-eval` under the client's CSP. `SERVER_VERSION` is stamped into the server image by build-arg and shows up in
+leaves to the deploy workflow). **Production was first deployed 2026-09-19** (`v1.0.0`; server and client live, game verified in a real browser under the CSP) after several first-run fixes — see the "First production deploy" section of `docs/research/phase10-deploy-decisions.md`. Lessons that bite: re-running a failed run replays the _old_ workflow commit (dispatch a new run instead); environment secrets need `secrets: inherit` in a reusable-workflow chain; Turborepo strict env mode drops `VITE_E2E` unless `turbo.json` declares it; PixiJS needs `pixi.js/unsafe-eval` under the client's CSP. `SERVER_VERSION` is stamped into the server image by build-arg and shows up in
 `/healthz` and `matches.server_version`. `POST /smoke/record-match` exists only when the server has a
 `SMOKE_TOKEN`; `record_match_result()` skips `player_stats` for `mode = 'smoke'`. Migrations follow
 expand/contract because rollbacks never revert the database.
@@ -158,8 +159,7 @@ expand/contract because rollbacks never revert the database.
 
 ### The isomorphic boundary is enforced by tooling, not just convention
 
-`packages/shared` holds gameplay rules (physics and movement now; combat, hazards, and power-ups
-to come) as pure functions: no DOM, no Node APIs, no wall-clock reads. The server runs this code
+`packages/shared` holds gameplay rules (physics, movement, combat, hazards, and power-ups) as pure functions: no DOM, no Node APIs, no wall-clock reads. The server runs this code
 authoritatively; the client runs the identical code for local prediction. This is ADR 0001's
 decision (D1–D3 in the plan), and it's checked mechanically in two places:
 
@@ -218,8 +218,8 @@ objects: `physics.ts` (gravity, axis-separated AABB sweep, one-way platforms, te
 `movement.ts` (acceleration/friction, coyote time, jump buffering, variable jump height,
 drop-through), and `GameSimulation.step(state, inputs)`, which both `MatchRoom` and the client's
 `Reconciler` call — the server for real ticks, the client to predict and to replay pending inputs
-after a reconciliation. `packages/shared/src/arenas/testbed.ts` is the one placeholder arena
-(`TESTBED_ARENA`) real arenas will replace in Phase 6. `packages/shared/src/testing/` (`SimHarness`
+after a reconciliation. `packages/shared/src/arenas/testbed.ts` is the Phase 3 placeholder arena
+(`TESTBED_ARENA`); Phase 6 added the six real arenas beside it. `packages/shared/src/testing/` (`SimHarness`
 for scripted N-tick runs, `NetSim` for an in-memory latency/jitter/loss-configurable network,
 `bots/scripted.ts`) exists for exactly the determinism and convergence tests the plan's Phase 3
 gate names, in `packages/shared/src/sim/determinism.test.ts` and `testing/NetSim.test.ts`.
@@ -274,7 +274,7 @@ for a later phase, not an obviously-superseded first attempt.
 ```
 apps/server/    # Colyseus authoritative server (Node, tsc build)
 apps/client/    # React Router v8 SPA (ssr: false) + PixiJS, Vite build
-packages/shared/ # isomorphic: config, types, input, math, sim, arenas, net, schema (combat comes later)
+packages/shared/ # isomorphic: config, types, input, math, sim, arenas, hazards, combat, powerups, match, net, schema
 ```
 
 `packages/shared` publishes two subpath exports, wired via `tsup` (`tsup.config.ts` lists both

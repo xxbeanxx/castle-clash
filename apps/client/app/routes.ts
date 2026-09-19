@@ -9,6 +9,10 @@ export default [
     route("loadout", "routes/loadout.tsx"),
     route("stats", "routes/stats.tsx"),
     route("leaderboard", "routes/leaderboard.tsx"),
+    route("how-to-play", "routes/how-to-play.tsx"),
+    route("privacy", "routes/privacy.tsx"),
+    route("terms", "routes/terms.tsx"),
+    route("about", "routes/about.tsx"),
     route("*", "routes/not-found.tsx"),
   ]),
   // Full-bleed: the canvas owns the viewport, so no site chrome.

@@ -12,6 +12,7 @@ import { getMyLoadout, getMyUnlocks, saveMyLoadout, type ClientLoadout } from ".
 import { WEAPON_LABELS } from "../content/weapons.js";
 import { Button, Field, Panel, Select } from "../ui/kit/index.js";
 import { LoadoutPreview } from "../ui/LoadoutPreview.js";
+import { privatePageMeta } from "../meta.js";
 
 /** A small, fixed set of selectable colors (plan Phase 9 step 4: "color
  *  pickers limited to the palette") — a native `<input type="color">`
@@ -52,6 +53,8 @@ function errorMessage(error: unknown): string {
   }
   return String(error);
 }
+
+export const meta = () => privatePageMeta("Loadout");
 
 export async function clientLoader(): Promise<{
   loadout: ClientLoadout;

@@ -4,11 +4,14 @@ import { useNavigate } from "react-router";
 import { requireSession } from "../auth/requireSession.js";
 import { ARENA_LABELS } from "../content/arenas.js";
 import { Button, ButtonLink, Field, Input, Panel, Select } from "../ui/kit/index.js";
+import { privatePageMeta } from "../meta.js";
 
 const ARENA_OPTIONS = Object.values(ARENA_IDS) as ArenaId[];
 /** Matches `MatchRoomOptions.arenaId`'s own "random" behavior — an empty
  *  selection means "let the server pick," not a seventh named arena. */
 const RANDOM_ARENA = "";
+
+export const meta = () => privatePageMeta("Play");
 
 export async function clientLoader(): Promise<null> {
   await requireSession();

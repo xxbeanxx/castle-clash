@@ -10,7 +10,9 @@ import {
 import { Link } from "react-router";
 import { useServerStats } from "../api/serverStats.js";
 import { ARENA_LABELS, hazardSummary } from "../content/arenas.js";
+import { CONTROLS } from "../content/controls.js";
 import { weaponFacts } from "../content/weapons.js";
+import { pageMeta } from "../meta.js";
 import { ArenaPreview } from "../ui/ArenaPreview.js";
 import { ButtonLink } from "../ui/kit/index.js";
 import { LeaderboardTeaser } from "../ui/LeaderboardTeaser.js";
@@ -19,15 +21,7 @@ import { PlayNowButton } from "../ui/PlayNowButton.js";
 /** The hero's backdrop: the arena with the most going on in it. */
 const HERO_ARENA = ARENAS[ARENA_IDS.CASTLE_ROOM];
 
-const CONTROLS: ReadonlyArray<{ keys: string[]; action: string }> = [
-  { keys: ["A", "D"], action: "Move" },
-  { keys: ["W", "Space"], action: "Jump" },
-  { keys: ["S"], action: "Drop through a platform" },
-  { keys: ["J"], action: "Light attack" },
-  { keys: ["K"], action: "Heavy attack" },
-  { keys: ["L"], action: "Block" },
-  { keys: ["Shift"], action: "Dodge" },
-];
+export const meta = () => pageMeta({ path: "/" });
 
 const MAX_REACH = Math.max(...weaponFacts().map(({ def }) => def.reach));
 const MAX_HEAVY = Math.max(...weaponFacts().map(({ def }) => def.heavy.damage));

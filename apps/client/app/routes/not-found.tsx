@@ -1,4 +1,7 @@
+import { privatePageMeta } from "../meta.js";
 import { ButtonLink } from "../ui/kit/index.js";
+
+export const meta = () => privatePageMeta("Page not found");
 
 /** The catch-all route: a page that doesn't exist, inside the normal site chrome. */
 export default function NotFound() {

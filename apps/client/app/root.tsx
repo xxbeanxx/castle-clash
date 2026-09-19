@@ -9,6 +9,7 @@ import {
 } from "react-router";
 
 import "./app.css";
+import { pageMeta } from "./meta.js";
 import { Brand } from "./ui/Brand.js";
 import { Button, ButtonLink } from "./ui/kit/index.js";
 
@@ -18,7 +19,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>Castle Clash</title>
+        <meta name="theme-color" content="#16130f" />
         <Meta />
         <Links />
         {/*
@@ -40,6 +41,30 @@ export function Layout({ children }: { children: React.ReactNode }) {
     </html>
   );
 }
+
+/** Site-wide default; each route's own `meta` replaces it. Also what the SPA shell (`index.html`) carries. */
+export const meta = () => pageMeta({ path: "/" });
+
+/** Preload the two faces every page paints first, so text swaps in without a visible reflow. */
+export const links = () => [
+  { rel: "icon", href: "/favicon.ico", sizes: "48x48" },
+  { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
+  { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
+  {
+    rel: "preload",
+    href: "/fonts/pixelify-sans-latin-700-normal.woff2",
+    as: "font",
+    type: "font/woff2",
+    crossOrigin: "anonymous" as const,
+  },
+  {
+    rel: "preload",
+    href: "/fonts/alegreya-sans-latin-400-normal.woff2",
+    as: "font",
+    type: "font/woff2",
+    crossOrigin: "anonymous" as const,
+  },
+];
 
 /** Shown while the initial `clientLoader`s run, before any route has rendered. */
 export function HydrateFallback() {

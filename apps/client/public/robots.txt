@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /play/
+Disallow: /login
+Disallow: /lobby
+Disallow: /loadout
+Disallow: /stats
+
+Sitemap: https://castle-clash.atomic-nucleus.com/sitemap.xml

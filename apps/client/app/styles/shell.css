@@ -1,0 +1,139 @@
+/* Site chrome: header, footer, skip link, splash, brand. */
+
+.cc-shell {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.cc-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.cc-skip {
+  position: absolute;
+  left: var(--space-3);
+  top: -4rem;
+  z-index: var(--z-toast);
+  padding: var(--space-2) var(--space-4);
+  background: var(--gold-500);
+  color: var(--gold-ink);
+  border-radius: var(--radius-md);
+  font-family: var(--font-display);
+}
+.cc-skip:focus {
+  top: var(--space-3);
+  color: var(--gold-ink);
+}
+
+.cc-header {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-header);
+  background: var(--stone-900);
+  border-bottom: 1px solid var(--line);
+}
+.cc-header__inner {
+  max-width: var(--page-width);
+  margin-inline: auto;
+  padding: var(--space-2) var(--gutter);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-5);
+}
+.cc-header__brand {
+  text-decoration: none;
+  color: var(--ink);
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+}
+.cc-header__brand:hover {
+  color: var(--gold-300);
+}
+.cc-header__account {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.cc-header__who {
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+
+.cc-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.cc-brand__mark {
+  color: var(--gold-500);
+  flex: none;
+}
+.cc-brand__name {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-lg);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.cc-footer {
+  border-top: 1px solid var(--line);
+  background: var(--stone-900);
+}
+.cc-footer__inner {
+  max-width: var(--page-width);
+  margin-inline: auto;
+  padding: var(--space-5) var(--gutter);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-5);
+  font-size: var(--text-sm);
+}
+.cc-footer__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cc-footer__links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+}
+
+/* Rendered by root.tsx's HydrateFallback before any route module has loaded,
+   so it may depend only on styles imported by app.css. */
+.cc-splash {
+  min-height: 100dvh;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: var(--space-4);
+  color: var(--ink-muted);
+}
+.cc-splash .cc-brand__name {
+  font-size: var(--text-2xl);
+  color: var(--ink);
+}
+.cc-splash .cc-brand__mark {
+  width: 3rem;
+  height: 3rem;
+  animation: cc-pulse 1.4s var(--ease-out) infinite alternate;
+}
+@keyframes cc-pulse {
+  from {
+    opacity: 0.55;
+  }
+  to {
+    opacity: 1;
+  }
+}

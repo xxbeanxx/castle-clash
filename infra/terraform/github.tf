@@ -46,6 +46,9 @@ resource "github_repository_vulnerability_alerts" "main" {
 resource "github_repository_dependabot_security_updates" "main" {
   repository = github_repository.main.name
   enabled    = true
+
+  # GitHub rejects this (422) until alerts are on; no attribute links the two.
+  depends_on = [github_repository_vulnerability_alerts.main]
 }
 
 # `main` only changes through a pull request whose checks pass. There is one

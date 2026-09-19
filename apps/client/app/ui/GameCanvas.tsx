@@ -67,8 +67,8 @@ export function GameCanvas({ roomId }: { roomId: string }) {
   }, [roomId]);
 
   return (
-    <div style={{ position: "relative", width: "100%", height: "100%" }}>
-      <div ref={containerRef} data-testid="game-canvas" style={{ width: "100%", height: "100%" }} />
+    <div className="cc-game">
+      <div ref={containerRef} data-testid="game-canvas" className="cc-game__canvas" />
       {client && <CombatHud client={client} />}
       {client && <MatchBanner client={client} />}
       {client && <DraftOverlay client={client} />}

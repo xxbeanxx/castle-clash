@@ -1,0 +1,69 @@
+/* Route-specific styles. Anything two routes share belongs in ui/kit/kit.css. */
+
+/* Loadout */
+.cc-loadout {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+.cc-loadout-preview {
+  width: 10rem;
+  height: 10rem;
+  flex: none;
+  background: var(--stone-950);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+.cc-swatch {
+  width: 2.75rem;
+  height: 2.75rem;
+  border: 2px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+.cc-swatch[aria-pressed="true"] {
+  border-color: var(--ink);
+  outline: 2px solid var(--gold-500);
+  outline-offset: 2px;
+}
+.cc-chip {
+  min-height: 2.75rem;
+  padding: 0 var(--space-3);
+  background: var(--stone-800);
+  border: 2px solid var(--line);
+  border-radius: var(--radius-md);
+  color: var(--ink);
+  cursor: pointer;
+}
+.cc-chip:hover:not(:disabled) {
+  border-color: var(--line-strong);
+}
+.cc-chip--selected {
+  border-color: var(--gold-500);
+}
+.cc-chip:disabled {
+  background: var(--stone-900);
+  color: var(--ink-muted);
+  cursor: not-allowed;
+}
+
+/* Login */
+.cc-login {
+  width: 100%;
+  max-width: 26rem;
+  margin-inline: auto;
+}
+.cc-divider {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
+}
+.cc-divider::before,
+.cc-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}

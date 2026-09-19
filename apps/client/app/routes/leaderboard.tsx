@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useLoaderData } from "react-router";
 import { requireSession } from "../auth/requireSession.js";
 import { getLeaderboard } from "../auth/supabase.js";
+import { Button, Panel } from "../ui/kit/index.js";
 
 const PAGE_SIZE = 20;
 
@@ -30,50 +31,54 @@ export default function Leaderboard() {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16, padding: 24, maxWidth: 640 }}>
+    <div className="cc-page">
       <h1>Leaderboard</h1>
 
-      <table style={{ borderCollapse: "collapse", width: "100%" }}>
-        <thead>
-          <tr>
-            <th style={{ textAlign: "left" }}>#</th>
-            <th style={{ textAlign: "left" }}>Player</th>
-            <th style={{ textAlign: "right" }}>Wins</th>
-            <th style={{ textAlign: "right" }}>Matches</th>
-            <th style={{ textAlign: "right" }}>Eliminations</th>
-            <th style={{ textAlign: "right" }}>Deaths</th>
-          </tr>
-        </thead>
-        <tbody>
-          {page.map((row, index) => (
-            <tr key={`${offset}-${index}`}>
-              <td>{offset + index + 1}</td>
-              <td>{row.display_name ?? "Anonymous"}</td>
-              <td style={{ textAlign: "right" }}>{row.wins}</td>
-              <td style={{ textAlign: "right" }}>{row.matches_played}</td>
-              <td style={{ textAlign: "right" }}>{row.eliminations}</td>
-              <td style={{ textAlign: "right" }}>{row.deaths}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <Panel>
+        <div className="cc-table-wrap">
+          <table className="cc-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Player</th>
+                <th className="cc-num">Wins</th>
+                <th className="cc-num">Matches</th>
+                <th className="cc-num">Eliminations</th>
+                <th className="cc-num">Deaths</th>
+              </tr>
+            </thead>
+            <tbody>
+              {page.map((row, index) => (
+                <tr key={`${offset}-${index}`}>
+                  <td>{offset + index + 1}</td>
+                  <td>{row.display_name ?? "Anonymous"}</td>
+                  <td className="cc-num">{row.wins}</td>
+                  <td className="cc-num">{row.matches_played}</td>
+                  <td className="cc-num">{row.eliminations}</td>
+                  <td className="cc-num">{row.deaths}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
 
-      <div style={{ display: "flex", gap: 8 }}>
-        <button
-          type="button"
-          disabled={loading || offset === 0}
-          onClick={() => void goToOffset(Math.max(0, offset - PAGE_SIZE))}
-        >
-          Previous
-        </button>
-        <button
-          type="button"
-          disabled={loading || page.length < PAGE_SIZE}
-          onClick={() => void goToOffset(offset + PAGE_SIZE)}
-        >
-          Next
-        </button>
-      </div>
+        <div className="cc-row">
+          <Button
+            size="sm"
+            disabled={loading || offset === 0}
+            onClick={() => void goToOffset(Math.max(0, offset - PAGE_SIZE))}
+          >
+            Previous
+          </Button>
+          <Button
+            size="sm"
+            disabled={loading || page.length < PAGE_SIZE}
+            onClick={() => void goToOffset(offset + PAGE_SIZE)}
+          >
+            Next
+          </Button>
+        </div>
+      </Panel>
     </div>
   );
 }

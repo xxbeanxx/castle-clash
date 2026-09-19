@@ -1,7 +1,7 @@
 import type { MatchResult } from "@castle-clash/shared";
 import { useEffect, useState } from "react";
-import { Link } from "react-router";
 import type { GameClient } from "../game/GameClient.js";
+import { ButtonLink } from "./kit/index.js";
 
 /**
  * The plan's Phase 5 gate wants a results screen at the end of a best-of-5 —
@@ -21,47 +21,33 @@ export function ResultsOverlay({ client }: { client: GameClient }) {
   const rows = Object.entries(result.stats);
 
   return (
-    <div
-      data-testid="results-overlay"
-      style={{
-        position: "absolute",
-        inset: 0,
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 16,
-        background: "rgba(0,0,0,0.75)",
-        color: "#fff",
-        fontFamily: "sans-serif",
-      }}
-    >
-      <h2 style={{ margin: 0 }}>{result.winner ? `${result.winner} wins!` : "Draw"}</h2>
-      <table style={{ borderCollapse: "collapse" }}>
+    <div data-testid="results-overlay" className="cc-overlay">
+      <h2 className="cc-overlay__title">{result.winner ? `${result.winner} wins!` : "Draw"}</h2>
+      <table className="cc-results">
         <thead>
           <tr>
-            <th style={{ padding: "4px 12px", textAlign: "left" }}>Player</th>
-            <th style={{ padding: "4px 12px" }}>Rounds</th>
-            <th style={{ padding: "4px 12px" }}>Eliminations</th>
-            <th style={{ padding: "4px 12px" }}>Deaths</th>
-            <th style={{ padding: "4px 12px" }}>Damage</th>
+            <th>Player</th>
+            <th>Rounds</th>
+            <th>Eliminations</th>
+            <th>Deaths</th>
+            <th>Damage</th>
           </tr>
         </thead>
         <tbody>
           {rows.map(([id, stats]) => (
             <tr key={id}>
-              <td style={{ padding: "4px 12px" }}>{id}</td>
-              <td style={{ padding: "4px 12px", textAlign: "center" }}>{stats.roundsWon}</td>
-              <td style={{ padding: "4px 12px", textAlign: "center" }}>{stats.eliminations}</td>
-              <td style={{ padding: "4px 12px", textAlign: "center" }}>{stats.deaths}</td>
-              <td style={{ padding: "4px 12px", textAlign: "center" }}>{Math.round(stats.damageDealt)}</td>
+              <td>{id}</td>
+              <td>{stats.roundsWon}</td>
+              <td>{stats.eliminations}</td>
+              <td>{stats.deaths}</td>
+              <td>{Math.round(stats.damageDealt)}</td>
             </tr>
           ))}
         </tbody>
       </table>
-      <Link to="/lobby" style={{ color: "#fff" }}>
+      <ButtonLink to="/lobby" variant="primary">
         Return to lobby
-      </Link>
+      </ButtonLink>
     </div>
   );
 }

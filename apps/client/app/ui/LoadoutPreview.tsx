@@ -32,11 +32,5 @@ export function LoadoutPreview(state: CosmeticsPreviewState) {
     previewRef.current?.sync(state);
   }, [state]);
 
-  return (
-    <div
-      ref={containerRef}
-      data-testid="loadout-preview"
-      style={{ width: 160, height: 160, border: "1px solid #444" }}
-    />
-  );
+  return <div ref={containerRef} data-testid="loadout-preview" className="cc-loadout-preview" />;
 }

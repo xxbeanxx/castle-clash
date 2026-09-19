@@ -25,10 +25,10 @@ function json(res: ServerResponse, status: number, body: unknown): void {
   res.end(JSON.stringify(body));
 }
 
-/** What `react-router build` (SPA mode) actually emits: a shell with the title and
- *  module preloads, and no `<div>` — React renders the root itself. */
+/** What `react-router build` (SPA mode, `/` prerendered) emits: the landing page's head
+ *  with its title and module preloads. */
 const SPA_SHELL =
-  '<!DOCTYPE html><html lang="en"><head><title>Castle Clash</title>' +
+  '<!DOCTYPE html><html lang="en"><head><title>Castle Clash: knight arena brawler</title>' +
   '<link rel="modulepreload" href="/assets/entry.client-abc.js"/></head><body></body></html>';
 
 interface Fakes {

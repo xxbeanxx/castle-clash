@@ -4,6 +4,14 @@ import { useLoaderData } from "react-router";
 import { requireSession } from "../auth/requireSession.js";
 import { getLeaderboard } from "../auth/supabase.js";
 import { Button, Panel } from "../ui/kit/index.js";
+import { pageMeta } from "../meta.js";
+
+export const meta = () =>
+  pageMeta({
+    title: "Leaderboard",
+    path: "/leaderboard",
+    description: "The top Castle Clash players, ranked by match wins.",
+  });
 
 const PAGE_SIZE = 20;
 

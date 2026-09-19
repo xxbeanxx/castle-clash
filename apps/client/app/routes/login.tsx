@@ -8,6 +8,9 @@ import {
   signInWithOAuth,
 } from "../auth/supabase.js";
 import { Button, Field, Input, Panel } from "../ui/kit/index.js";
+import { privatePageMeta } from "../meta.js";
+
+export const meta = () => privatePageMeta("Sign in");
 
 /**
  * The one route that isn't `clientLoader`-guarded (plan Phase 8 step 6) —

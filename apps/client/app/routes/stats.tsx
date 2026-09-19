@@ -7,8 +7,11 @@ import {
   type MatchHistoryEntry,
 } from "../auth/supabase.js";
 import { Panel } from "../ui/kit/index.js";
+import { privatePageMeta } from "../meta.js";
 
 const MATCH_HISTORY_LIMIT = 20;
+
+export const meta = () => privatePageMeta("Your stats");
 
 export async function clientLoader(): Promise<{
   stats: ClientStats;

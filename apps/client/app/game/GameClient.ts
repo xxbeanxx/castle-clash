@@ -18,6 +18,7 @@ import {
 } from "@castle-clash/shared";
 import { Client, type Room } from "@colyseus/sdk";
 import { Application, Container, type Ticker } from "pixi.js";
+import "./pixiCsp.js";
 import { matchStateToHud, type HudPlayerSnapshot } from "./hud.js";
 import { KeyboardInput } from "./input/KeyboardInput.js";
 import { matchStateToPhaseBanner, type MatchFlowSnapshot } from "./matchFlow.js";

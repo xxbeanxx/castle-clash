@@ -14,13 +14,20 @@ export const meta = () =>
 
 const PAGE_SIZE = 20;
 
-export async function clientLoader(): Promise<{ page: readonly LeaderboardRow[] }> {
-  const page = await getLeaderboard(0, PAGE_SIZE);
-  return { page };
+/** Public page: a failed read shows a notice in place, not the site-wide error screen. */
+export async function clientLoader(): Promise<{
+  page: readonly LeaderboardRow[];
+  failed: boolean;
+}> {
+  try {
+    return { page: await getLeaderboard(0, PAGE_SIZE), failed: false };
+  } catch {
+    return { page: [], failed: true };
+  }
 }
 
 export default function Leaderboard() {
-  const { page: initialPage } = useLoaderData<typeof clientLoader>();
+  const { page: initialPage, failed } = useLoaderData<typeof clientLoader>();
   const [page, setPage] = useState<readonly LeaderboardRow[]>(initialPage);
   const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -41,6 +48,11 @@ export default function Leaderboard() {
       <h1>Leaderboard</h1>
 
       <Panel>
+        {failed && (
+          <p role="status" className="cc-muted">
+            The leaderboard could not be loaded right now. Try again in a moment.
+          </p>
+        )}
         <div className="cc-table-wrap">
           <table className="cc-table">
             <thead>

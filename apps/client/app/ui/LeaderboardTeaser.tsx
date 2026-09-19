@@ -47,8 +47,8 @@ export function LeaderboardTeaser() {
         <Link to="/leaderboard">Full leaderboard</Link>
       </div>
       <ol className="cc-teaser">
-        {rows.map((row) => (
-          <li key={row.display_name} className="cc-teaser__row">
+        {rows.map((row, index) => (
+          <li key={`${index}-${row.display_name}`} className="cc-teaser__row">
             <span className="cc-teaser__name">{row.display_name}</span>
             <span className="cc-teaser__wins">{row.wins} wins</span>
           </li>

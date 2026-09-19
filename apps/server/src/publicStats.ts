@@ -21,12 +21,17 @@ export interface PublicStatsOptions {
 const DEFAULT_CACHE_MS = 5_000;
 const DEFAULT_MAX_REQUESTS_PER_MINUTE = 60;
 
-/** The caller's address as the platform proxy reports it, falling back to the
- *  socket. Only used to bucket the rate limit, never for anything sensitive. */
+/** The caller's address for bucketing the rate limit, never for anything sensitive.
+ *  A client can put anything at the left of `X-Forwarded-For`; the proxy in front
+ *  of us appends the address it actually saw at the right, so that is the one to
+ *  trust. Falls back to the socket when there is no proxy (local runs). */
 function clientKey(req: Request): string {
   const forwarded = req.headers["x-forwarded-for"];
-  const first = (Array.isArray(forwarded) ? forwarded[0] : forwarded)?.split(",")[0]?.trim();
-  return first || req.socket.remoteAddress || "unknown";
+  const hops = (Array.isArray(forwarded) ? forwarded.join(",") : (forwarded ?? ""))
+    .split(",")
+    .map((hop) => hop.trim())
+    .filter(Boolean);
+  return hops[hops.length - 1] ?? req.socket.remoteAddress ?? "unknown";
 }
 
 /**

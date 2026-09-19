@@ -51,6 +51,14 @@ describe("Leaderboard route", () => {
     expect(getSessionMock).not.toHaveBeenCalled();
   });
 
+  it("shows a notice, not the error screen, when the read fails", async () => {
+    getLeaderboardMock.mockRejectedValue(new Error("offline"));
+    renderLeaderboard();
+
+    expect(await screen.findByText(/could not be loaded/)).toBeDefined();
+    expect(screen.getByRole("heading", { name: "Leaderboard" })).toBeDefined();
+  });
+
   it("renders the first page of rows from the loader", async () => {
     renderLeaderboard();
 

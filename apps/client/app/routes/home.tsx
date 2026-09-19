@@ -5,11 +5,10 @@ import {
   MAX_PLAYERS,
   MIN_PLAYERS,
   ROUNDS_TO_WIN,
-  type ArenaId,
 } from "@castle-clash/shared";
 import { Link } from "react-router";
 import { useServerStats } from "../api/serverStats.js";
-import { ARENA_LABELS, hazardSummary } from "../content/arenas.js";
+import { arenaLabel, hazardSummary } from "../content/arenas.js";
 import { CONTROLS } from "../content/controls.js";
 import { weaponFacts } from "../content/weapons.js";
 import { pageMeta } from "../meta.js";
@@ -123,7 +122,7 @@ export default function Home() {
               return (
                 <li key={arena.id} className="cc-arena-card">
                   <ArenaPreview arena={arena} />
-                  <h3>{ARENA_LABELS[arena.id as ArenaId]}</h3>
+                  <h3>{arenaLabel(arena.id)}</h3>
                   <p className="cc-muted">
                     {hazards.length > 0 ? hazards.join(" · ") : "No hazards"}
                   </p>

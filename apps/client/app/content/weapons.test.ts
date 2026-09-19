@@ -35,6 +35,12 @@ describe("arena content", () => {
     }
   });
 
+  it("gives every arena at least one hazard (the landing page says so)", () => {
+    for (const arena of ALL_ARENAS) {
+      expect(hazardSummary(arena).length, arena.id).toBeGreaterThan(0);
+    }
+  });
+
   it("summarises each arena's hazards from its definition, without duplicates", () => {
     for (const arena of ALL_ARENAS) {
       const summary = hazardSummary(arena);

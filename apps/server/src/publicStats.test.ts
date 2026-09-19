@@ -82,6 +82,16 @@ describe("GET /stats", () => {
     });
   });
 
+  it("keys the rate limit on the proxy-appended address, not one the client can forge", async () => {
+    const app = createApp({ maxRequestsPerMinute: 1 });
+    const get = (forged: string) =>
+      request(app).get("/stats").set("X-Forwarded-For", `${forged}, 198.51.100.7`);
+
+    expect((await get("1.1.1.1")).status).toBe(200);
+    // Same real hop, different forged prefix: still the same client.
+    expect((await get("2.2.2.2")).status).toBe(429);
+  });
+
   it("rate-limits per client address", async () => {
     const app = createApp({ maxRequestsPerMinute: 2 });
     const get = () => request(app).get("/stats").set("X-Forwarded-For", "203.0.113.9");

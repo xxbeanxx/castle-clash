@@ -58,9 +58,12 @@ export function checkLandingBundle(html, read) {
     detail: pixi.length === 0 ? `${scripts.length} scripts checked` : `found in ${pixi.join(", ")}`,
   });
 
-  const supabase = scripts.filter((file) => /supabase/i.test(file));
+  // `GoTrueClient` is supabase-js's own auth class; app chunks that merely
+  // import() our wrapper never contain it, so a hit means the library itself
+  // is in what `/` loads up front.
+  const supabase = scripts.filter((file) => /GoTrueClient/.test(read(file)));
   checks.push({
-    name: "supabase-js is not preloaded on /",
+    name: "supabase-js is not loaded up front on /",
     ok: supabase.length === 0,
     detail: supabase.length === 0 ? "loaded on demand" : `preloaded: ${supabase.join(", ")}`,
   });

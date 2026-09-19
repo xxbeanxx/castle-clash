@@ -46,10 +46,16 @@ describe("checkLandingBundle", () => {
     expect(result.checks[0].detail).toContain("home-b.js");
   });
 
-  it("fails when the supabase chunk is preloaded", () => {
-    const html = `${HTML}\n<link rel="modulepreload" href="/assets/supabase-c.js"/>`;
-    const result = checkLandingBundle(html, () => "x");
+  it("fails when supabase-js itself is in a preloaded chunk, whatever the chunk is called", () => {
+    const result = checkLandingBundle(HTML, (file) =>
+      file.includes("home") ? "class GoTrueClient{}" : "x",
+    );
     expect(result.checks[1]).toMatchObject({ ok: false });
+  });
+
+  it("does not flag a chunk that only imports our supabase wrapper lazily", () => {
+    const result = checkLandingBundle(HTML, () => 'import("./supabase-c.js")');
+    expect(result.checks[1]).toMatchObject({ ok: true });
   });
 
   it("fails when gzipped JS exceeds the budget", () => {

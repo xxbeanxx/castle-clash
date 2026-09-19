@@ -31,12 +31,12 @@ export function pageMeta({
   path,
 }: PageMeta): MetaDescriptor[] {
   const fullTitle = title ? `${title} | ${SITE_NAME}` : `${SITE_NAME}: knight arena brawler`;
-  const url = `${SITE_URL}${path === "/" ? "" : path}`;
+  const url = `${SITE_URL}${path}`;
   const image = `${SITE_URL}/og.png`;
   return [
     { title: fullTitle },
     { name: "description", content: description },
-    { tagName: "link", rel: "canonical", href: url === SITE_URL ? `${SITE_URL}/` : url },
+    { tagName: "link", rel: "canonical", href: url },
     { property: "og:type", content: "website" },
     { property: "og:site_name", content: SITE_NAME },
     { property: "og:title", content: fullTitle },

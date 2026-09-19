@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.2.0](https://github.com/xxbeanxx/castle-clash/compare/v1.1.0...v1.2.0) (2026-09-19)
+
+
+### Features
+
+* **client:** account page, account menu, name prompt, guest nudge (Phase 12 steps 7-9) ([#49](https://github.com/xxbeanxx/castle-clash/issues/49)) ([5231a19](https://github.com/xxbeanxx/castle-clash/commit/5231a196fd9218fb4de635dd60a389c67273a05f))
+* **client:** app shell, ErrorBoundary, 404, branded splash (Phase 11 step 3) ([#40](https://github.com/xxbeanxx/castle-clash/issues/40)) ([0e2309c](https://github.com/xxbeanxx/castle-clash/commit/0e2309c105fdd4e67df7a6b625e516ccd8dbe2f2))
+* **client:** link Google to a guest, /auth/callback, next survives OAuth (Phase 12 step 5) ([#48](https://github.com/xxbeanxx/castle-clash/issues/48)) ([0bd98fc](https://github.com/xxbeanxx/castle-clash/commit/0bd98fc122c1d65dedffdd0a1e7cd5a02122cc91))
+* **client:** static pages, metadata, prerender (Phase 11 steps 5-6) ([#42](https://github.com/xxbeanxx/castle-clash/issues/42)) ([6146193](https://github.com/xxbeanxx/castle-clash/commit/6146193b7ca3571e290b720e39cea89b7ff66734))
+* **client:** UI kit, design tokens, dark theme, self-hosted fonts (Phase 11 step 2) ([#37](https://github.com/xxbeanxx/castle-clash/issues/37)) ([6b05cff](https://github.com/xxbeanxx/castle-clash/commit/6b05cfffb6003f7db6902b3c47a4124fefd3abd7))
+* **infra:** Google sign-in setup path (Phase 12 steps 1-4) ([#47](https://github.com/xxbeanxx/castle-clash/issues/47)) ([8155d1d](https://github.com/xxbeanxx/castle-clash/commit/8155d1d691ebe86be9aefb1740cc5a26204b8bb0))
+* **infra:** Terraform owns the Supabase auth settings (D2) ([#51](https://github.com/xxbeanxx/castle-clash/issues/51)) ([c78fc57](https://github.com/xxbeanxx/castle-clash/commit/c78fc576f97484935bab08c6e3d39282e22f278d))
+* landing page and public GET /stats (Phase 11 step 4) ([#41](https://github.com/xxbeanxx/castle-clash/issues/41)) ([ee2ff5f](https://github.com/xxbeanxx/castle-clash/commit/ee2ff5fc0841b12764a874be58478be7e32649fe))
+* Play hub, ?next= redirects, public leaderboard, web-quality gates (Phase 11 steps 7-8) ([#43](https://github.com/xxbeanxx/castle-clash/issues/43)) ([e8d484b](https://github.com/xxbeanxx/castle-clash/commit/e8d484bdee765960283c5be1ad03984deb8ab2e4))
+* player display names (Phase 12 step 8, server/shared/db) ([#46](https://github.com/xxbeanxx/castle-clash/issues/46)) ([6c817a5](https://github.com/xxbeanxx/castle-clash/commit/6c817a5fef207df9efe7d375c7be4116c95af84f))
+
 ## [1.1.0](https://github.com/xxbeanxx/castle-clash/compare/v1.0.0...v1.1.0) (2026-09-19)
 
 

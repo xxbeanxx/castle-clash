@@ -2,6 +2,8 @@ import type { MatchState } from "@castle-clash/shared";
 
 export interface HudPlayerSnapshot {
   id: string;
+  /** Display name from the server; empty only when talking to an older server. */
+  name: string;
   isLocal: boolean;
   hp: number;
   stamina: number;
@@ -24,6 +26,7 @@ export function matchStateToHud(state: MatchState, localId: string | null): HudP
   state.players.forEach((player) => {
     snapshots.push({
       id: player.id,
+      name: player.name,
       isLocal: player.id === localId,
       hp: player.hp,
       stamina: player.stamina,

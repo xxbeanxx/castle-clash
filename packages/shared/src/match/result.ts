@@ -14,4 +14,8 @@ export interface MatchResult {
   winner: PlayerId | null;
   rounds: number;
   stats: Readonly<Record<PlayerId, MatchStatsEntry>>;
+  /** Display name per participant, including anyone who left before the end
+   *  (their `PlayerState` is already gone from the room by then). Optional so
+   *  a client still reads a result from a server that predates Phase 12. */
+  names?: Readonly<Record<PlayerId, string>>;
 }

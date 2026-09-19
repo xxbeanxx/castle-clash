@@ -19,10 +19,17 @@ export function ResultsOverlay({ client }: { client: GameClient }) {
   }
 
   const rows = Object.entries(result.stats);
+  // Never print a raw session id: an older server sends no names, so fall
+  // back to the player's position in the table.
+  const nameOf = (id: string): string =>
+    result.names?.[id as keyof typeof result.names] ??
+    `Player ${rows.findIndex(([rowId]) => rowId === id) + 1}`;
 
   return (
     <div data-testid="results-overlay" className="cc-overlay">
-      <h2 className="cc-overlay__title">{result.winner ? `${result.winner} wins!` : "Draw"}</h2>
+      <h2 className="cc-overlay__title">
+        {result.winner ? `${nameOf(result.winner)} wins!` : "Draw"}
+      </h2>
       <table className="cc-results">
         <thead>
           <tr>
@@ -36,7 +43,7 @@ export function ResultsOverlay({ client }: { client: GameClient }) {
         <tbody>
           {rows.map(([id, stats]) => (
             <tr key={id}>
-              <td>{id}</td>
+              <td>{nameOf(id)}</td>
               <td>{stats.roundsWon}</td>
               <td>{stats.eliminations}</td>
               <td>{stats.deaths}</td>

@@ -5,7 +5,7 @@ import { matchStateToHud } from "./hud.js";
 function addPlayer(
   state: MatchState,
   id: string,
-  overrides: Partial<Pick<PlayerState, "hp" | "stamina" | "weapon" | "action">> = {},
+  overrides: Partial<Pick<PlayerState, "hp" | "stamina" | "weapon" | "action" | "name">> = {},
 ): void {
   const player = new PlayerState();
   player.id = id;
@@ -20,10 +20,25 @@ describe("matchStateToHud", () => {
 
   it("maps each player's hp/stamina/weapon/action and marks the local one", () => {
     const state = new MatchState();
-    addPlayer(state, "p1", { hp: 80, stamina: 50, weapon: "sword", action: "Block" });
+    addPlayer(state, "p1", {
+      hp: 80,
+      stamina: 50,
+      weapon: "sword",
+      action: "Block",
+      name: "Sir_Kay",
+    });
 
     expect(matchStateToHud(state, "p1")).toEqual([
-      { id: "p1", isLocal: true, hp: 80, stamina: 50, weapon: "sword", action: "Block", powerups: [] },
+      {
+        id: "p1",
+        name: "Sir_Kay",
+        isLocal: true,
+        hp: 80,
+        stamina: 50,
+        weapon: "sword",
+        action: "Block",
+        powerups: [],
+      },
     ]);
   });
 

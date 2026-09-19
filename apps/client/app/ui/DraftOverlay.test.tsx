@@ -70,6 +70,7 @@ const OFFER: DraftOfferSnapshot = { offers: ["sharpEdge", "vampiricEdge", "aeria
 function opponent(overrides: Partial<HudPlayerSnapshot> = {}): HudPlayerSnapshot {
   return {
     id: "opponent-1",
+    name: "Opponent",
     isLocal: false,
     hp: 100,
     stamina: 100,
@@ -173,7 +174,16 @@ describe("DraftOverlay", () => {
     client.emitOffer(OFFER);
     client.emitFlow(draftFlow());
     client.emitHud([
-      { id: "me", isLocal: true, hp: 100, stamina: 100, weapon: "sword", action: "Idle", powerups: [] },
+      {
+        id: "me",
+        name: "Me",
+        isLocal: true,
+        hp: 100,
+        stamina: 100,
+        weapon: "sword",
+        action: "Idle",
+        powerups: [],
+      },
       opponent({ powerups: ["stoneSkin", "stoneSkin"] }),
     ]);
 

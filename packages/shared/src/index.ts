@@ -19,6 +19,7 @@ export * from "./combat/index.js";
 export * from "./powerups/index.js";
 export * from "./match/phase.js";
 export * from "./match/result.js";
+export * from "./profile/displayName.js";
 export * from "./net/Reconciler.js";
 export * from "./net/Interpolator.js";
 export * from "./db/index.js";

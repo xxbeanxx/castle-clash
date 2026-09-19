@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.1.0](https://github.com/xxbeanxx/castle-clash/compare/v1.0.0...v1.1.0) (2026-09-19)
+
+
+### Features
+
+* **infra:** manage Azure, GitHub, Supabase and all secrets with Terraform ([#15](https://github.com/xxbeanxx/castle-clash/issues/15)) ([0005056](https://github.com/xxbeanxx/castle-clash/commit/00050561b4ea67d875d2ddaf4b3f1547e6377df9))
+
+
+### Bug Fixes
+
+* **ci:** build release images for linux/amd64 only ([#30](https://github.com/xxbeanxx/castle-clash/issues/30)) ([55b0833](https://github.com/xxbeanxx/castle-clash/commit/55b0833b06df9338323637c071a00cc469805ca8))
+* **ci:** secrets: inherit so the production environment's secrets reach the deploy job ([#32](https://github.com/xxbeanxx/castle-clash/issues/32)) ([772ffce](https://github.com/xxbeanxx/castle-clash/commit/772ffce954929805530982ab8f0ffd36623d4d8f))
+* **smoke:** identify the client by its title, not a &lt;div&gt; ([#33](https://github.com/xxbeanxx/castle-clash/issues/33)) ([f0b4c54](https://github.com/xxbeanxx/castle-clash/commit/f0b4c543c41e28d9492f104355e3952a65f6db3e))
+
 ## 1.0.0 (2026-09-19)
 
 

@@ -23,7 +23,7 @@ COPY --from=pruner /app/out/full/ .
 COPY --from=pruner /app/tsconfig.base.json .
 # Empty by default: Vite bakes import.meta.env.VITE_* at build time, so a
 # production build never defines this and never ships game/debug.ts's
-# window.__CC_DEBUG__ hook. Only an e2e-flavored build (docker.yml's
+# window.__CC_DEBUG__ hook. Only an e2e-flavored build (docker.yaml's
 # `:e2e` tag / a local `podman build --build-arg VITE_E2E=1`) sets it.
 ARG VITE_E2E=""
 ENV VITE_E2E=${VITE_E2E}

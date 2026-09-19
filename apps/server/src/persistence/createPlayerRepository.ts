@@ -12,7 +12,7 @@ import { SupabasePlayerRepository } from "./SupabasePlayerRepository.js";
  * always worked without any other external service configured. This keeps
  * local dev unblocked for anyone who hasn't run `pnpm exec supabase start`
  * yet; a deployed server (container env, `compose.yaml`, CI's
- * `integration.yml`) always sets both, so it always gets the real
+ * `integration.yaml`) always sets both, so it always gets the real
  * implementation. Called lazily per room (`MatchRoom.onCreate`), not once
  * at module load, so importing this file never requires the env vars to be
  * set.

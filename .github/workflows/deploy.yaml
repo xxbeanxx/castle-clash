@@ -10,7 +10,7 @@ name: deploy
 #   rollback version=v1.2.2 rollback=true                 production
 #
 # Both apps are deployed by *digest*, not tag. From a release run the digests are
-# the ones docker.yml's builds produced (scanned, then promoted); a manual run
+# the ones docker.yaml's builds produced (scanned, then promoted); a manual run
 # resolves the tag once at the start. Either way what is smoke-tested is exactly
 # what runs, even if the tag is moved afterwards. A rollback is a deploy of an older tag with the database
 # push skipped: database changes are never rolled back automatically (which is
@@ -28,7 +28,7 @@ on:
         type: string
         default: production
       server_digest:
-        description: "Digest docker.yml just published (skips re-resolving the tag)"
+        description: "Digest docker.yaml just published (skips re-resolving the tag)"
         type: string
         default: ""
       client_digest:
@@ -103,7 +103,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    uses: ./.github/workflows/deploy-environment.yml
+    uses: ./.github/workflows/deploy-environment.yaml
     with:
       environment: staging
       version: ${{ inputs.version }}
@@ -119,7 +119,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    uses: ./.github/workflows/deploy-environment.yml
+    uses: ./.github/workflows/deploy-environment.yaml
     with:
       environment: production
       version: ${{ inputs.version }}

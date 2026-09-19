@@ -6,16 +6,16 @@ Supabase project, the GitHub repository itself (settings, branch and tag rules, 
 environment), and every secret the pipeline uses. Terraform >= 1.9; providers `azurerm ~> 4.0`,
 `azuread ~> 3.0`, `integrations/github ~> 6.0`, `supabase/supabase ~> 1.0`, `hashicorp/random ~> 3.0`.
 
-| File | Owns |
-| --- | --- |
-| `main.tf` | resource group, Log Analytics workspace, Container Apps environment |
-| `container-apps.tf` | `ca-castle-clash-server` / `-client` (shape only, see below) |
-| `dns.tf` | CNAME + `asuid` TXT records in the `atomic-nucleus.com` zone, managed certificates, custom domains |
-| `identity.tf` | `castle-clash-deploy-prod` app registration, service principal, GitHub OIDC federated credential, RG-scoped `Container Apps Contributor` |
-| `github.tf` | the repository and its settings, the `main` and release-tag rulesets, Actions permissions, the `production` environment (reviewer, `main`-only deploys), its variables and secrets |
-| `supabase.tf` | the Supabase project, the server's secret API key, and the URLs/keys derived from them |
-| `secrets.tf` | the generated secrets and where each one goes |
-| `backend.tf` | remote state (below) |
+| File                | Owns                                                                                                                                                                               |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `main.tf`           | resource group, Log Analytics workspace, Container Apps environment                                                                                                                |
+| `container-apps.tf` | `ca-castle-clash-server` / `-client` (shape only, see below)                                                                                                                       |
+| `dns.tf`            | CNAME + `asuid` TXT records in the `atomic-nucleus.com` zone, managed certificates, custom domains                                                                                 |
+| `identity.tf`       | `castle-clash-deploy-prod` app registration, service principal, GitHub OIDC federated credential, RG-scoped `Container Apps Contributor`                                           |
+| `github.tf`         | the repository and its settings, the `main` and release-tag rulesets, Actions permissions, the `production` environment (reviewer, `main`-only deploys), its variables and secrets |
+| `supabase.tf`       | the Supabase project, the server's secret API key, and the URLs/keys derived from them                                                                                             |
+| `secrets.tf`        | the generated secrets and where each one goes                                                                                                                                      |
+| `backend.tf`        | remote state (below)                                                                                                                                                               |
 
 ## Using it
 
@@ -44,7 +44,7 @@ terraform -chdir=infra/terraform apply change.tfplan && rm infra/terraform/chang
 
 `main` is protected, so change the `.tf` files in a PR and apply from the merged `main`. The deploy
 workflow changes each app's image, scale and env vars on every release; Terraform ignores those
-(see "What Terraform does *not* own"). A clean `plan` says "No changes".
+(see "What Terraform does _not_ own"). A clean `plan` says "No changes".
 
 You need `Storage Blob Data Contributor` on the state account (auth is Entra ID; shared-key
 access is disabled on it), `Owner`/`Contributor` on the subscription for `apply`, rights to edit the
@@ -76,12 +76,12 @@ sensitive**: it holds the Container App secret values (`supabase-secret-key`, `s
 Every secret is generated (or minted) by Terraform, so its value is in state and every consumer is
 wired to that one source. Nothing is typed into a dashboard or `gh secret set`.
 
-| Secret | Source | Consumers |
-| --- | --- | --- |
-| `SMOKE_TOKEN` | `random_password.smoke_token` | GitHub `production` env, server Container App (`smoke-token`) |
-| `supabase-secret-key` | `supabase_apikey.server` | server Container App |
-| `SUPABASE_DB_URL` | `supabase_project` + `random_password.supabase_db` + the pooler host | GitHub `production` env |
-| `AZURE_CLIENT_ID` / `_TENANT_ID` / `_SUBSCRIPTION_ID` | the Entra app / variables | GitHub `production` env (identifiers, not credentials) |
+| Secret                                                | Source                                                               | Consumers                                                     |
+| ----------------------------------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------- |
+| `SMOKE_TOKEN`                                         | `random_password.smoke_token`                                        | GitHub `production` env, server Container App (`smoke-token`) |
+| `supabase-secret-key`                                 | `supabase_apikey.server`                                             | server Container App                                          |
+| `SUPABASE_DB_URL`                                     | `supabase_project` + `random_password.supabase_db` + the pooler host | GitHub `production` env                                       |
+| `AZURE_CLIENT_ID` / `_TENANT_ID` / `_SUBSCRIPTION_ID` | the Entra app / variables                                            | GitHub `production` env (identifiers, not credentials)        |
 
 Read one back with `terraform output -raw smoke_token | supabase_secret_key | supabase_db_url`.
 Rotate with `terraform apply -replace=random_password.smoke_token` (likewise
@@ -99,7 +99,7 @@ server on its next revision (the next deploy, or `az containerapp revision resta
   resolved; and the checks `verify`, `browser`, `build (server)`, `build (client)` and `smoke` must
   pass. No approving review is required (one maintainer could never satisfy it). Repository admins
   can merge a PR past a stuck check, but only through a PR, never by pushing to `main`.
-- **Why only those five checks:** required checks must run on *every* PR. `e2e` (`private-match`) and
+- **Why only those five checks:** required checks must run on _every_ PR. `e2e` (`private-match`) and
   `integration` (`supabase`) are path-filtered, so requiring them would block any PR that does not
   touch those paths. They are advisory until they are made unconditional (or fronted by a single
   always-running gate job).
@@ -111,9 +111,9 @@ server on its next revision (the next deploy, or `az containerapp revision resta
   tag-pinned workflows), commit-signature enforcement, and requiring branches to be up to date
   (no merge queue, so it would re-run the full suite after every unrelated merge).
 
-## What Terraform does *not* own
+## What Terraform does _not_ own
 
-The deploy workflow (`.github/workflows/deploy-environment.yml`) changes these on every
+The deploy workflow (`.github/workflows/deploy-environment.yaml`) changes these on every
 release, so `azurerm_container_app` ignores them (`lifecycle.ignore_changes`) rather than
 fight it:
 
@@ -152,7 +152,7 @@ Known consequences:
   state and the plan shows one in-place update per `AZURE_*` secret. Applying writes the value
   Terraform already knows (a client id, tenant id and subscription id); after that the plan is
   clean.
-- **Custom domains and managed certificates.** The provider cannot bind a *managed* certificate
+- **Custom domains and managed certificates.** The provider cannot bind a _managed_ certificate
   (`container_app_environment_certificate_id` rejects `.../managedCertificates/...` IDs), so
   `azurerm_container_app_custom_domain` ignores the binding arguments and Azure keeps the
   existing bindings. Managed certificate names are pinned to the ones Azure generated, because the

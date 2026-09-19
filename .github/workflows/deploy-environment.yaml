@@ -1,6 +1,6 @@
 name: deploy-environment
 
-# One environment's rollout, called by deploy.yml for `staging` and then
+# One environment's rollout, called by deploy.yaml for `staging` and then
 # `production`. The GitHub environment named by `environment` supplies that
 # environment's secrets/variables and (for production) the required-reviewers
 # gate; see docs/hosting.md for the full list.

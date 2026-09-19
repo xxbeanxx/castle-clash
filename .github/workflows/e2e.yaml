@@ -43,7 +43,7 @@ jobs:
 
       # Since Phase 8 nothing works without a real Supabase: the browser signs
       # in anonymously against it and the server verifies that login's JWT. Same
-      # local stack as integration.yml / containers.yaml's smoke job.
+      # local stack as integration.yaml / containers.yaml's smoke job.
       - run: pnpm exec supabase start --exclude studio,logflare,vector,imgproxy
       - name: Export local Supabase connection info
         run: |

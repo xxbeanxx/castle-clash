@@ -18,7 +18,7 @@ Fedora + rootless-Podman + SELinux-enforcing bugs — exactly this machine's pro
 isn't a hopeful guess, it's the specific configuration the maintainers have been testing against.
 
 **One known, dated gap**: a custom-auth-email-template SELinux fix (#6543, merged 2026-09-09)
-landed *after* stable 2.117.0 branched (2026-09-07), so it's only in the `beta` npm dist-tag today.
+landed _after_ stable 2.117.0 branched (2026-09-07), so it's only in the `beta` npm dist-tag today.
 It only matters if Phase 8 configures `auth.email.template.*` in `supabase/config.toml` for local
 dev — avoidable, or fixable by pointing the devDependency at the `beta` tag if needed later.
 
@@ -70,7 +70,7 @@ and its own baked-in error message treats Podman-only as an anticipated configur
 afterthought:
 
 > `"docker: command not found (podman also not found) — install Docker Desktop or Podman and
-> ensure it is on PATH"`
+ensure it is on PATH"`
 
 Because `docker` isn't on `PATH` on this machine, the very first spawn attempt fails immediately
 with `ENOENT` (no slow timeout) and falls through to `podman`, which **is** on `PATH` (confirmed:
@@ -80,7 +80,7 @@ call, so `podman` just needs to be an executable the shell can find, which it al
 The older Go implementation (`apps/cli-go/internal/utils/docker.go`, still bundled as the sidecar
 for unported commands) is architecturally different — it uses `github.com/docker/cli/cli/command
 .NewDockerCli()` / `github.com/docker/docker/client` (the real Docker Engine API client, which
-*does* honor `DOCKER_HOST` and docker contexts against a socket) — but it also already carries
+_does_ honor `DOCKER_HOST` and docker contexts against a socket) — but it also already carries
 accumulated Podman-specific patches, e.g. treating `podman.ErrNetworkExists` as success and a
 documented workaround for Podman's `/containers/<id>/logs?follow` endpoint never sending EOF
 (`DockerRunOnceWaitWithConfig`'s doc comment: "That EOF never arrives under podman... Waiting on
@@ -89,6 +89,7 @@ So even the legacy code path was never "Docker-only, Podman unsupported" — Pod
 been a live, if quiet, target across both implementations.
 
 **Sources** (all read directly from `github.com/supabase/cli` @ `main`, cloned/fetched 2026-09-16):
+
 - `apps/cli/src/command-internal/container-cli.ts`
 - `apps/cli/src/commands/start/SIDE_EFFECTS.md`
 - `apps/cli-go/internal/utils/docker.go`
@@ -104,7 +105,7 @@ Podman either — silence, not a refusal. Other, unrelated docs pages (self-host
 docker-compose, a different product surface from `supabase start`) do call Docker Desktop "a
 prerequisite for local development," and that exact string is also still hard-coded as a hint in
 the old Go sidecar (`apps/cli-go/internal/utils/docker.go:350`,
-`suggestDockerInstallIfConnectionFailed`) — but that hint only fires from the *unported* Go code
+`suggestDockerInstallIfConnectionFailed`) — but that hint only fires from the _unported_ Go code
 path, not from `start`'s current TypeScript implementation, which has its own Podman-inclusive
 error message (§1).
 
@@ -127,7 +128,7 @@ Given §1, none of the three fallback strategies named in this research's brief 
   API endpoint is what that old client would be hitting — a heavier, more fragile setup than just
   having `podman` on `PATH`, which is already the case here.
 - **`podman-docker` package (a `docker` shim wrapping `podman`)**: redundant. It would make the
-  *first* spawn attempt (`docker ...`) succeed by silently running `podman` under a different name;
+  _first_ spawn attempt (`docker ...`) succeed by silently running `podman` under a different name;
   the CLI already tries `podman` directly as its documented second choice. Installing the shim adds
   a moving part for no behavioral gain in this codepath.
 - **Raw `podman run postgres` + hand-applied migrations/pgTAP via `psql`**: a real fallback, but a
@@ -138,6 +139,7 @@ Given §1, none of the three fallback strategies named in this research's brief 
 
 If `supabase start` on the pinned stable version does fail for some other reason, the practical
 escalation ladder, cheapest first:
+
 1. Re-run with `--debug` to see which container/health-check failed (the CLI's own diagnostics for
    this are good as of #5966 — an unhealthy container now names itself, its image, and a fix
    command instead of a bare container ID).
@@ -158,13 +160,13 @@ This session's own environment: `getenforce` → `Enforcing`; `podman info` →
 named in five recent, **closed** supabase/cli issues — a real, current maintenance pattern, not
 speculation:
 
-| Issue | Date opened | Fixed by | Problem |
-|---|---|---|---|
-| [#5989](https://github.com/supabase/cli/issues/5989) | 2026-07-29 | `3b227be` (#5990) | pg-delta's CA bind mount `EACCES` on SELinux-enforcing hosts + rootless Podman — fixed with `--security-opt label:disable`. |
-| — | 2026-07-31 | `5e2539c` (#6000) | `start`'s staged secrets (`pgsodium_root.key`, Kong/Supavisor secrets, edge-runtime artifacts) hit the same SELinux label problem — fixed with a `Z` relabel mount option. |
-| [#6035](https://github.com/supabase/cli/issues/6035) | 2026-08-03 | `86b2582` (#6048) | `start` fails on Podman: DB container `WorkingDir` set to a host path that doesn't exist inside the container (Docker silently creates it; Podman rejects the container outright). | 
-| — | 2026-08-03 | `cfb979d` (#6037) | `start` dies on Podman with "volume already exists" — Podman's compat volume-create endpoint isn't idempotent the way Docker's is. |
-| [#6537](https://github.com/supabase/cli/issues/6537) | 2026-09-09 | `347d4a2` (#6543) | Custom auth email-template bind mounts unreadable on SELinux-enforcing hosts — same day fix, but **after** stable 2.117.0 branched (2026-09-07), so only in `beta` today. |
+| Issue                                                | Date opened | Fixed by          | Problem                                                                                                                                                                            |
+| ---------------------------------------------------- | ----------- | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [#5989](https://github.com/supabase/cli/issues/5989) | 2026-07-29  | `3b227be` (#5990) | pg-delta's CA bind mount `EACCES` on SELinux-enforcing hosts + rootless Podman — fixed with `--security-opt label:disable`.                                                        |
+| —                                                    | 2026-07-31  | `5e2539c` (#6000) | `start`'s staged secrets (`pgsodium_root.key`, Kong/Supavisor secrets, edge-runtime artifacts) hit the same SELinux label problem — fixed with a `Z` relabel mount option.         |
+| [#6035](https://github.com/supabase/cli/issues/6035) | 2026-08-03  | `86b2582` (#6048) | `start` fails on Podman: DB container `WorkingDir` set to a host path that doesn't exist inside the container (Docker silently creates it; Podman rejects the container outright). |
+| —                                                    | 2026-08-03  | `cfb979d` (#6037) | `start` dies on Podman with "volume already exists" — Podman's compat volume-create endpoint isn't idempotent the way Docker's is.                                                 |
+| [#6537](https://github.com/supabase/cli/issues/6537) | 2026-09-09  | `347d4a2` (#6543) | Custom auth email-template bind mounts unreadable on SELinux-enforcing hosts — same day fix, but **after** stable 2.117.0 branched (2026-09-07), so only in `beta` today.          |
 
 This is unusually strong, dated, first-party evidence for this specific combination (Fedora,
 rootless Podman, SELinux enforcing) — not "Podman probably works in general," but "the maintainers
@@ -181,8 +183,8 @@ podman`, 2026-09-16.
 are brought up sequentially, one `docker`/`podman create`+`start` subprocess call per service. The
 absence of `podman-compose`/`docker compose` on this machine (confirmed in this task's given facts)
 is therefore **not a blocker for `supabase start`**, even though it would matter for a hand-rolled
-self-hosted stack via a `docker-compose.yml` (a different scenario some community guides — e.g. the
-`dev.to`/gist links this research's initial search turned up — cover: self-hosting a *production*
+self-hosted stack via a `docker-compose.yaml` (a different scenario some community guides — e.g. the
+`dev.to`/gist links this research's initial search turned up — cover: self-hosting a _production_
 Supabase stack, not `supabase start`'s local dev flow).
 
 ## 6. CLI install method for Linux, and this repo's install approach
@@ -193,16 +195,16 @@ Supabase stack, not `supabase start`'s local dev flow).
 - **`npm install -g supabase` is deliberately unsupported** — GitHub issue #4496 ("Docs: npm global
   install is unsupported but not documented") confirms this is intentional behavior, not a bug: the
   published npm package is a thin JS shim (`apps/cli/package.json`'s `bin: { supabase:
-  "dist/supabase.js" }`) around a separately-versioned platform binary; a global install can drift
+"dist/supabase.js" }`) around a separately-versioned platform binary; a global install can drift
   the shim and binary out of version lockstep.
 - Officially documented Linux options
   (`supabase.com/docs/guides/local-development/cli/getting-started`, fetched 2026-09-16): Homebrew
   (`brew install supabase/tap/supabase`), native `.deb`/`.rpm`/`.apk` packages from GitHub Releases,
   the standalone-binary installer (`curl -fsSL
-  https://raw.githubusercontent.com/supabase/cli/main/install | bash`), or — the one that fits this
+https://raw.githubusercontent.com/supabase/cli/main/install | bash`), or — the one that fits this
   repo's pnpm-workspace convention — as a **project devDependency**: the docs' own example is `npm
-  install supabase --save-dev` + `npx supabase <command>`; this repo's pnpm equivalent is `pnpm add
-  -D supabase -w` at the workspace root, invoked via `pnpm exec supabase <command>`.
+install supabase --save-dev` + `npx supabase <command>`; this repo's pnpm equivalent is `pnpm add
+-D supabase -w` at the workspace root, invoked via `pnpm exec supabase <command>`.
 
 **Recommendation for this repo**: pin `supabase` as an **exact** devDependency version (`"supabase":
 "2.117.0"`, not a caret range) — the same reasoning CLAUDE.md already applies to `oxfmt` (a
@@ -216,7 +218,7 @@ via `gh api`, 2026-09-16); `supabase.com/docs/guides/local-development/cli/getti
 ## 7. `@supabase/supabase-js` and `jose` versions
 
 - **`@supabase/supabase-js`**: latest stable is **`2.116.0`** (npm `latest` dist-tag, `npm view
-  @supabase/supabase-js version`, checked 2026-09-16).
+@supabase/supabase-js version`, checked 2026-09-16).
 - **`jose`**: latest stable is **`6.2.12`** (npm `latest` dist-tag, `npm view jose version`, checked
   2026-09-16) — the JWT verification library for server-side (`apps/server`) verification of
   Supabase-issued JWTs against the project's JWKS, independent of the `supabase-js` client SDK
@@ -300,7 +302,7 @@ Attempt the pgTAP/RLS testing and integration-CI portions of Phase 8 for real th
    `VITE_SUPABASE_PUBLISHABLE_KEY` client-side and `SUPABASE_SECRET_KEY` server-side) — no reason to
    build against the legacy `anon`/`service_role` names given the 2026 sunset (§9).
 7. CI note (not this session's blocker, but worth recording): GitHub Actions' standard Ubuntu
-   runners ship Docker preinstalled, so none of this Podman analysis affects `ci.yml` — the
+   runners ship Docker preinstalled, so none of this Podman analysis affects `ci.yaml` — the
    constraint is purely this local dev machine's toolchain. `supabase start` in CI will use the
    `docker` branch of the same fallback, not `podman`, and should behave identically to how it
    already does for any other Docker-based CI job in this repo.

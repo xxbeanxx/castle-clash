@@ -17,17 +17,17 @@ browser ─▶ castle-clash[-staging].atomic-nucleus.com       │   │  (same 
 **Provisioned 2026-09-19: production only** (one free Supabase project; staging is supported by the
 scripts and workflows but was not created). Everything below marked _staging_ is optional.
 
-| Thing              | Production (exists)                                    | Staging (not created)                                  |
-| ------------------ | ------------------------------------------------------ | ------------------------------------------------------ |
-| Resource group     | `rg-castle-clash`                                      | `rg-castle-clash-staging`                              |
-| Environment        | `cae-castle-clash` (logs: `log-castle-clash`)          | `cae-castle-clash-staging`                             |
-| Apps               | `ca-castle-clash-{server,client}`                      | `ca-castle-clash-{server,client}-staging`              |
-| Client URL         | `https://castle-clash.atomic-nucleus.com`              | `https://castle-clash-staging.atomic-nucleus.com`      |
-| Game server URL    | `wss://castle-clash-game.atomic-nucleus.com`           | `wss://castle-clash-game-staging.atomic-nucleus.com`   |
-| Server size        | 1 vCPU / 2 GiB (raise via `SERVER_CPU`/`SERVER_MEMORY`) | 1 vCPU / 2 GiB                                         |
-| Supabase           | `castle-clash` (`vrcxprhmonzpuelfnijy`, free plan, ca-central-1) | —                                             |
-| Deploy identity    | app registration `castle-clash-deploy-prod`, role `Container Apps Contributor` on `rg-castle-clash` only | — |
-| GitHub environment | `production` (required reviewer, `main` only)          | `staging` (no gate)                                    |
+| Thing              | Production (exists)                                                                                      | Staging (not created)                                |
+| ------------------ | -------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| Resource group     | `rg-castle-clash`                                                                                        | `rg-castle-clash-staging`                            |
+| Environment        | `cae-castle-clash` (logs: `log-castle-clash`)                                                            | `cae-castle-clash-staging`                           |
+| Apps               | `ca-castle-clash-{server,client}`                                                                        | `ca-castle-clash-{server,client}-staging`            |
+| Client URL         | `https://castle-clash.atomic-nucleus.com`                                                                | `https://castle-clash-staging.atomic-nucleus.com`    |
+| Game server URL    | `wss://castle-clash-game.atomic-nucleus.com`                                                             | `wss://castle-clash-game-staging.atomic-nucleus.com` |
+| Server size        | 1 vCPU / 2 GiB (raise via `SERVER_CPU`/`SERVER_MEMORY`)                                                  | 1 vCPU / 2 GiB                                       |
+| Supabase           | `castle-clash` (`vrcxprhmonzpuelfnijy`, free plan, ca-central-1)                                         | —                                                    |
+| Deploy identity    | app registration `castle-clash-deploy-prod`, role `Container Apps Contributor` on `rg-castle-clash` only | —                                                    |
+| GitHub environment | `production` (required reviewer, `main` only)                                                            | `staging` (no gate)                                  |
 
 The production Container Apps still run Microsoft's placeholder image until the first release deploys.
 Free-tier Supabase projects **pause after a week of inactivity**; a paused project fails the deploy's
@@ -42,10 +42,10 @@ conventional commits on main
 release.yaml ── release-please keeps a "release PR" open (version + CHANGELOG)
         │        merging it creates the vX.Y.Z tag + GitHub release, and in the same run:
         ▼
-docker.yml ──── build server+client for linux/amd64,arm64 with provenance + SBOM, push as sha-<short>,
+docker.yaml ──── build server+client for linux/amd64,arm64 with provenance + SBOM, push as sha-<short>,
         │        Trivy fails the job on any fixable CRITICAL, then promotes vX.Y.Z and X.Y to that digest
         ▼
-deploy.yml ──── resolves each tag to its digest, then:
+deploy.yaml ──── resolves each tag to its digest, then:
    staging  ──  db push → deploy server → wait for /healthz == version → deploy client → deploy smoke
    production   the same, after the required reviewer approves; if it fails the apps revert to
                 the images they were running before, the database is left alone
@@ -57,13 +57,13 @@ push to `main` in parallel with CI, so that gate has to live in **branch protect
 (require those checks on PRs, including the release PR — which needs `RELEASE_PLEASE_TOKEN`, below).
 Note `e2e` and the `containers.yaml` smoke currently cannot pass (Phase 8's missing-Supabase gap).
 
-Release tags are immutable: `docker.yml` refuses to move an existing `vX.Y.Z` to a different image.
+Release tags are immutable: `docker.yaml` refuses to move an existing `vX.Y.Z` to a different image.
 If a release build must be redone, delete that version of the two GHCR packages first. Tags are
 promoted only after **both** images pass the Trivy scan.
 
-`docker.yml` is called by `release.yaml` rather than triggered by the tag push: release-please tags
+`docker.yaml` is called by `release.yaml` rather than triggered by the tag push: release-please tags
 with the built-in `GITHUB_TOKEN`, and events raised by that token start no workflows. (The plan's
-"`docker.yml` on `v*` tags" is met by the same run.) A tag pushed by hand builds nothing: use
+"`docker.yaml` on `v*` tags" is met by the same run.) A tag pushed by hand builds nothing: use
 **Actions → docker → Run workflow** with the tag, then **Actions → deploy**.
 
 Release PRs are also opened with `GITHUB_TOKEN`, so CI checks do not run on them. If those checks are
@@ -74,11 +74,11 @@ store it as the repo secret `RELEASE_PLEASE_TOKEN`; `release.yaml` uses it when 
 
 Actions → **deploy** → Run workflow:
 
-| Goal                     | version  | rollback | target       |
-| ------------------------ | -------- | -------- | ------------ |
-| Deploy a release         | `v1.2.3` | off      | `production` (default) |
+| Goal                     | version  | rollback | target                                          |
+| ------------------------ | -------- | -------- | ----------------------------------------------- |
+| Deploy a release         | `v1.2.3` | off      | `production` (default)                          |
 | Staging first, then prod | `v1.2.3` | off      | `both` (needs the optional staging environment) |
-| **Roll production back** | `v1.2.2` | **on**   | `production` |
+| **Roll production back** | `v1.2.2` | **on**   | `production`                                    |
 
 Rollback redeploys an older tag by digest **without** `supabase db push` (the database is already
 ahead of the older tag's migration folder, which `db push` rejects). It still needs the `production`
@@ -118,7 +118,7 @@ and `publicAddress` are added (the plan's "only when more than one process is ne
 Ingress: HTTP ingress supports WebSockets out of the box (documented request timeout: 240 s; Colyseus
 pings every 3 s by default — `WebSocketTransport`'s `pingInterval`). Container Apps runs only `linux/amd64` images — the release build is
 multi-arch, and Azure pulls the amd64 variant. Clients already connected to a draining server stay connected until
-their match ends or the drain timeout, but a *reconnect* — or a join by private-room code — after
+their match ends or the drain timeout, but a _reconnect_ — or a join by private-room code — after
 traffic has moved lands on the new revision, which has no such room. An accepted limitation of the
 single-process design.
 
@@ -137,7 +137,7 @@ token (`SUPABASE_ACCESS_TOKEN`), and `supabase` (`npx supabase`, for migrations)
 
 1. **Supabase project** — `supabase.tf` owns it (region, database password, the server's secret API
    key). It was adopted with `terraform import`; a new project would be created by `apply`. Auth
-   settings are *not* in Terraform: in the dashboard, **enable anonymous sign-ins** (the game signs
+   settings are _not_ in Terraform: in the dashboard, **enable anonymous sign-ins** (the game signs
    guests in anonymously and `MatchRoom.onAuth` rejects everyone else) and set the site URL and
    redirect allow-list to the client origin. The local stack's `supabase/config.toml` is not pushed to hosted
    projects. GitHub-hosted runners are IPv4-only and the direct `db.<ref>.supabase.co` host is
@@ -166,20 +166,20 @@ token (`SUPABASE_ACCESS_TOKEN`), and `supabase` (`npx supabase`, for migrations)
 
 ### GitHub environment reference
 
-| Kind     | Name                                                                                                                              | Set by                            |
-| -------- | --------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
-| secret   | `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`                                                                     | Terraform (`github.tf`)           |
-| secret   | `SUPABASE_DB_URL`                                                                                                                 | Terraform (`github.tf`)           |
-| secret   | `SMOKE_TOKEN`                                                                                                                     | Terraform (`github.tf`)           |
-| variable | `AZURE_RESOURCE_GROUP`, `SERVER_APP`, `CLIENT_APP`, `GAME_SERVER_URL`, `CLIENT_URL`, `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`    | Terraform (`github.tf`)           |
-| variable | `SERVER_CPU`, `SERVER_MEMORY`, `CLIENT_MIN_REPLICAS` (optional overrides)                                                          | Terraform (`github.tf`)           |
-| repo     | `RELEASE_PLEASE_TOKEN` (optional PAT so release PRs run CI)                                                                        | you                               |
+| Kind     | Name                                                                                                                            | Set by                  |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
+| secret   | `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`                                                                   | Terraform (`github.tf`) |
+| secret   | `SUPABASE_DB_URL`                                                                                                               | Terraform (`github.tf`) |
+| secret   | `SMOKE_TOKEN`                                                                                                                   | Terraform (`github.tf`) |
+| variable | `AZURE_RESOURCE_GROUP`, `SERVER_APP`, `CLIENT_APP`, `GAME_SERVER_URL`, `CLIENT_URL`, `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` | Terraform (`github.tf`) |
+| variable | `SERVER_CPU`, `SERVER_MEMORY`, `CLIENT_MIN_REPLICAS` (optional overrides)                                                       | Terraform (`github.tf`) |
+| repo     | `RELEASE_PLEASE_TOKEN` (optional PAT so release PRs run CI)                                                                     | you                     |
 
 Container App secrets (server only): `supabase-secret-key`, `smoke-token`.
 
 ## The deploy smoke
 
-`pnpm --filter @castle-clash/server run deploy-smoke` (run by `deploy-environment.yml` after each
+`pnpm --filter @castle-clash/server run deploy-smoke` (run by `deploy-environment.yaml` after each
 rollout; usable by hand against any environment). Environment: `GAME_SERVER_URL`, `CLIENT_URL`,
 `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SMOKE_TOKEN`, optional `EXPECTED_VERSION`. It checks, in
 order: server `/healthz` (and that it reports the version just deployed), `/readyz`, that the client

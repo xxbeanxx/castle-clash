@@ -6,7 +6,7 @@ on:
       - "supabase/**"
       - "apps/server/**"
       - "packages/shared/**"
-      - ".github/workflows/integration.yml"
+      - ".github/workflows/integration.yaml"
   workflow_dispatch: {}
 
 concurrency:

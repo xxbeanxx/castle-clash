@@ -85,8 +85,8 @@ castle-clash/
 │  ├─ config.toml
 │  ├─ migrations/
 │  └─ tests/                       # pgTAP (RLS + functions)
-├─ .github/workflows/              # ci.yml, docker.yml, integration.yml, e2e.yml, deploy.yml
-├─ docker-compose.yml              # local stack: server + client (+ supabase via CLI)
+├─ .github/workflows/              # ci.yaml, docker.yaml, integration.yaml, e2e.yaml, deploy.yaml
+├─ docker-compose.yaml              # local stack: server + client (+ supabase via CLI)
 ├─ turbo.json, pnpm-workspace.yaml, tsconfig.base.json, vitest.config.ts (root, `projects` array)
 └─ docs/ (this plan, ADRs)
 ```
@@ -182,13 +182,13 @@ Browser-mode tests (Render row) need `@vitest/browser-playwright` installed as a
 
 ### CI/CD integration
 
-- **`.github/workflows/ci.yml`** runs on `pull_request` and `push: main`. Job `verify`: checkout → `pnpm/action-setup` → `actions/setup-node` (cache `pnpm`) → `pnpm install --frozen-lockfile` → `pnpm turbo run lint typecheck test build`. Add `concurrency: ci-${{ github.ref }}` with `cancel-in-progress`. Turbo remote cache is optional (`TURBO_TOKEN`/`TURBO_TEAM` secrets).
-- **`.github/workflows/docker.yml`** uses a matrix over `[server, client]` with `docker/setup-buildx-action`, `docker/metadata-action`, and `docker/build-push-action` (cache `type=gha`).
+- **`.github/workflows/ci.yaml`** runs on `pull_request` and `push: main`. Job `verify`: checkout → `pnpm/action-setup` → `actions/setup-node` (cache `pnpm`) → `pnpm install --frozen-lockfile` → `pnpm turbo run lint typecheck test build`. Add `concurrency: ci-${{ github.ref }}` with `cancel-in-progress`. Turbo remote cache is optional (`TURBO_TOKEN`/`TURBO_TEAM` secrets).
+- **`.github/workflows/docker.yaml`** uses a matrix over `[server, client]` with `docker/setup-buildx-action`, `docker/metadata-action`, and `docker/build-push-action` (cache `type=gha`).
   - PRs build only (`push: false`) to validate the containerfiles.
   - Pushes to `main` log in to GHCR with `GITHUB_TOKEN` (`permissions: packages: write`) and push `ghcr.io/${{ github.repository_owner }}/castle-clash-{server,client}` tagged `sha-<short>` and `main`.
   - `v*` tags push semver tags.
 - Branch protection requires `verify`, `docker (server)`, and `docker (client)`.
-- Add `.github/dependabot.yml` for npm, docker, and github-actions.
+- Add `.github/dependabot.yaml` for npm, docker, and github-actions.
 
 ---
 
@@ -210,7 +210,7 @@ Browser-mode tests (Render row) need `@vitest/browser-playwright` installed as a
    - `game/GameClient.ts`: `async start(container: HTMLElement, roomUrl)` → `await app.init({ resizeTo })` → connect → subscribe to state → `ticker.add(render)`. `destroy()` tears everything down.
    - `routes/play.tsx`: `<GameCanvas>` mounts `GameClient` in `useEffect` with cleanup, which also handles StrictMode double-mount.
    - `game/viewmodel/playersToRects.ts`: pure mapping from `MatchState` to `{id, x, y, tint}[]`. Pixi code only draws what the view-model returns.
-5. **Local stack:** `docker-compose.yml` runs `server` (port 2567) and `client` (port 8080, `GAME_SERVER_URL=ws://localhost:2567`). `pnpm dev` runs both through turbo.
+5. **Local stack:** `docker-compose.yaml` runs `server` (port 2567) and `client` (port 8080, `GAME_SERVER_URL=ws://localhost:2567`). `pnpm dev` runs both through turbo.
 
 ### Testing strategy (gate to Phase 3)
 
@@ -223,8 +223,8 @@ Browser-mode tests (Render row) need `@vitest/browser-playwright` installed as a
 
 ### CI/CD integration
 
-- `ci.yml`: add job `browser` (install Playwright Chromium with cache, then `pnpm --filter client test:browser`).
-- `docker.yml`: add job `smoke` (`needs: build`). It loads the built images (`outputs: type=docker` on PRs), runs `docker compose up -d --wait`, curls `/healthz` and the client `/`, and runs `apps/server/scripts/smoke-join.ts`, a headless `colyseus.js` client that joins a room and asserts that state arrives. **On `main`, the GHCR push job needs `smoke`**, so only images that pass the smoke test get published.
+- `ci.yaml`: add job `browser` (install Playwright Chromium with cache, then `pnpm --filter client test:browser`).
+- `docker.yaml`: add job `smoke` (`needs: build`). It loads the built images (`outputs: type=docker` on PRs), runs `docker compose up -d --wait`, curls `/healthz` and the client `/`, and runs `apps/server/scripts/smoke-join.ts`, a headless `colyseus.js` client that joins a room and asserts that state arrives. **On `main`, the GHCR push job needs `smoke`**, so only images that pass the smoke test get published.
 
 ---
 
@@ -270,7 +270,7 @@ Browser-mode tests (Render row) need `@vitest/browser-playwright` installed as a
 
 ### CI/CD integration
 
-- `ci.yml`: turn on Vitest coverage for `packages/shared` with thresholds (`sim/**` ≥ 90% lines), and upload the `coverage/` artifact.
+- `ci.yaml`: turn on Vitest coverage for `packages/shared` with thresholds (`sim/**` ≥ 90% lines), and upload the `coverage/` artifact.
 - Property tests print the failing seed. CI sets `FC_SEED` from `github.run_id` so failures can be reproduced.
 
 ---
@@ -335,7 +335,7 @@ Browser-mode tests (Render row) need `@vitest/browser-playwright` installed as a
 
 ### CI/CD integration
 
-- `ci.yml`: add an asset validation step, `pnpm --filter client assets:check`, which verifies that every clip referenced in the animation map exists in `manifest.json` and that spritesheets stay within the size budget.
+- `ci.yaml`: add an asset validation step, `pnpm --filter client assets:check`, which verifies that every clip referenced in the animation map exists in `manifest.json` and that spritesheets stay within the size budget.
 - The `browser` job now covers the KnightView tests. Its Playwright cache key includes the lockfile hash.
 
 ---
@@ -369,9 +369,9 @@ Browser-mode tests (Render row) need `@vitest/browser-playwright` installed as a
 
 ### CI/CD integration
 
-- **`.github/workflows/e2e.yml`** runs on PRs to `main` (path-filtered to `apps/**`, `packages/**`) and nightly. It builds images, starts `docker compose up -d --wait`, and runs Playwright in the `mcr.microsoft.com/playwright` container.
+- **`.github/workflows/e2e.yaml`** runs on PRs to `main` (path-filtered to `apps/**`, `packages/**`) and nightly. It builds images, starts `docker compose up -d --wait`, and runs Playwright in the `mcr.microsoft.com/playwright` container.
   - `e2e/private-match.spec.ts`: context A creates a private room and reads the code. Context B joins. Both see the countdown, and holding RIGHT in A changes A's position as seen through `window.__CC_DEBUG__` (a debug hook compiled in only when `VITE_E2E=1`).
-- The job uploads the Playwright trace and video on failure. `docker.yml` also publishes a `:e2e`-flavored client build argument, or E2E builds locally with the debug flag. Production images never include the debug hook.
+- The job uploads the Playwright trace and video on failure. `docker.yaml` also publishes a `:e2e`-flavored client build argument, or E2E builds locally with the debug flag. Production images never include the debug hook.
 
 ---
 
@@ -420,8 +420,8 @@ Browser-mode tests (Render row) need `@vitest/browser-playwright` installed as a
 
 ### CI/CD integration
 
-- `e2e.yml`: the visual regression spec runs in the pinned Playwright container, which renders consistently. Adding the `update-snapshots` label to a PR triggers a job that regenerates the baselines and commits them back.
-- `ci.yml`: add a client bundle budget (`size-limit` on the initial JS chunk; arena bundles are lazy) and extend `assets:check` to cover the arena bundles.
+- `e2e.yaml`: the visual regression spec runs in the pinned Playwright container, which renders consistently. Adding the `update-snapshots` label to a PR triggers a job that regenerates the baselines and commits them back.
+- `ci.yaml`: add a client bundle budget (`size-limit` on the initial JS chunk; arena bundles are lazy) and extend `assets:check` to cover the arena bundles.
 
 ---
 
@@ -507,7 +507,7 @@ Browser-mode tests (Render row) need `@vitest/browser-playwright` installed as a
 
 ### CI/CD integration
 
-- **`.github/workflows/integration.yml`** runs on PRs touching `supabase/**`, `apps/server/**`, or `packages/shared/**`:
+- **`.github/workflows/integration.yaml`** runs on PRs touching `supabase/**`, `apps/server/**`, or `packages/shared/**`:
   1. `supabase/setup-cli`, then `supabase start` (excluding unneeded services such as studio).
   2. `supabase db reset`, which applies all migrations from scratch.
   3. `supabase db lint`.
@@ -515,7 +515,7 @@ Browser-mode tests (Render row) need `@vitest/browser-playwright` installed as a
   5. The server contract suite against the local instance.
   6. A **generated types freshness check**: regenerate `database.types.ts`, then `git diff --exit-code`.
 - Secrets: none in CI, since everything runs against local Supabase. Staging and production values (`SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_DB_PASSWORD`) live in GitHub **Environments** and are used only in Phase 10.
-- `e2e.yml`: the compose stack now runs against a CLI-started local Supabase, and specs sign in as anonymous users.
+- `e2e.yaml`: the compose stack now runs against a CLI-started local Supabase, and specs sign in as anonymous users.
 
 ---
 
@@ -549,7 +549,7 @@ Browser-mode tests (Render row) need `@vitest/browser-playwright` installed as a
 
 ### CI/CD integration
 
-- `ci.yml`: `assets:check` now cross-validates `shared` catalog texture keys against `apps/client/public/assets/manifest.json`.
+- `ci.yaml`: `assets:check` now cross-validates `shared` catalog texture keys against `apps/client/public/assets/manifest.json`.
 - The E2E customization spec joins the required checks for `main`.
 
 ---
@@ -583,8 +583,8 @@ Browser-mode tests (Render row) need `@vitest/browser-playwright` installed as a
 
 ### CI/CD integration
 
-- **`docker.yml` on `v*` tags:** builds multi-arch images (`linux/amd64,linux/arm64`) with `provenance: true` and `sbom: true`. A Trivy scan fails on CRITICAL vulnerabilities. Tags: `vX.Y.Z`, `X.Y`, `sha-<short>`. The job outputs **image digests**.
-- **`.github/workflows/deploy.yml`** (`workflow_run` after a successful tag build, or `workflow_dispatch` with a version input):
+- **`docker.yaml` on `v*` tags:** builds multi-arch images (`linux/amd64,linux/arm64`) with `provenance: true` and `sbom: true`. A Trivy scan fails on CRITICAL vulnerabilities. Tags: `vX.Y.Z`, `X.Y`, `sha-<short>`. The job outputs **image digests**.
+- **`.github/workflows/deploy.yaml`** (`workflow_run` after a successful tag build, or `workflow_dispatch` with a version input):
   1. `staging` environment (auto): `supabase db push --db-url ${{ secrets.SUPABASE_DB_URL }}` (migrations are forward-compatible, following expand/contract), then deploy the server image **by digest** and wait for `/readyz`, then deploy the client image by digest, then run `deploy smoke`.
   2. `production` environment (required reviewers): the same steps with production secrets. Old server instances drain.
   3. `rollback` job (`workflow_dispatch`): redeploy the previous digest. DB rollback is never automatic, which is why the expand/contract migration discipline matters.
@@ -595,20 +595,20 @@ Browser-mode tests (Render row) need `@vitest/browser-playwright` installed as a
 
 ## Appendix A — Workflow Summary
 
-| Workflow          | Trigger                                      | Jobs                                                                                                | Introduced     |
-| ----------------- | -------------------------------------------- | --------------------------------------------------------------------------------------------------- | -------------- |
-| `ci.yml`          | PR, push main                                | `verify` (lint/typecheck/test/build + coverage), `browser` (Pixi render tests), asset/bundle checks | P1, P2, P4, P6 |
-| `docker.yml`      | PR (build only), main (push), `v*` (release) | matrix build → `smoke` (compose) → push GHCR → scan/SBOM on tags                                    | P1, P2, P10    |
-| `e2e.yml`         | PR to main (path filter), nightly            | compose stack + Playwright (+ visual regression, local Supabase)                                    | P5, P6, P8     |
-| `integration.yml` | PR touching server/shared/supabase           | Supabase local: migrations, lint, pgTAP, repo contract, types freshness                             | P8             |
-| `nightly.yml`     | cron                                         | balance report, full E2E, image re-scan                                                             | P7, P10        |
-| `deploy.yml`      | after tag build / manual                     | staging → prod (approval) → smoke; rollback                                                         | P10            |
+| Workflow           | Trigger                                      | Jobs                                                                                                | Introduced     |
+| ------------------ | -------------------------------------------- | --------------------------------------------------------------------------------------------------- | -------------- |
+| `ci.yaml`          | PR, push main                                | `verify` (lint/typecheck/test/build + coverage), `browser` (Pixi render tests), asset/bundle checks | P1, P2, P4, P6 |
+| `docker.yaml`      | PR (build only), main (push), `v*` (release) | matrix build → `smoke` (compose) → push GHCR → scan/SBOM on tags                                    | P1, P2, P10    |
+| `e2e.yaml`         | PR to main (path filter), nightly            | compose stack + Playwright (+ visual regression, local Supabase)                                    | P5, P6, P8     |
+| `integration.yaml` | PR touching server/shared/supabase           | Supabase local: migrations, lint, pgTAP, repo contract, types freshness                             | P8             |
+| `nightly.yaml`     | cron                                         | balance report, full E2E, image re-scan                                                             | P7, P10        |
+| `deploy.yaml`      | after tag build / manual                     | staging → prod (approval) → smoke; rollback                                                         | P10            |
 
 ## Appendix B — Open Decisions (resolve before the relevant phase)
 
 1. **Players per match** (P5): 1v1 focus versus 2–6 free-for-all. This affects arena scale, camera, and patch rate.
 2. **Arena selection** (P6): random, vote, or loser-picks.
 3. **Guest stats** (P8): whether anonymous users appear on leaderboards before linking an account.
-4. **Hosting target** (P10): this determines the concrete deploy step in `deploy.yml`. **Decided 2026-09-19: Azure Container Apps** (see `docs/hosting.md`).
+4. **Hosting target** (P10): this determines the concrete deploy step in `deploy.yaml`. **Decided 2026-09-19: Azure Container Apps** (see `docs/hosting.md`).
 5. **Art pipeline** (P4/P6): commissioned or asset packs, and Aseprite → TexturePacker export conventions.
 6. **Ranked play**: out of scope here. The `matches` and `match_participants` schema can support a later ELO/Glicko phase.

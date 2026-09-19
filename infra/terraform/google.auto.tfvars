@@ -1,0 +1,1 @@
+supabase_google_client_id = "628444447416-g14eij7s6uueof755ikbskohrr2pfcpn.apps.googleusercontent.com"

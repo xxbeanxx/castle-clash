@@ -1,6 +1,16 @@
-import { Links, Meta, Outlet, Scripts, ScrollRestoration } from "react-router";
+import {
+  isRouteErrorResponse,
+  Links,
+  Meta,
+  Outlet,
+  Scripts,
+  ScrollRestoration,
+  useRouteError,
+} from "react-router";
 
 import "./app.css";
+import { Brand } from "./ui/Brand.js";
+import { Button, ButtonLink } from "./ui/kit/index.js";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
@@ -31,8 +41,46 @@ export function Layout({ children }: { children: React.ReactNode }) {
   );
 }
 
+/** Shown while the initial `clientLoader`s run, before any route has rendered. */
 export function HydrateFallback() {
-  return <p>Loading…</p>;
+  return (
+    <div className="cc-splash" role="status" aria-live="polite">
+      <Brand />
+      <p>Raising the drawbridge…</p>
+    </div>
+  );
+}
+
+/**
+ * Last-resort boundary for anything a route throws (a failed loader, a render
+ * bug). Deliberately self-contained: it can't assume the site layout or a
+ * session, and offers the two things that always work, retry and go home.
+ */
+export function ErrorBoundary() {
+  const error = useRouteError();
+  const isResponse = isRouteErrorResponse(error);
+  const title = isResponse && error.status === 404 ? "Page not found" : "Something went wrong";
+  const detail = isResponse
+    ? `${error.status} ${error.statusText}`.trim()
+    : error instanceof Error
+      ? error.message
+      : "An unexpected error occurred.";
+
+  return (
+    <main className="cc-page cc-page--narrow" id="main">
+      <Brand />
+      <h1>{title}</h1>
+      <p className="cc-alert" role="alert">
+        {detail}
+      </p>
+      <div className="cc-row">
+        <Button variant="primary" onClick={() => window.location.reload()}>
+          Try again
+        </Button>
+        <ButtonLink to="/">Back to the keep</ButtonLink>
+      </div>
+    </main>
+  );
 }
 
 export default function App() {

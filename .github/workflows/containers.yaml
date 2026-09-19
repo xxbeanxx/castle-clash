@@ -12,14 +12,31 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # On a PR, reports whether it touches anything the images are built from (see
+  # changes.yaml and .github/paths-filter.yaml). Every other trigger builds.
+  changes:
+    permissions:
+      contents: read
+      pull-requests: read
+    uses: ./.github/workflows/changes.yaml
+
+  # Required checks `build (server)` / `build (client)` are named by this
+  # matrix's expanded entries. Skipping the job with a job-level `if` would
+  # leave the matrix unexpanded, those checks would never report, and the PR
+  # would wait on them forever — so the job always runs and its steps are gated.
   build:
+    needs: changes
     strategy:
       matrix:
         app: [server, client]
     runs-on: ubuntu-latest
+    env:
+      IMAGES_CHANGED: ${{ needs.changes.outputs.images }}
     steps:
-      - uses: actions/checkout@v7
-      - id: meta
+      - if: env.IMAGES_CHANGED == 'true'
+        uses: actions/checkout@v7
+      - if: env.IMAGES_CHANGED == 'true'
+        id: meta
         uses: docker/metadata-action@v6
         with:
           images: ghcr.io/${{ github.repository_owner }}/castle-clash-${{ matrix.app }}
@@ -29,6 +46,7 @@ jobs:
       # Build the image locally; only the `push` job (gated on `smoke`
       # passing) publishes to GHCR.
       - name: Build image
+        if: env.IMAGES_CHANGED == 'true'
         run: |
           build_args=()
           while IFS= read -r label || [ -n "$label" ]; do
@@ -41,15 +59,20 @@ jobs:
           podman build "${build_args[@]}" \
             -t castle-clash-${{ matrix.app }}:local \
             -f apps/${{ matrix.app }}/containerfile .
-      - run: podman save castle-clash-${{ matrix.app }}:local -o /tmp/${{ matrix.app }}.tar
-      - uses: actions/upload-artifact@v7
+      - if: env.IMAGES_CHANGED == 'true'
+        run: podman save castle-clash-${{ matrix.app }}:local -o /tmp/${{ matrix.app }}.tar
+      - if: env.IMAGES_CHANGED == 'true'
+        uses: actions/upload-artifact@v7
         with:
           name: image-${{ matrix.app }}
           path: /tmp/${{ matrix.app }}.tar
           retention-days: 1
 
+  # `smoke` is a plain job, so it can be skipped outright (a skipped required
+  # check counts as passing) — and `push` never runs on a PR.
   smoke:
-    needs: build
+    needs: [changes, build]
+    if: needs.changes.outputs.images == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

@@ -1,0 +1,49 @@
+# Path filters read by .github/workflows/changes.yaml (dorny/paths-filter), which
+# ci.yaml and containers.yaml use to skip jobs a pull request cannot affect.
+# Each top-level key becomes an output of that workflow; a job runs when any
+# file the PR touches matches one of its globs.
+#
+# Errs toward running: a missing glob means a skipped check that should have
+# run, an extra one just costs CI minutes. When you add a new top-level file or
+# directory that a build reads, add it here.
+
+# Everything each package's build/test reads, whichever package it is.
+root: &root
+  - package.json
+  - pnpm-lock.yaml
+  - pnpm-workspace.yaml
+  - turbo.json
+  - tsconfig.base.json
+  - .nvmrc
+  - .github/paths-filter.yaml
+  - .github/workflows/changes.yaml
+
+# ci.yaml `verify`: lint + typecheck + test + build across the workspace.
+code:
+  - *root
+  - apps/**
+  - packages/**
+  - e2e/**
+  - oxlint.config.ts
+  - oxfmt.config.ts
+  - vitest.config.ts
+  - .github/workflows/ci.yaml
+
+# ci.yaml `browser`: Vitest browser mode in apps/client, which only imports
+# packages/shared — server and e2e changes can't affect it.
+browser:
+  - *root
+  - apps/client/**
+  - packages/shared/**
+  - .github/workflows/ci.yaml
+
+# containers.yaml `build` + `smoke`: both images are built from the whole repo
+# (turbo prune) and smoke-tested against a local Supabase that applies
+# supabase/migrations.
+images:
+  - *root
+  - apps/**
+  - packages/**
+  - supabase/**
+  - compose.yaml
+  - .github/workflows/containers.yaml

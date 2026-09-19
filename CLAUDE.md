@@ -122,6 +122,22 @@ a dependency of other tasks. The `smoke` job runs `pnpm --filter @castle-clash/s
 right before `smoke-join` for exactly this reason; a fresh runner that skips straight from
 `pnpm install` to `smoke-join` fails with `ERR_MODULE_NOT_FOUND`.
 
+### Selective CI (`dorny/paths-filter`)
+
+On a **pull request**, `ci.yaml` and `containers.yaml` skip jobs the PR can't affect (a docs- or
+infra-only PR skips `verify`, `browser`, `build`, `smoke`); every other trigger — push to `main`,
+dispatch — runs everything. The globs live in `.github/paths-filter.yaml` (`code`, `browser`,
+`images`), evaluated by the reusable `.github/workflows/changes.yaml`. If you add a top-level file or
+directory a build reads, add it to the filter — a missing glob is a *skipped required check that
+should have run*. `e2e.yaml`/`integration.yaml` keep their own workflow-level `paths:` (they aren't
+required checks; a whole-workflow skip costs no runner, where a `changes` job would).
+
+The `main` ruleset requires `verify`, `browser`, `build (server)`, `build (client)`, `smoke`. A
+skipped plain job counts as passing, but a **matrix job skipped with a job-level `if` never expands
+its matrix, so `build (server)`/`build (client)` would never report** and the PR would hang on
+"Expected". That's why `build` always runs and gates its *steps* on `IMAGES_CHANGED` instead. Keep
+any required matrix job that way.
+
 ### Releases and deployment (Azure Container Apps)
 
 `docs/hosting.md` is the runbook; `docs/research/phase10-deploy-decisions.md` records the decisions,

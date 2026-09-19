@@ -53,5 +53,11 @@ describe.skipIf(!canRunAgainstSupabase)("SupabasePlayerRepository contract", () 
       }
       return id;
     },
+    async (_repo, userId, name) => {
+      const { error } = await client.from("profiles").update({ display_name: name }).eq("id", userId);
+      if (error) {
+        throw new Error(`failed to seed profiles.display_name for ${userId}: ${error.message}`);
+      }
+    },
   );
 });

@@ -79,6 +79,19 @@ export class SupabasePlayerRepository implements PlayerRepository {
     return data.map((row) => row.item_id);
   }
 
+  async getDisplayName(userId: string): Promise<string | null> {
+    const { data, error } = await this.#client
+      .from("profiles")
+      .select("display_name")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(`getDisplayName(${userId}) failed: ${error.message}`);
+    }
+    return data?.display_name ?? null;
+  }
+
   async getStats(userId: string): Promise<UnlockStats> {
     const { data, error } = await this.#client
       .from("player_stats")

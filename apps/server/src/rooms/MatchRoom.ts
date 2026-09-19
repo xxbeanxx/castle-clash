@@ -3,6 +3,7 @@ import {
   createHazardState,
   createSimPlayer,
   getArena,
+  guestDisplayName,
   hashSeed,
   HazardState,
   isArenaId,
@@ -209,6 +210,10 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
    *  weapon back from at `MatchOver`, regardless of when they left or
    *  whether they spent part of the match spectating. */
   readonly #weaponByPlayerId = new Map<PlayerId, WeaponId>();
+  /** Display name per player, append-only for the same reason as the two maps
+   *  above: the `MatchResult` broadcast at `MatchOver` names everyone who took
+   *  part, including players whose `PlayerState` left with them. */
+  readonly #nameByPlayerId = new Map<PlayerId, string>();
   /** Plan Phase 10 step 1: "Structured logs with pino (roomId, matchId,
    *  userId)." Bound with `roomId`/`matchId` once both are known (right
    *  after `#matchId` is generated in `onCreate`) so every log line this
@@ -318,12 +323,16 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
     this.#sessionIdByUserId.set(auth.userId, client.sessionId);
     this.#userIdByPlayerId.set(playerId(client.sessionId), auth.userId);
 
-    const [loadout, owned] = await Promise.all([
+    const [loadout, owned, chosenName] = await Promise.all([
       this.#playerRepository.getLoadout(auth.userId),
       this.#playerRepository.getUnlocks(auth.userId),
+      // A name is cosmetic: failing to read it must never fail the join.
+      this.#playerRepository.getDisplayName(auth.userId).catch(() => null),
     ]);
     const id = playerId(client.sessionId);
     this.#weaponByPlayerId.set(id, loadout.weapon);
+    const name = chosenName ?? guestDisplayName(auth.userId);
+    this.#nameByPlayerId.set(id, name);
 
     const spawnIndex = this.state.players.size % this.#sim.arena.spawns.length;
     const spawn = this.#sim.arena.spawns[spawnIndex]!;
@@ -333,6 +342,7 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
     player.x = spawn.x;
     player.y = spawn.y;
     player.colorSeed = hashSeed(client.sessionId);
+    player.name = name;
     // Plan Phase 9 step 3: "Client-supplied cosmetics are never trusted" —
     // re-validates the persisted selection against the player's OWN
     // `player_unlocks` (just fetched above) and the catalog, not against
@@ -567,7 +577,10 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
       this.broadcast(MESSAGE_TYPES.FX, stepResult.events);
     }
     if (directorResult.result) {
-      this.broadcast(MESSAGE_TYPES.MATCH_RESULT, directorResult.result);
+      this.broadcast(MESSAGE_TYPES.MATCH_RESULT, {
+        ...directorResult.result,
+        names: Object.fromEntries(this.#nameByPlayerId),
+      });
       const record = this.#buildMatchResultRecord(directorResult.result);
       // Fire-and-forget on purpose (plan step 5): `enqueueRecordMatch`
       // retries with backoff internally and never throws, so this never

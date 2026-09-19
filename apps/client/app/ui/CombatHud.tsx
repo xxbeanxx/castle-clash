@@ -27,11 +27,14 @@ export function CombatHud({ client }: { client: GameClient }) {
     return null;
   }
 
-  // "Opponent" reads fine for a 1v1 duel; with 3+ players (a later phase's
-  // matches — ADR 0001 sizes the sim for up to 8) each non-local player
-  // needs its own label, so fall back to a short id suffix once there's
-  // more than one to distinguish.
+  // The server names every player (a chosen display name or `Guest-XXXX`).
+  // Without a name (an older server) "Opponent" reads fine for a 1v1 duel;
+  // with 3+ players (ADR 0001 sizes the sim for up to 8) each non-local
+  // player needs its own label, so fall back to a short id suffix.
   const labelFor = (player: HudPlayerSnapshot): string => {
+    if (player.name) {
+      return player.isLocal ? `${player.name} (you)` : player.name;
+    }
     if (player.isLocal) {
       return "You";
     }

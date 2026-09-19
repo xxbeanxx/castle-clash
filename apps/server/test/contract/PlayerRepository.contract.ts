@@ -23,6 +23,10 @@ import { describe, expect, it } from "vitest";
 export function runPlayerRepositoryContractTests(
   makeRepo: () => PlayerRepository | Promise<PlayerRepository>,
   makeUserId: () => string,
+  /** How this implementation's backing store gets a chosen name: there is no
+   *  repository write for it (players set it from the client, straight on their
+   *  own `profiles` row), so each test file supplies its own seeding. */
+  seedDisplayName: (repo: PlayerRepository, userId: string, name: string) => Promise<void>,
 ): void {
   describe("PlayerRepository contract", () => {
     it("returns the default loadout for a player with none saved", async () => {
@@ -80,6 +84,18 @@ export function runPlayerRepositoryContractTests(
       // counters directly (InMemoryPlayerRepository.recordedMatches /
       // player_stats).
       await expect(repo.recordMatch(result)).resolves.toBeUndefined();
+    });
+
+    it("returns a null display name for a player who never chose one", async () => {
+      const repo = await makeRepo();
+      await expect(repo.getDisplayName(makeUserId())).resolves.toBeNull();
+    });
+
+    it("returns the display name a player chose", async () => {
+      const repo = await makeRepo();
+      const userId = makeUserId();
+      await seedDisplayName(repo, userId, "Sir_Kay");
+      await expect(repo.getDisplayName(userId)).resolves.toBe("Sir_Kay");
     });
 
     it("returns default (zeroed) stats for a player with none recorded", async () => {

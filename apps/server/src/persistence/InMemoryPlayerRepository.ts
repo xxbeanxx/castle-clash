@@ -19,6 +19,7 @@ export class InMemoryPlayerRepository implements PlayerRepository {
   readonly #loadouts = new Map<string, Loadout>();
   readonly #unlocks = new Map<string, Set<string>>();
   readonly #stats = new Map<string, UnlockStats>();
+  readonly #displayNames = new Map<string, string>();
   readonly recordedMatches = new Map<string, MatchResultRecord>();
 
   async getLoadout(userId: string): Promise<Loadout> {
@@ -27,6 +28,10 @@ export class InMemoryPlayerRepository implements PlayerRepository {
 
   async getUnlocks(userId: string): Promise<readonly string[]> {
     return [...(this.#unlocks.get(userId) ?? [])];
+  }
+
+  async getDisplayName(userId: string): Promise<string | null> {
+    return this.#displayNames.get(userId) ?? null;
   }
 
   async getStats(userId: string): Promise<UnlockStats> {
@@ -62,6 +67,12 @@ export class InMemoryPlayerRepository implements PlayerRepository {
         winsByWeapon,
       });
     }
+  }
+
+  /** Test-only setup helper — seeds a chosen display name, as if the player
+   *  had set one on their profile. */
+  seedDisplayName(userId: string, name: string): void {
+    this.#displayNames.set(userId, name);
   }
 
   /** Test-only setup helper — seeds a loadout as if it had been persisted

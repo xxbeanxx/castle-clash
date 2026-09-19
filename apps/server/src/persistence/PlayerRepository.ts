@@ -81,6 +81,10 @@ export interface MatchResultRecord {
 export interface PlayerRepository {
   getLoadout(userId: string): Promise<Loadout>;
   getUnlocks(userId: string): Promise<readonly string[]>;
+  /** The player's chosen `profiles.display_name`, or `null` when they have
+   *  none (every guest, and any account that never picked one). Callers fall
+   *  back to `guestDisplayName(userId)` for display; `null` is not an error. */
+  getDisplayName(userId: string): Promise<string | null>;
   /** Idempotent on `result.matchId` — calling this twice for the same
    *  match must not double-count `player_stats` (this is what makes a
    *  retry-with-backoff queue on top of this safe). */

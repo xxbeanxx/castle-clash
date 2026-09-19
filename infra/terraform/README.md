@@ -120,10 +120,12 @@ fight it:
 - `template` (image, cpu/memory, replicas, env vars, revision suffix, termination grace period)
 - `ingress[0].target_port` (2567 / 8080, set with `az containerapp ingress update`)
 
-Also not managed here: `RELEASE_PLEASE_TOKEN`; the Supabase auth/API settings (`supabase_settings`
-imports the whole config, mail templates and hashed secrets included, and compares it whole, so a partial
-block shows a permanent diff. The game needs anonymous sign-ins ON, and `site_url` / the redirect
-allow-list set to the client origin: keep those in the dashboard); the `atomic-nucleus.com`
+Also not managed here: `RELEASE_PLEASE_TOKEN`; the Supabase auth/API settings (decision D2 in the v2 plan is still open. The
+locked provider does support a partial `supabase_settings.auth` block, contrary to what this file used to say:
+`docs/research/phase12-supabase-google-oauth.md`, finding 16, read from source, not applied. Until then
+Google sign-in's settings are applied by the `auth-config` script, and the two manual Google Cloud
+steps by `scripts/setup-google-login.sh`; see `docs/hosting.md`, "Google sign-in". The game needs anonymous
+sign-ins ON, manual linking ON, Google enabled, and `site_url` set to the client origin); the `atomic-nucleus.com`
 zone itself (another repo's Terraform; read via a `data` source), the DefaultResourceGroup-CCAN
 resource group, and GHCR package visibility (no API).
 

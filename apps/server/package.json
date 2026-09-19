@@ -8,6 +8,7 @@
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
+    "auth-config": "tsx scripts/apply-auth-config.ts",
     "build": "tsc -p tsconfig.build.json",
     "deploy-smoke": "tsx scripts/deploy-smoke.ts",
     "dev": "tsx watch src/index.ts",

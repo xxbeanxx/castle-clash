@@ -47,12 +47,19 @@ data "supabase_pooler" "main" {
   project_ref = supabase_project.main.id
 }
 
-# Auth/API settings are deliberately NOT managed here. `supabase_settings` imports
-# the project's entire config (mail templates, dozens of provider flags, hashed
-# secrets) and compares it whole, so a partial `auth` block shows a permanent diff.
-# They stay in the dashboard. The game needs, and the project has (checked
-# 2026-09-19): anonymous sign-ins ON (`MatchRoom.onAuth` accepts only anonymous
-# guests), site_url and the redirect allow-list set to the client origin.
+# Auth/API settings are NOT managed here (open decision D2 in
+# docs/IMPLEMENTATION_PLAN_V2.md). An earlier version of this comment said a partial
+# `supabase_settings.auth` block shows a permanent diff; that is wrong for the locked
+# provider (v1.11.0), which tracks only the keys you configure and keeps secrets from
+# state (docs/research/phase12-supabase-google-oauth.md, finding 16; read from the
+# provider source, not applied). So adopting it is a real option, not a blocker.
+#
+# Until that is decided, the settings the game depends on are applied by
+# `pnpm --filter @castle-clash/server run auth-config` (dry run unless `--apply`;
+# see docs/hosting.md, "Google sign-in") and the rest stays in the dashboard. The
+# game needs: anonymous sign-ins ON, manual linking ON (a guest links Google with
+# `linkIdentity`), Google enabled, site_url set to the client origin. `MatchRoom.onAuth`
+# accepts any valid Supabase token; `verifyToken.ts` only reports `isAnonymous`.
 
 locals {
   supabase_url = "https://${supabase_project.main.id}.supabase.co"

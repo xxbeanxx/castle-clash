@@ -138,8 +138,9 @@ token (`SUPABASE_ACCESS_TOKEN`), and `supabase` (`npx supabase`, for migrations)
 1. **Supabase project** — `supabase.tf` owns it (region, database password, the server's secret API
    key). It was adopted with `terraform import`; a new project would be created by `apply`. Auth
    settings are _not_ in Terraform: in the dashboard, **enable anonymous sign-ins** (the game signs
-   guests in anonymously and `MatchRoom.onAuth` rejects everyone else) and set the site URL and
-   redirect allow-list to the client origin. The local stack's `supabase/config.toml` is not pushed to hosted
+   guests in anonymously; `MatchRoom.onAuth` accepts any valid Supabase token) and set the site URL
+   to the client origin. Google sign-in and guest linking are covered in
+   [Google sign-in](#google-sign-in) below. The local stack's `supabase/config.toml` is not pushed to hosted
    projects. GitHub-hosted runners are IPv4-only and the direct `db.<ref>.supabase.co` host is
    IPv6-only, so `SUPABASE_DB_URL` is built from the **session-mode pooler** host (`…pooler.supabase.com:5432`).
 2. **Azure and GitHub, by Terraform** — `terraform -chdir=infra/terraform apply` (with `GITHUB_TOKEN`
@@ -176,6 +177,57 @@ token (`SUPABASE_ACCESS_TOKEN`), and `supabase` (`npx supabase`, for migrations)
 | repo     | `RELEASE_PLEASE_TOKEN` (optional PAT so release PRs run CI)                                                                     | you                     |
 
 Container App secrets (server only): `supabase-secret-key`, `smoke-token`.
+
+## Google sign-in
+
+Needs two things nothing in CI can do: a Google Cloud OAuth client (no API or Terraform resource
+exists for a consumer web client) and a handful of Supabase auth settings. Both are one wizard:
+
+```sh
+./scripts/setup-google-login.sh     # defaults to production; CLIENT_ORIGIN / SUPABASE_PROJECT_REF override
+```
+
+It walks the Google console (consent-screen branding with the `/privacy` and `/terms` pages, publish
+to _In production_, the three sign-in scopes, a Web client whose redirect URI is
+`https://<project-ref>.supabase.co/auth/v1/callback`), then runs
+`pnpm --filter @castle-clash/server run auth-config`. That script is a **dry run** until given
+`--apply`; it sets only Google (enabled, client id, secret), anonymous sign-ins ON, **manual linking**
+ON (required by `linkIdentity`, which is how a guest keeps their progress), unverified-email sign-ins
+OFF, and adds `<client origin>/auth/callback` to the redirect allow-list. It never touches other keys,
+and after writing it re-reads the whole config and fails if any other setting moved (Supabase does not
+document that PATCH is a true partial update; this proves it on every real run). The client secret and
+your access token stay in memory and are never written to a file, `.env`, or GitHub. Google shows the
+secret once; lose it and create a new one in the console.
+
+Supabase stores the Google secret hashed, so the script can neither read it back nor compare it: pass
+`GOOGLE_CLIENT_SECRET` only when setting or rotating it.
+
+Everything above is researched in `docs/research/phase12-supabase-google-oauth.md`, which also lists
+what was **not** verified (whether Google requires the Supabase domain under authorized domains; the
+exact callback parameters of a collision). Verify those with the checklist below rather than trusting
+the note.
+
+### Google sign-in: pre-release checklist (manual, real Google, real devices)
+
+Google cannot run in CI, so run this against staging before a release that touches auth, and against
+production after the first time Google is enabled. Record the date, the build, and any surprise in a
+`docs/research/` note.
+
+1. **Consent screen**: sign in with a Google account that is not on the project. No "unverified app"
+   or "access blocked" wall; the screen shows only `atomic-nucleus.com` (no app name or logo: that
+   needs brand verification, which is deliberately not requested).
+2. **Guest upgrade keeps progress**: in a fresh browser, Play as guest, finish a match, note the stats
+   page numbers and any unlock. Open the account menu, "Save your progress", Continue with Google. You
+   return signed in as the same player: stats and unlocks unchanged, header shows the Google account.
+3. **Collision**: in a second browser, play as a guest, then link the same Google account. You see the
+   explanation, and choosing to sign in to the existing account discards this guest's progress after an
+   explicit confirmation. Repeat with a Google account whose email already has a magic-link account.
+4. **Deep link**: signed out, open a private-room link (`/play/new?mode=private&code=ABC123`), sign in
+   with Google, and land in the room, not the lobby.
+5. **Sign out** returns to `/`; the header goes back to "Sign in".
+6. **Phone width**: repeat step 2 on a real phone. The account menu and the link prompt must be usable.
+7. **Names**: set a name on `/account`; a duplicate (any capitalisation) gives a friendly error; the
+   name appears in the results screen and on the leaderboard.
 
 ## The deploy smoke
 

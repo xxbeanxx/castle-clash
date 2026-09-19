@@ -136,9 +136,10 @@ token (`SUPABASE_ACCESS_TOKEN`), and `supabase` (`npx supabase`, for migrations)
 `infra/terraform/README.md` covers the state backend and how to run it.
 
 1. **Supabase project** — `supabase.tf` owns it (region, database password, the server's secret API
-   key, and **anonymous sign-ins**, which the game needs: it signs guests in anonymously and
-   `MatchRoom.onAuth` rejects everyone else). It was adopted with `terraform import`; a new project
-   would be created by `apply`. The local stack's `supabase/config.toml` is not pushed to hosted
+   key). It was adopted with `terraform import`; a new project would be created by `apply`. Auth
+   settings are *not* in Terraform: in the dashboard, **enable anonymous sign-ins** (the game signs
+   guests in anonymously and `MatchRoom.onAuth` rejects everyone else) and set the site URL and
+   redirect allow-list to the client origin. The local stack's `supabase/config.toml` is not pushed to hosted
    projects. GitHub-hosted runners are IPv4-only and the direct `db.<ref>.supabase.co` host is
    IPv6-only, so `SUPABASE_DB_URL` is built from the **session-mode pooler** host (`…pooler.supabase.com:5432`).
 2. **Azure and GitHub, by Terraform** — `terraform -chdir=infra/terraform apply` (with `GITHUB_TOKEN`

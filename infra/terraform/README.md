@@ -13,7 +13,7 @@ environment), and every secret the pipeline uses. Terraform >= 1.9; providers `a
 | `dns.tf` | CNAME + `asuid` TXT records in the `atomic-nucleus.com` zone, managed certificates, custom domains |
 | `identity.tf` | `castle-clash-deploy-prod` app registration, service principal, GitHub OIDC federated credential, RG-scoped `Container Apps Contributor` |
 | `github.tf` | the repository and its settings, the `main` and release-tag rulesets, Actions permissions, the `production` environment (reviewer, `main`-only deploys), its variables and secrets |
-| `supabase.tf` | the Supabase project, the server's secret API key, anonymous sign-ins, and the URLs/keys derived from them |
+| `supabase.tf` | the Supabase project, the server's secret API key, and the URLs/keys derived from them |
 | `secrets.tf` | the generated secrets and where each one goes |
 | `backend.tf` | remote state (below) |
 
@@ -101,8 +101,10 @@ fight it:
 - `template` (image, cpu/memory, replicas, env vars, revision suffix, termination grace period)
 - `ingress[0].target_port` (2567 / 8080, set with `az containerapp ingress update`)
 
-Also not managed here: `RELEASE_PLEASE_TOKEN`, other Supabase auth settings (only anonymous
-sign-ins is pinned, on the assumption that the provider leaves unspecified settings alone; check the first plan), the `atomic-nucleus.com`
+Also not managed here: `RELEASE_PLEASE_TOKEN`; the Supabase auth/API settings (`supabase_settings`
+imports the whole config, mail templates and hashed secrets included, and compares it whole, so a partial
+block shows a permanent diff. The game needs anonymous sign-ins ON, and `site_url` / the redirect
+allow-list set to the client origin: keep those in the dashboard); the `atomic-nucleus.com`
 zone itself (another repo's Terraform; read via a `data` source), the DefaultResourceGroup-CCAN
 resource group, and GHCR package visibility (no API).
 
@@ -113,20 +115,20 @@ either (including through a forced replacement) fails instead.
 
 The environment was created by hand, then adopted with `terraform import` (17 Azure/Entra
 resources and 17 GitHub resources) and the `.tf` files adjusted until `terraform plan` was clean.
-The Supabase project and its settings are to be adopted the same way, by project ref (**not yet
-done or verified**: it needs `SUPABASE_ACCESS_TOKEN`, which the session that wrote this did not have):
-
-```sh
-terraform import supabase_project.main vrcxprhmonzpuelfnijy
-terraform import supabase_settings.main vrcxprhmonzpuelfnijy
-```
+The Supabase project was adopted the same way, by project ref
+(`terraform import supabase_project.main vrcxprhmonzpuelfnijy`).
 
 Known consequences:
 
-- **Generated secrets replace the old values.** The old database password, smoke token and
+- **Generated secrets replaced the old values** (applied 2026-09-19). The old database password, smoke token and
   Supabase secret key were created outside Terraform; the first `apply` after adoption replaces
   them. The old default Supabase secret key is left in the dashboard, unused: revoke it once the
   server runs on the new one. A local `.env` that held the old values goes stale (see `terraform output`).
+- **Supabase provider quirks (v1.11).** `supabase_apikey.description` is accepted but read back
+  null, failing the apply with "inconsistent result" (and leaving the created key tainted), so it is
+  not set. A changed `database_password` is applied in place through the API, but the pooler can take
+  a few minutes to accept it: right after a rotation, `supabase db push` with the new URI may report
+  "password authentication failed" until it propagates.
 - **GitHub secrets.** GitHub never returns a secret's value, so an imported secret has none in
   state and the plan shows one in-place update per `AZURE_*` secret. Applying writes the value
   Terraform already knows (a client id, tenant id and subscription id); after that the plan is

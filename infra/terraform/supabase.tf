@@ -29,7 +29,9 @@ resource "random_password" "supabase_db" {
 resource "supabase_apikey" "server" {
   project_ref = supabase_project.main.id
   name        = "castle_clash_server"
-  description = "castle-clash game server (Container App secret supabase-secret-key)"
+
+  # No `description`: provider v1.11 accepts it but reads back null, which fails
+  # the apply with "inconsistent result".
 }
 
 data "supabase_apikeys" "main" {
@@ -45,18 +47,12 @@ data "supabase_pooler" "main" {
   project_ref = supabase_project.main.id
 }
 
-# Only what the game demonstrably depends on is pinned here: `MatchRoom.onAuth`
-# accepts nobody but anonymous guests. UNVERIFIED: this assumes the provider only
-# sends (and compares) the keys given, leaving the rest of the auth config alone.
-# Read the first `terraform plan` after import before applying; if it wants to
-# reset other auth settings, add the live values here (site_url, uri_allow_list, ...).
-resource "supabase_settings" "main" {
-  project_ref = supabase_project.main.id
-
-  auth = jsonencode({
-    external_anonymous_users_enabled = true
-  })
-}
+# Auth/API settings are deliberately NOT managed here. `supabase_settings` imports
+# the project's entire config (mail templates, dozens of provider flags, hashed
+# secrets) and compares it whole, so a partial `auth` block shows a permanent diff.
+# They stay in the dashboard. The game needs, and the project has (checked
+# 2026-09-19): anonymous sign-ins ON (`MatchRoom.onAuth` accepts only anonymous
+# guests), site_url and the redirect allow-list set to the client origin.
 
 locals {
   supabase_url = "https://${supabase_project.main.id}.supabase.co"

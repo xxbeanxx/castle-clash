@@ -129,10 +129,11 @@ the facts checked, and what is still unproven. In short: `release.yaml` (release
 (multi-arch, provenance/SBOM, Trivy gate, then release tags) → `deploy.yml` → `deploy-environment.yml`
 for `staging`, then `production` behind a required reviewer, deploying by image digest and finishing
 with `pnpm --filter @castle-clash/server run deploy-smoke`. `infra/terraform/` manages the Azure
-resources, the `atomic-nucleus.com` DNS records, and the GitHub repo and its `production` environment
-(state in an Azure storage account; its README says what it leaves to the deploy workflow), and
-`infra/set-runtime-secrets.sh` sets the secret values Terraform deliberately doesn't own. **As of
-writing no workflow has run on GitHub** — treat first runs as expected to need fixes. `SERVER_VERSION` is stamped into the server image by build-arg and shows up in
+resources, the `atomic-nucleus.com` DNS records, the Supabase project, and the GitHub repo (a
+`main` ruleset requires a PR plus the `verify`/`browser`/`build`/`smoke` checks, squash-only) and its
+`production` environment. It also generates every secret and wires each to its consumers, so nothing
+is set by hand; state is in an Azure storage account and is sensitive (its README says what Terraform
+leaves to the deploy workflow). **As of writing no workflow has run on GitHub** — treat first runs as expected to need fixes. `SERVER_VERSION` is stamped into the server image by build-arg and shows up in
 `/healthz` and `matches.server_version`. `POST /smoke/record-match` exists only when the server has a
 `SMOKE_TOKEN`; `record_match_result()` skips `player_stats` for `mode = 'smoke'`. Migrations follow
 expand/contract because rollbacks never revert the database.

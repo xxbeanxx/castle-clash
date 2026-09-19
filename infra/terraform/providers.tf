@@ -12,3 +12,6 @@ provider "azuread" {
 provider "github" {
   owner = var.github_owner
 }
+
+# Authenticates from the SUPABASE_ACCESS_TOKEN environment variable.
+provider "supabase" {}

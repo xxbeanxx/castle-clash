@@ -62,16 +62,20 @@ variable "github_reviewer_user_id" {
   default     = 997639
 }
 
-variable "supabase_url" {
-  description = "Hosted Supabase project URL, exposed to the deploy workflow as SUPABASE_URL."
+variable "supabase_organization_id" {
+  description = "Slug of the Supabase organisation that owns the project."
   type        = string
-  default     = "https://vrcxprhmonzpuelfnijy.supabase.co"
+  default     = "jbtukpsdwnmwygegogxe"
 }
 
-variable "supabase_publishable_key" {
-  description = "Supabase publishable key. Designed to ship in every browser bundle, so it is not a secret."
-  type        = string
-  default     = "sb_publishable_7LPBCXfM5c1YpHHp-uAi6w_VdA4i-US"
+variable "supabase_project_name" {
+  type    = string
+  default = "castle-clash"
+}
+
+variable "supabase_region" {
+  type    = string
+  default = "ca-central-1"
 }
 
 variable "server_cpu" {

@@ -1,9 +1,10 @@
 # Terraform: castle-clash cloud environment
 
 Manages `rg-castle-clash` and everything the game runs on, the
-`castle-clash[-game].atomic-nucleus.com` DNS records, the GitHub deploy identity, and the GitHub
-repository itself (settings, the `production` environment, and what the deploy workflow reads
-from it). Terraform >= 1.9; providers `azurerm ~> 4.0`, `azuread ~> 3.0`, `integrations/github ~> 6.0`.
+`castle-clash[-game].atomic-nucleus.com` DNS records, the GitHub deploy identity, the hosted
+Supabase project, the GitHub repository itself (settings, branch and tag rules, the `production`
+environment), and every secret the pipeline uses. Terraform >= 1.9; providers `azurerm ~> 4.0`,
+`azuread ~> 3.0`, `integrations/github ~> 6.0`, `supabase/supabase ~> 1.0`, `hashicorp/random ~> 3.0`.
 
 | File | Owns |
 | --- | --- |
@@ -11,21 +12,25 @@ from it). Terraform >= 1.9; providers `azurerm ~> 4.0`, `azuread ~> 3.0`, `integ
 | `container-apps.tf` | `ca-castle-clash-server` / `-client` (shape only, see below) |
 | `dns.tf` | CNAME + `asuid` TXT records in the `atomic-nucleus.com` zone, managed certificates, custom domains |
 | `identity.tf` | `castle-clash-deploy-prod` app registration, service principal, GitHub OIDC federated credential, RG-scoped `Container Apps Contributor` |
-| `github.tf` | the repository and its settings, Actions permissions, the `production` environment (reviewer, `main`-only deploys), its variables and the `AZURE_*` secrets |
+| `github.tf` | the repository and its settings, the `main` and release-tag rulesets, Actions permissions, the `production` environment (reviewer, `main`-only deploys), its variables and secrets |
+| `supabase.tf` | the Supabase project, the server's secret API key, anonymous sign-ins, and the URLs/keys derived from them |
+| `secrets.tf` | the generated secrets and where each one goes |
 | `backend.tf` | remote state (below) |
 
 ## Using it
 
 ```sh
 az login
-export GITHUB_TOKEN="$(gh auth token)"   # for the GitHub provider
+export GITHUB_TOKEN="$(gh auth token)"        # for the GitHub provider
+export SUPABASE_ACCESS_TOKEN=sbp_...          # dashboard -> Account -> Access Tokens
 terraform -chdir=infra/terraform init
 terraform -chdir=infra/terraform plan
 ```
 
 You need `Storage Blob Data Contributor` on the state account (auth is Entra ID; shared-key
 access is disabled on it), `Owner`/`Contributor` on the subscription for `apply`, rights to edit the
-DNS zone and app registrations, and a GitHub token with `repo` scope and admin on the repository.
+DNS zone and app registrations, a GitHub token with `repo` scope and admin on the repository, and a
+Supabase personal access token.
 
 ## State backend
 
@@ -47,6 +52,46 @@ Versioning and 30-day soft delete are on so a bad write can be rolled back. **Th
 sensitive**: it holds the Container App secret values (`supabase-secret-key`, `smoke-token`) and the
 `AZURE_*` values written to GitHub. Keep the account's access list short.
 
+## Secrets
+
+Every secret is generated (or minted) by Terraform, so its value is in state and every consumer is
+wired to that one source. Nothing is typed into a dashboard or `gh secret set`.
+
+| Secret | Source | Consumers |
+| --- | --- | --- |
+| `SMOKE_TOKEN` | `random_password.smoke_token` | GitHub `production` env, server Container App (`smoke-token`) |
+| `supabase-secret-key` | `supabase_apikey.server` | server Container App |
+| `SUPABASE_DB_URL` | `supabase_project` + `random_password.supabase_db` + the pooler host | GitHub `production` env |
+| `AZURE_CLIENT_ID` / `_TENANT_ID` / `_SUBSCRIPTION_ID` | the Entra app / variables | GitHub `production` env (identifiers, not credentials) |
+
+Read one back with `terraform output -raw smoke_token | supabase_secret_key | supabase_db_url`.
+Rotate with `terraform apply -replace=random_password.smoke_token` (likewise
+`-replace=supabase_apikey.server`); the new value propagates to every consumer in the same apply.
+The one credential outside Terraform is the optional `RELEASE_PLEASE_TOKEN` personal access token
+(GitHub has no API to mint one).
+
+Because Container App secrets are only read at container start, a rotated value reaches the running
+server on its next revision (the next deploy, or `az containerapp revision restart`).
+
+## GitHub rules
+
+- **`protect-main` ruleset:** changes to `main` go through a pull request; branch deletion,
+  force-pushes and merge commits are blocked (linear history, squash-only); conversations must be
+  resolved; and the checks `verify`, `browser`, `build (server)`, `build (client)` and `smoke` must
+  pass. No approving review is required (one maintainer could never satisfy it). Repository admins
+  can merge a PR past a stuck check, but only through a PR, never by pushing to `main`.
+- **Why only those five checks:** required checks must run on *every* PR. `e2e` (`private-match`) and
+  `integration` (`supabase`) are path-filtered, so requiring them would block any PR that does not
+  touch those paths. They are advisory until they are made unconditional (or fronted by a single
+  always-running gate job).
+- **`protect-release-tags`:** `v*` tags can be created (release-please does) but never moved or deleted.
+- **Repository:** squash-only with the PR title/body as the commit (release-please reads the
+  conventional-commit title), auto-merge and "Update branch" enabled, merged branches deleted,
+  vulnerability alerts and Dependabot security updates on, secret scanning and push protection on.
+- Not done, on purpose: pinning actions to SHAs (`sha_pinning_required` would break the current
+  tag-pinned workflows), commit-signature enforcement, and requiring branches to be up to date
+  (no merge queue, so it would re-run the full suite after every unrelated merge).
+
 ## What Terraform does *not* own
 
 The deploy workflow (`.github/workflows/deploy-environment.yml`) changes these on every
@@ -54,28 +99,34 @@ release, so `azurerm_container_app` ignores them (`lifecycle.ignore_changes`) ra
 fight it:
 
 - `template` (image, cpu/memory, replicas, env vars, revision suffix, termination grace period)
-- `secret` (values are unreadable; set by `infra/set-runtime-secrets.sh`)
 - `ingress[0].target_port` (2567 / 8080, set with `az containerapp ingress update`)
 
-Secret *values* are kept out of Terraform on purpose: `SUPABASE_DB_URL` (GitHub environment
-secret; `gh secret set SUPABASE_DB_URL --env production`) and `SMOKE_TOKEN` plus the server's
-`supabase-secret-key` (`infra/set-runtime-secrets.sh`). Nor does it manage `RELEASE_PLEASE_TOKEN`,
-the `atomic-nucleus.com` zone itself (another repo's Terraform; read via a `data` source), the
-DefaultResourceGroup-CCAN resource group, the Supabase project, or GHCR package visibility (no API).
+Also not managed here: `RELEASE_PLEASE_TOKEN`, other Supabase auth settings (only anonymous
+sign-ins is pinned, on the assumption that the provider leaves unspecified settings alone; check the first plan), the `atomic-nucleus.com`
+zone itself (another repo's Terraform; read via a `data` source), the DefaultResourceGroup-CCAN
+resource group, and GHCR package visibility (no API).
 
-`github_repository.main` has `prevent_destroy`: removing it from config, or a rename that forces
-replacement, fails the plan instead of deleting the repository.
-
-There is deliberately no branch protection or ruleset, because none existed when the repository
-was imported. Adding one is a behaviour change (it would gate merges to `main`), so it is a
-separate decision, not part of the adoption.
+`github_repository.main` and `supabase_project.main` have `prevent_destroy`: a plan that would delete
+either (including through a forced replacement) fails instead.
 
 ## Import history
 
 The environment was created by hand, then adopted with `terraform import` (17 Azure/Entra
 resources and 17 GitHub resources) and the `.tf` files adjusted until `terraform plan` was clean.
+The Supabase project and its settings are to be adopted the same way, by project ref (**not yet
+done or verified**: it needs `SUPABASE_ACCESS_TOKEN`, which the session that wrote this did not have):
+
+```sh
+terraform import supabase_project.main vrcxprhmonzpuelfnijy
+terraform import supabase_settings.main vrcxprhmonzpuelfnijy
+```
+
 Known consequences:
 
+- **Generated secrets replace the old values.** The old database password, smoke token and
+  Supabase secret key were created outside Terraform; the first `apply` after adoption replaces
+  them. The old default Supabase secret key is left in the dashboard, unused: revoke it once the
+  server runs on the new one. A local `.env` that held the old values goes stale (see `terraform output`).
 - **GitHub secrets.** GitHub never returns a secret's value, so an imported secret has none in
   state and the plan shows one in-place update per `AZURE_*` secret. Applying writes the value
   Terraform already knows (a client id, tenant id and subscription id); after that the plan is

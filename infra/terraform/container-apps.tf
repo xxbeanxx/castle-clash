@@ -1,10 +1,10 @@
 locals {
   # Both apps start life on Microsoft's placeholder image; the deploy workflow
   # (.github/workflows/deploy-environment.yml) then owns everything that changes
-  # per release: image, cpu/memory, scale, env vars, revision suffix, the ingress
-  # target port, and the runtime secrets (whose values Terraform can never read
-  # back). The lifecycle block below hands those to the workflow. Terraform owns
-  # the shape: environment, ingress exposure, custom domains, DNS, identity.
+  # per release: image, cpu/memory, scale, env vars, revision suffix and the ingress
+  # target port. The lifecycle block below hands those to the workflow. Terraform
+  # owns the shape (environment, ingress exposure, custom domains, DNS, identity)
+  # and the server's secrets.
 
   apps = {
     server = {
@@ -50,10 +50,20 @@ resource "azurerm_container_app" "app" {
     }
   }
 
+  # The server's runtime secrets (values from secrets.tf). The deploy workflow only
+  # references them by name (`secretref:supabase-secret-key`), never sets them.
+  dynamic "secret" {
+    for_each = each.key == "server" ? local.server_secret_names : toset([])
+
+    content {
+      name  = secret.value
+      value = local.server_secrets[secret.value]
+    }
+  }
+
   lifecycle {
     ignore_changes = [
       template,
-      secret,
       # Set by `az containerapp ingress update` at deploy time (2567 / 8080).
       ingress[0].target_port,
     ]

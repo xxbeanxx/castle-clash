@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/xxbeanxx/castle-clash/compare/v1.0.0...v1.1.0) (2026-09-19)
+
+
+### Features
+
+* **infra:** manage Azure, GitHub, Supabase and all secrets with Terraform ([#15](https://github.com/xxbeanxx/castle-clash/issues/15)) ([0005056](https://github.com/xxbeanxx/castle-clash/commit/00050561b4ea67d875d2ddaf4b3f1547e6377df9))
+
 ## 1.0.0 (2026-09-19)
 
 

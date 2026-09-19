@@ -1,12 +1,13 @@
 name: deploy
 
-# Rolls a release out: staging automatically, then production once its
-# required reviewers approve. Chained from release.yaml after the images are
-# built, or run by hand for any existing release tag:
+# Rolls a release out to production once its required reviewer approves.
+# Chained from release.yaml after the images are built, or run by hand for any
+# existing release tag. Only the `production` environment is provisioned today
+# (one free Supabase project); `staging` works the same way if it is added later
+# (`target=both` runs staging first and stops if it fails):
 #
-#   deploy   version=v1.2.3                              staging -> production
-#   deploy   version=v1.2.3 target=staging               staging only
-#   rollback version=v1.2.2 rollback=true target=production
+#   deploy   version=v1.2.3                               production
+#   rollback version=v1.2.2 rollback=true                 production
 #
 # Both apps are deployed by *digest*, not tag. From a release run the digests are
 # the ones docker.yml's builds produced (scanned, then promoted); a manual run
@@ -25,7 +26,7 @@ on:
         default: false
       target:
         type: string
-        default: both
+        default: production
       server_digest:
         description: "Digest docker.yml just published (skips re-resolving the tag)"
         type: string
@@ -46,8 +47,8 @@ on:
       target:
         description: "Where to deploy"
         type: choice
-        options: [both, staging, production]
-        default: both
+        options: [production, both, staging]
+        default: production
 
 permissions:
   contents: read

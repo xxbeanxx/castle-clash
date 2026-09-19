@@ -28,19 +28,28 @@ load_environment() {
       CLIENT_HOST="castle-clash"
       GAME_HOST="castle-clash-game"
       CLIENT_MIN_REPLICAS=1
-      # Consumption-only environments cap an app at 2 vCPU / 4 GiB.
-      SERVER_CPU="2.0"
-      SERVER_MEMORY="4Gi"
+      # Start small (the always-on replica is the main running cost). The plan's
+      # load-test budget assumed 2 vCPU / 4 GiB, the most a Consumption-only
+      # environment allows: raise the SERVER_CPU / SERVER_MEMORY variables when
+      # real traffic warrants it.
+      SERVER_CPU="1.0"
+      SERVER_MEMORY="2Gi"
       ;;
     *)
       echo "environment must be staging or production" >&2
       return 2
       ;;
   esac
-  RG="rg-castle-clash-${SUFFIX}"
-  CAE="cae-castle-clash-${SUFFIX}"
-  SERVER_APP="ca-castle-clash-server-${SUFFIX}"
-  CLIENT_APP="ca-castle-clash-client-${SUFFIX}"
+  # Production owns the un-suffixed names (the single environment that exists
+  # today); staging, if it is ever provisioned, gets its own suffixed set.
+  local tail=""
+  if [ "$ENVIRONMENT" != "production" ]; then
+    tail="-${SUFFIX}"
+  fi
+  RG="rg-castle-clash${tail}"
+  CAE="cae-castle-clash${tail}"
+  SERVER_APP="ca-castle-clash-server${tail}"
+  CLIENT_APP="ca-castle-clash-client${tail}"
   export ENVIRONMENT SUFFIX RG CAE SERVER_APP CLIENT_APP CLIENT_HOST GAME_HOST \
     CLIENT_MIN_REPLICAS SERVER_CPU SERVER_MEMORY REPO DNS_ZONE
 }

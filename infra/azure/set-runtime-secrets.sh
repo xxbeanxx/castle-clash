@@ -23,9 +23,12 @@ load_environment "${1:?usage: set-runtime-secrets.sh staging|production}"
 # lacks one (a half-finished earlier run), make a fresh one and set both, so
 # the two can never disagree.
 in_github="$(gh secret list --repo "$REPO" --env "$ENVIRONMENT" --json name --jq '[.[] | select(.name=="SMOKE_TOKEN")] | length')"
-in_app="$(az containerapp secret list --name "$SERVER_APP" --resource-group "$RG" --query "[?name=='smoke-token'] | length(@)" -o tsv)"
+# `secret list` answers `null` (not `[]`) for an app with no secrets yet, which
+# a JMESPath length() rejects, so count matching names with grep instead.
+in_app="$(az containerapp secret list --name "$SERVER_APP" --resource-group "$RG" --query '[].name' -o tsv | grep -cx smoke-token || true)"
 if [ "${ROTATE_SMOKE_TOKEN:-0}" = "1" ] || [ "$in_github" = "0" ] || [ "$in_app" = "0" ]; then
-  SMOKE_TOKEN="$(openssl rand -hex 32)"
+  # A caller that needs the value elsewhere (e.g. a local .env) can supply it.
+  SMOKE_TOKEN="${SMOKE_TOKEN:-$(openssl rand -hex 32)}"
   printf '%s' "$SMOKE_TOKEN" | gh secret set SMOKE_TOKEN --repo "$REPO" --env "$ENVIRONMENT"
   echo "generated a new SMOKE_TOKEN in GitHub environment '${ENVIRONMENT}'"
 else

@@ -14,15 +14,24 @@ browser ─▶ castle-clash[-staging].atomic-nucleus.com       │   │  (same 
                           └──▶ Supabase project (per env) ─┘   └────────────────────────────────┘
 ```
 
-| Thing                  | Staging                                          | Production                               |
-| ---------------------- | ------------------------------------------------ | ---------------------------------------- |
-| Resource group         | `rg-castle-clash-staging`                        | `rg-castle-clash-prod`                   |
-| Environment            | `cae-castle-clash-staging`                       | `cae-castle-clash-prod`                  |
-| Apps                   | `ca-castle-clash-{server,client}-staging`        | `ca-castle-clash-{server,client}-prod`   |
-| Client URL             | `https://castle-clash-staging.atomic-nucleus.com` | `https://castle-clash.atomic-nucleus.com` |
-| Game server URL        | `wss://castle-clash-game-staging.atomic-nucleus.com` | `wss://castle-clash-game.atomic-nucleus.com` |
-| Server size            | 1 vCPU / 2 GiB                                   | 2 vCPU / 4 GiB (plan's load-test budget) |
-| GitHub environment     | `staging` (no gate)                              | `production` (required reviewer)         |
+**Provisioned 2026-09-19: production only** (one free Supabase project; staging is supported by the
+scripts and workflows but was not created). Everything below marked _staging_ is optional.
+
+| Thing              | Production (exists)                                    | Staging (not created)                                  |
+| ------------------ | ------------------------------------------------------ | ------------------------------------------------------ |
+| Resource group     | `rg-castle-clash`                                      | `rg-castle-clash-staging`                              |
+| Environment        | `cae-castle-clash`                                     | `cae-castle-clash-staging`                             |
+| Apps               | `ca-castle-clash-{server,client}`                      | `ca-castle-clash-{server,client}-staging`              |
+| Client URL         | `https://castle-clash.atomic-nucleus.com`              | `https://castle-clash-staging.atomic-nucleus.com`      |
+| Game server URL    | `wss://castle-clash-game.atomic-nucleus.com`           | `wss://castle-clash-game-staging.atomic-nucleus.com`   |
+| Server size        | 1 vCPU / 2 GiB (raise via `SERVER_CPU`/`SERVER_MEMORY`) | 1 vCPU / 2 GiB                                         |
+| Supabase           | `castle-clash` (`vrcxprhmonzpuelfnijy`, free plan, ca-central-1) | —                                             |
+| Deploy identity    | app registration `castle-clash-deploy-prod`, role `Container Apps Contributor` on `rg-castle-clash` only | — |
+| GitHub environment | `production` (required reviewer, `main` only)          | `staging` (no gate)                                    |
+
+The production Container Apps still run Microsoft's placeholder image until the first release deploys.
+Free-tier Supabase projects **pause after a week of inactivity**; a paused project fails the deploy's
+`db push` until it is restored from the dashboard.
 
 ## The release flow
 
@@ -67,8 +76,8 @@ Actions → **deploy** → Run workflow:
 
 | Goal                     | version  | rollback | target       |
 | ------------------------ | -------- | -------- | ------------ |
-| Deploy a release         | `v1.2.3` | off      | `both`       |
-| Re-run staging only      | `v1.2.3` | off      | `staging`    |
+| Deploy a release         | `v1.2.3` | off      | `production` (default) |
+| Staging first, then prod | `v1.2.3` | off      | `both` (needs the optional staging environment) |
 | **Roll production back** | `v1.2.2` | **on**   | `production` |
 
 Rollback redeploys an older tag by digest **without** `supabase db push` (the database is already
@@ -114,6 +123,11 @@ traffic has moved lands on the new revision, which has no such room. An accepted
 single-process design.
 
 ## One-time setup
+
+**Done for production on 2026-09-19** (steps 1-4: the Supabase project with anonymous sign-ins and
+auth URLs, the Azure resources and deploy identity, the GitHub `production` environment, the runtime
+secrets, and all migrations applied). Still open: step 5 (GHCR package visibility, after the first
+release) and step 6 (the repo Actions setting). The steps stay documented for staging or a rebuild.
 
 Prerequisites: an authenticated `az` (rights to create resource groups, role assignments and app
 registrations, and to edit the `atomic-nucleus.com` DNS zone), `gh`, and `supabase` (`npx supabase`).

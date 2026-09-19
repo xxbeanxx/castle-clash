@@ -58,6 +58,9 @@ async function startFakes(
     if (req.url === "/readyz") {
       return json(res, 200, { status: "ready" });
     }
+    if (req.url === "/stats") {
+      return json(res, 200, { players: 4, rooms: 1, version });
+    }
     if (req.url === "/smoke/record-match" && req.method === "POST") {
       smokeCalls.push({
         smokeToken: req.headers["x-smoke-token"] as string | undefined,
@@ -115,6 +118,7 @@ describe("runDeploySmoke", () => {
       "server /readyz",
       "client loads",
       "client config points at the game server",
+      "server /stats",
       "anonymous sign-in",
       "join and leave a private room",
       "smoke match write",
@@ -148,6 +152,23 @@ describe("runDeploySmoke", () => {
   it("fails when the client's runtime config points at a different game server", async () => {
     const fakes = await startFakes({ configGameUrl: "wss://some-other-host.example" });
     await expect(runDeploySmoke(configFor(fakes))).rejects.toThrow(/config/i);
+  });
+
+  it("fails when /stats is missing or malformed", async () => {
+    const fakes = await startFakes();
+    const gameUrl = await listen((req, res) =>
+      req.url === "/stats"
+        ? json(res, 200, { players: "many" })
+        : json(res, 200, { status: "ok", version: "1.2.3" }),
+    );
+    const clientUrl = await listen((_req, res) => {
+      res.writeHead(200, { "content-type": "text/html" });
+      res.end(`${SPA_SHELL}<!-- ${gameUrl} -->`);
+    });
+    // This client answers every path (config.js included) with a page that names the
+    // game server's host, so the run reaches the /stats step and fails there.
+    const config = configFor({ ...fakes, gameUrl, clientUrl });
+    await expect(runDeploySmoke(config)).rejects.toThrow(/numeric players and rooms/);
   });
 
   it("fails when the smoke match write is rejected", async () => {

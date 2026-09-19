@@ -9,6 +9,7 @@ import { useState } from "react";
 import { useLoaderData } from "react-router";
 import { requireSession } from "../auth/requireSession.js";
 import { getMyLoadout, getMyUnlocks, saveMyLoadout, type ClientLoadout } from "../auth/supabase.js";
+import { WEAPON_LABELS } from "../content/weapons.js";
 import { Button, Field, Panel, Select } from "../ui/kit/index.js";
 import { LoadoutPreview } from "../ui/LoadoutPreview.js";
 
@@ -19,12 +20,6 @@ import { LoadoutPreview } from "../ui/LoadoutPreview.js";
 const TINT_PALETTE = [
   0xffffff, 0xff4444, 0xffaa00, 0xffee00, 0x44dd44, 0x2299ff, 0x8844ff, 0x333333,
 ];
-
-const WEAPON_LABELS: Record<WeaponId, string> = {
-  [WEAPON_IDS.SWORD]: "Sword",
-  [WEAPON_IDS.MACE]: "Mace",
-  [WEAPON_IDS.SPEAR]: "Spear",
-};
 
 const SLOT_LABELS: Record<CosmeticSlot, string> = {
   [COSMETIC_SLOTS.HELMET]: "Helmet",

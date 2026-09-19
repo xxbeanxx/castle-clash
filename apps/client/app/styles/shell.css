@@ -137,3 +137,17 @@
     opacity: 1;
   }
 }
+
+/* Phone: brand and account share the first row, the nav takes the second. */
+@media (max-width: 40rem) {
+  .cc-header__brand {
+    order: 1;
+  }
+  .cc-header__account {
+    order: 2;
+  }
+  .cc-header nav {
+    order: 3;
+    width: 100%;
+  }
+}

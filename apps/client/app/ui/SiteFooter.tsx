@@ -1,8 +1,10 @@
 import { Link } from "react-router";
+import { useServerStats } from "../api/serverStats.js";
 
 export const REPO_URL = "https://github.com/xxbeanxx/castle-clash";
 
 export function SiteFooter() {
+  const stats = useServerStats();
   return (
     <footer className="cc-footer">
       <div className="cc-footer__inner">
@@ -26,6 +28,11 @@ export function SiteFooter() {
                 GitHub
               </a>
             </li>
+            {stats && (
+              <li className="cc-muted" title="Game server version">
+                Server v{stats.version}
+              </li>
+            )}
           </ul>
         </nav>
       </div>

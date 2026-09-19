@@ -5,6 +5,8 @@ import NotFound from "../routes/not-found.js";
 import { ErrorBoundary, HydrateFallback } from "../root.js";
 import SiteLayout from "./SiteLayout.js";
 
+vi.mock("../api/serverStats.js", () => ({ useServerStats: () => null }));
+
 const getSessionMock = vi.fn();
 const signOutMock = vi.fn().mockResolvedValue(undefined);
 

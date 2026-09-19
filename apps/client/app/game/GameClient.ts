@@ -20,6 +20,8 @@ import { Client, type Room } from "@colyseus/sdk";
 import { Application, Container, type Ticker } from "pixi.js";
 import "./pixiCsp.js";
 import { matchStateToHud, type HudPlayerSnapshot } from "./hud.js";
+import { CompositeInput } from "./input/CompositeInput.js";
+import type { InputSource } from "./input/InputSource.js";
 import { KeyboardInput } from "./input/KeyboardInput.js";
 import { matchStateToPhaseBanner, type MatchFlowSnapshot } from "./matchFlow.js";
 import { Interpolator } from "./net/Interpolator.js";
@@ -93,7 +95,7 @@ class Emitter<T> {
 interface Resources {
   readonly app: Application;
   readonly room: Room<unknown, MatchState>;
-  readonly keyboard: KeyboardInput;
+  readonly input: InputSource;
   readonly view: PlayerRectsView;
   readonly arenaView: ArenaView;
   readonly hazardView: HazardView;
@@ -314,13 +316,13 @@ export class GameClient {
       },
     );
 
-    const keyboard = new KeyboardInput();
-    keyboard.attach();
+    const input = new CompositeInput([new KeyboardInput()]);
+    input.attach();
 
     const resources: Resources = {
       app,
       room,
-      keyboard,
+      input,
       view,
       arenaView,
       hazardView,
@@ -424,7 +426,7 @@ export class GameClient {
   }
 
   async #teardown(resources: Resources): Promise<void> {
-    resources.keyboard.detach();
+    resources.input.detach();
     await resources.room.leave();
     resources.app.destroy(true, { children: true });
   }
@@ -543,7 +545,7 @@ export class GameClient {
     }
     const { resources, reconciler } = phase;
     this.#seq += 1;
-    const frame = { seq: this.#seq, bits: resources.keyboard.sample() };
+    const frame = { seq: this.#seq, bits: resources.input.sample() };
     reconciler.predict(frame);
     reconciler.tick();
     resources.room.send(MESSAGE_TYPES.INPUT, frame);

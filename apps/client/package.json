@@ -33,6 +33,7 @@
     "@types/react-dom": "^19.3",
     "@vitest/browser": "5.0",
     "@vitest/browser-playwright": "5.0",
+    "fast-check": "4.10",
     "jsdom": "^30.0",
     "playwright": "1.63",
     "typescript": "6.0",

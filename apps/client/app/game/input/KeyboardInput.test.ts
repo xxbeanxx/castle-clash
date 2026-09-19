@@ -35,6 +35,7 @@ describe("KeyboardInput", () => {
 
   it("clears the bit on keyup", () => {
     keydown(target, "ArrowRight");
+    input.sample();
     keyup(target, "ArrowRight");
     expect(input.sample()).toBe(0);
   });
@@ -64,6 +65,42 @@ describe("KeyboardInput", () => {
   it("stops reacting to events after detach", () => {
     input.detach();
     keydown(target, "ArrowRight");
+    expect(input.sample()).toBe(0);
+  });
+
+  it("registers a key pressed and released between two samples (F7)", () => {
+    keydown(target, "Space");
+    keyup(target, "Space");
+    expect(input.sample()).toBe(INPUT_BITS.JUMP);
+    expect(input.sample()).toBe(0);
+  });
+
+  it("reports a tapped key once, not on every later sample", () => {
+    keydown(target, "KeyJ");
+    keyup(target, "KeyJ");
+    input.sample();
+    keydown(target, "KeyK");
+    expect(input.sample()).toBe(INPUT_BITS.HEAVY);
+  });
+
+  it("keeps a held key reported on every sample", () => {
+    keydown(target, "ArrowRight");
+    expect(input.sample()).toBe(INPUT_BITS.RIGHT);
+    expect(input.sample()).toBe(INPUT_BITS.RIGHT);
+  });
+
+  it("does not release LEFT when only one of two LEFT keys is released", () => {
+    keydown(target, "KeyA");
+    keydown(target, "ArrowLeft");
+    input.sample();
+    keyup(target, "ArrowLeft");
+    expect(input.sample()).toBe(INPUT_BITS.LEFT);
+  });
+
+  it("forgets held keys on detach so re-attaching starts clean", () => {
+    keydown(target, "ArrowRight");
+    input.detach();
+    input.attach();
     expect(input.sample()).toBe(0);
   });
 });

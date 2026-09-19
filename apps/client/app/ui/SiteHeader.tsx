@@ -1,8 +1,14 @@
+import { lazy, Suspense } from "react";
 import { Link } from "react-router";
 import { useSession } from "../auth/useSession.js";
-import { AccountMenu } from "./AccountMenu.js";
 import { Brand } from "./Brand.js";
 import { ButtonLink, Nav, type NavItem } from "./kit/index.js";
+
+// Only signed-in visitors need the menu (and its modal and hooks), and the landing page's LCP budget
+// has ~30 ms of headroom, so it loads after the session is known rather than in every page's bundle.
+const AccountMenu = lazy(() =>
+  import("./AccountMenu.js").then((m) => ({ default: m.AccountMenu })),
+);
 
 const NAV_ITEMS: readonly NavItem[] = [
   { to: "/lobby", label: "Play" },
@@ -31,7 +37,11 @@ export function SiteHeader() {
               Sign in
             </ButtonLink>
           )}
-          {session && <AccountMenu session={session} />}
+          {session && (
+            <Suspense fallback={null}>
+              <AccountMenu session={session} />
+            </Suspense>
+          )}
         </div>
       </div>
     </header>

@@ -1,6 +1,5 @@
-import { useState } from "react";
-import { signInWithGoogle } from "../auth/supabase.js";
-import { useSession } from "../auth/useSession.js";
+import { useEffect, useState } from "react";
+import { getSession, signInWithGoogle, type Session } from "../auth/supabase.js";
 import { Button } from "./kit/index.js";
 
 /** Per user, so dismissing it as one guest doesn't hide it from the next guest on this browser. */
@@ -27,7 +26,28 @@ function wasDismissed(userId: string | undefined): boolean {
  * been verified against the hosted project yet.
  */
 export function SaveProgressNudge() {
-  const session = useSession();
+  // Reads the session itself rather than through `useSession`: this lives in the play route, which
+  // already loads supabase.js, and sharing that hook with the site header made the bundler split it
+  // into its own chunk, an extra request on every landing-page load (measured: ~+100 ms LCP).
+  const [session, setSession] = useState<Session | null | undefined>(undefined);
+  useEffect(() => {
+    let cancelled = false;
+    getSession().then(
+      (current) => {
+        if (!cancelled) {
+          setSession(current);
+        }
+      },
+      () => {
+        if (!cancelled) {
+          setSession(null);
+        }
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const userId = session?.user.id;
   // Remembered in memory too, so it still goes away this visit if storage is blocked.
   const [dismissedNow, setDismissedNow] = useState<string | null>(null);

@@ -6,7 +6,10 @@ import type { GameClient } from "../game/GameClient.js";
 import { ResultsOverlay } from "./ResultsOverlay.js";
 
 // The nudge has its own tests; here the player is signed out, so it stays silent.
-vi.mock("../auth/useSession.js", () => ({ useSession: () => null }));
+vi.mock("../auth/supabase.js", () => ({
+  getSession: async () => null,
+  signInWithGoogle: vi.fn(),
+}));
 
 const entry = { eliminations: 1, deaths: 0, damageDealt: 50, roundsWon: 3 };
 

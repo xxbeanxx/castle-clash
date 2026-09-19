@@ -20,7 +20,8 @@ resource "azurerm_container_app_environment" "main" {
   log_analytics_workspace_id = azurerm_log_analytics_workspace.main.id
 
   # The only profile: serverless Consumption. Its per-app ceiling (2 vCPU / 4 GiB)
-  # is why the server runs at 1 vCPU / 2 GiB, see infra/lib/env.sh.
+  # is why the server runs at 1 vCPU / 2 GiB, see var.server_cpu / var.server_memory.
+
   workload_profile {
     name                  = "Consumption"
     workload_profile_type = "Consumption"

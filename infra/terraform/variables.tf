@@ -45,10 +45,51 @@ variable "game_host" {
   default     = "castle-clash-game"
 }
 
-variable "github_repo" {
-  description = "owner/name of the GitHub repository whose `production` environment may deploy."
+variable "github_owner" {
+  description = "GitHub user or organisation that owns the repository."
   type        = string
-  default     = "xxbeanxx/castle-clash"
+  default     = "xxbeanxx"
+}
+
+variable "github_repository_name" {
+  type    = string
+  default = "castle-clash"
+}
+
+variable "github_reviewer_user_id" {
+  description = "Numeric id of the GitHub user who must approve production deployments."
+  type        = number
+  default     = 997639
+}
+
+variable "supabase_url" {
+  description = "Hosted Supabase project URL, exposed to the deploy workflow as SUPABASE_URL."
+  type        = string
+  default     = "https://vrcxprhmonzpuelfnijy.supabase.co"
+}
+
+variable "supabase_publishable_key" {
+  description = "Supabase publishable key. Designed to ship in every browser bundle, so it is not a secret."
+  type        = string
+  default     = "sb_publishable_7LPBCXfM5c1YpHHp-uAi6w_VdA4i-US"
+}
+
+variable "server_cpu" {
+  description = "vCPU for the server app, applied by the deploy workflow. The Consumption profile allows at most 2."
+  type        = string
+  default     = "1.0"
+}
+
+variable "server_memory" {
+  description = "Memory for the server app, applied by the deploy workflow. The Consumption profile allows at most 4Gi."
+  type        = string
+  default     = "2Gi"
+}
+
+variable "client_min_replicas" {
+  description = "Minimum replicas for the client app, applied by the deploy workflow."
+  type        = number
+  default     = 1
 }
 
 variable "github_oidc_subject_prefix" {

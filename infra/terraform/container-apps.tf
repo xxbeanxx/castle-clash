@@ -5,6 +5,7 @@ locals {
   # target port, and the runtime secrets (whose values Terraform can never read
   # back). The lifecycle block below hands those to the workflow. Terraform owns
   # the shape: environment, ingress exposure, custom domains, DNS, identity.
+
   apps = {
     server = {
       name = "ca-castle-clash-server"

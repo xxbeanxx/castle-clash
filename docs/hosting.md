@@ -127,10 +127,12 @@ single-process design.
 **Done for production on 2026-09-19** (steps 1-4: the Supabase project with anonymous sign-ins and
 auth URLs, the Azure resources and deploy identity, the GitHub `production` environment, the runtime
 secrets, and all migrations applied). Still open: step 5 (GHCR package visibility, after the first
-release) and step 6 (the repo Actions setting). The steps stay documented for staging or a rebuild.
+release). Steps 2-3 and 6 are now Terraform (`infra/terraform/`), adopted from what was created by
+hand; the steps stay documented for a rebuild.
 
 Prerequisites: an authenticated `az` (rights to create resource groups, role assignments and app
-registrations, and to edit the `atomic-nucleus.com` DNS zone), `gh`, and `supabase` (`npx supabase`).
+registrations, and to edit the `atomic-nucleus.com` DNS zone), `gh`, `terraform`, and `supabase`
+(`npx supabase`). `infra/terraform/README.md` covers the state backend and how to run it.
 
 1. **Supabase projects** — create one for `staging` and one for `production` (the local stack's
    `supabase/config.toml` is not pushed to hosted projects). For each, in the dashboard or via the
@@ -139,34 +141,35 @@ registrations, and to edit the `atomic-nucleus.com` DNS zone), `gh`, and `supaba
    the **publishable** key, the **secret** key, and the **session-mode pooler** connection string
    (`aws-…pooler.supabase.com:5432`, percent-encoded password). GitHub-hosted runners are IPv4-only and
    the direct `db.<ref>.supabase.co` host is IPv6-only, so `SUPABASE_DB_URL` must be the pooler URI.
-2. **Azure** — `infra/azure/provision.sh staging` and `… production`. Creates the resource group,
-   Container Apps environment, both apps on a placeholder image, DNS records and managed certificates
-   for the two hostnames, and a per-environment deploy identity federated to the GitHub environment
-   (no client secret). It prints the `AZURE_*` ids for the next step.
-3. **GitHub environments** — `infra/github/configure-environment.sh staging|production` with the ids
-   and Supabase values in the environment. Creates the environment (production gets the required
-   reviewer), restricts both environments to deployments from `main` (the Azure credential trusts the
-   environment name alone, so without this any branch's workflow could request `staging`), and sets
-   its variables and the `AZURE_*` / `SUPABASE_DB_URL` secrets.
-4. **Runtime secrets** — `SUPABASE_SECRET_KEY=… infra/azure/set-runtime-secrets.sh staging|production`
-   stores the Supabase secret key as a Container App secret and generates the `SMOKE_TOKEN` in both
-   the Container App and the GitHub environment.
+2. **Azure and GitHub, by Terraform** — `terraform -chdir=infra/terraform apply` (with `GITHUB_TOKEN`
+   set for the GitHub provider). Creates the resource group, Container Apps environment, both apps on
+   a placeholder image, DNS records and managed certificates for the two hostnames, the deploy
+   identity federated to the GitHub `production` environment (no client secret), and, in GitHub, the
+   environment itself (required reviewer; deployments restricted to `main`, because the Azure
+   credential trusts the environment name alone), its variables, and the `AZURE_*` secrets. The
+   Supabase URL and publishable key it passes on are `variables.tf` defaults. See
+   `infra/terraform/README.md` for what Terraform leaves to the deploy workflow.
+3. **`SUPABASE_DB_URL`** — `gh secret set SUPABASE_DB_URL --repo xxbeanxx/castle-clash --env production`
+   (paste the pooler URI). A credential, so it is not in Terraform state.
+4. **Runtime secrets** — `SUPABASE_SECRET_KEY=… infra/set-runtime-secrets.sh` stores the Supabase
+   secret key as a Container App secret and generates the `SMOKE_TOKEN` in both the Container App and
+   the GitHub environment.
 5. **GHCR visibility** — after the first release builds, set both packages
    (`castle-clash-server`, `castle-clash-client`) to **public** (package settings → Change
    visibility; there is no API for it), so Container Apps can pull without registry credentials. The
    deploy fails with an image-pull error until then.
-6. **Repository settings** — Settings → Actions → General → allow GitHub Actions to create pull
-   requests (release-please needs it).
+6. **Repository settings** — Terraform (`github_workflow_repository_permissions`) lets GitHub
+   Actions create pull requests, which release-please needs.
 
 ### GitHub environment reference
 
 | Kind     | Name                                                                                                                              | Set by                            |
 | -------- | --------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
-| secret   | `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`                                                                     | `configure-environment.sh`        |
-| secret   | `SUPABASE_DB_URL`                                                                                                                 | `configure-environment.sh`        |
-| secret   | `SMOKE_TOKEN`                                                                                                                     | `set-runtime-secrets.sh`          |
-| variable | `AZURE_RESOURCE_GROUP`, `SERVER_APP`, `CLIENT_APP`, `GAME_SERVER_URL`, `CLIENT_URL`, `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`    | `configure-environment.sh`        |
-| variable | `SERVER_CPU`, `SERVER_MEMORY`, `CLIENT_MIN_REPLICAS` (optional overrides)                                                          | `configure-environment.sh`        |
+| secret   | `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`                                                                     | Terraform (`github.tf`)           |
+| secret   | `SUPABASE_DB_URL`                                                                                                                 | `gh secret set` (step 3)          |
+| secret   | `SMOKE_TOKEN`                                                                                                                     | `infra/set-runtime-secrets.sh`    |
+| variable | `AZURE_RESOURCE_GROUP`, `SERVER_APP`, `CLIENT_APP`, `GAME_SERVER_URL`, `CLIENT_URL`, `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`    | Terraform (`github.tf`)           |
+| variable | `SERVER_CPU`, `SERVER_MEMORY`, `CLIENT_MIN_REPLICAS` (optional overrides)                                                          | Terraform (`github.tf`)           |
 | repo     | `RELEASE_PLEASE_TOKEN` (optional PAT so release PRs run CI)                                                                        | you                               |
 
 Container App secrets (server only): `supabase-secret-key`, `smoke-token`.

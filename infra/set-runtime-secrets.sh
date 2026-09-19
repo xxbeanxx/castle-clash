@@ -2,7 +2,11 @@
 # Stores the server's runtime secrets as Container App secrets, and the smoke
 # token in the matching GitHub environment so the deploy smoke can present it.
 #
-#   SUPABASE_SECRET_KEY=sb_secret_... infra/azure/set-runtime-secrets.sh staging|production
+#   SUPABASE_SECRET_KEY=sb_secret_... infra/set-runtime-secrets.sh
+#
+# Secret values are the one thing Terraform deliberately does not own (it could
+# never read them back, and would put them in state), so this stays a script.
+# The resources it writes to are created by infra/terraform.
 #
 # The Supabase secret key is read from the environment, not typed as an
 # argument, so it stays out of shell history and this script's own argv. Note
@@ -13,9 +17,10 @@
 # nothing unless ROTATE_SMOKE_TOKEN=1). No value is ever printed.
 set -euo pipefail
 
-# shellcheck source=../lib/env.sh
-source "$(dirname "${BASH_SOURCE[0]}")/../lib/env.sh"
-load_environment "${1:?usage: set-runtime-secrets.sh staging|production}"
+REPO="xxbeanxx/castle-clash"
+ENVIRONMENT="production"
+RG="rg-castle-clash"
+SERVER_APP="ca-castle-clash-server"
 : "${SUPABASE_SECRET_KEY:?SUPABASE_SECRET_KEY must be set in the environment}"
 
 # Secret *values* are unreadable on both sides, so "generate a new token" is

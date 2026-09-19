@@ -6,7 +6,7 @@
 #   source "$(dirname "${BASH_SOURCE[0]}")/../lib/env.sh"
 #   load_environment "$1"
 #
-# Sets: ENVIRONMENT SUFFIX RG CAE SERVER_APP CLIENT_APP CLIENT_HOST GAME_HOST
+# Sets: ENVIRONMENT SUFFIX RG CAE LOG_WORKSPACE SERVER_APP CLIENT_APP CLIENT_HOST GAME_HOST
 #       CLIENT_MIN_REPLICAS SERVER_CPU SERVER_MEMORY REPO DNS_ZONE
 
 REPO="${REPO:-xxbeanxx/castle-clash}"
@@ -48,8 +48,9 @@ load_environment() {
   fi
   RG="rg-castle-clash${tail}"
   CAE="cae-castle-clash${tail}"
+  LOG_WORKSPACE="log-castle-clash${tail}"
   SERVER_APP="ca-castle-clash-server${tail}"
   CLIENT_APP="ca-castle-clash-client${tail}"
-  export ENVIRONMENT SUFFIX RG CAE SERVER_APP CLIENT_APP CLIENT_HOST GAME_HOST \
+  export ENVIRONMENT SUFFIX RG CAE LOG_WORKSPACE SERVER_APP CLIENT_APP CLIENT_HOST GAME_HOST \
     CLIENT_MIN_REPLICAS SERVER_CPU SERVER_MEMORY REPO DNS_ZONE
 }

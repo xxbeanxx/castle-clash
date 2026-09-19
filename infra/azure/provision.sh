@@ -34,9 +34,20 @@ step() { printf '\n== %s\n' "$*"; }
 step "resource group ${RG}"
 az group create --name "$RG" --location "$LOCATION" --output none
 
+step "log analytics workspace ${LOG_WORKSPACE}"
+if ! az monitor log-analytics workspace show --resource-group "$RG" --workspace-name "$LOG_WORKSPACE" --output none 2>/dev/null; then
+  az monitor log-analytics workspace create --resource-group "$RG" --workspace-name "$LOG_WORKSPACE" \
+    --location "$LOCATION" --retention-time 30 --output none
+fi
+
 step "container apps environment ${CAE}"
 if ! az containerapp env show --name "$CAE" --resource-group "$RG" --output none 2>/dev/null; then
-  az containerapp env create --name "$CAE" --resource-group "$RG" --location "$LOCATION" --output none
+  # Created with an explicit workspace: left to itself, `env create` invents one
+  # named `workspace-<rg>…`, which cannot be renamed afterwards.
+  log_id="$(az monitor log-analytics workspace show --resource-group "$RG" --workspace-name "$LOG_WORKSPACE" --query customerId -o tsv)"
+  log_key="$(az monitor log-analytics workspace get-shared-keys --resource-group "$RG" --workspace-name "$LOG_WORKSPACE" --query primarySharedKey -o tsv)"
+  az containerapp env create --name "$CAE" --resource-group "$RG" --location "$LOCATION" \
+    --logs-destination log-analytics --logs-workspace-id "$log_id" --logs-workspace-key "$log_key" --output none
 fi
 
 # The apps start on Microsoft's placeholder image. The first deploy

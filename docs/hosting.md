@@ -20,7 +20,7 @@ scripts and workflows but was not created). Everything below marked _staging_ is
 | Thing              | Production (exists)                                    | Staging (not created)                                  |
 | ------------------ | ------------------------------------------------------ | ------------------------------------------------------ |
 | Resource group     | `rg-castle-clash`                                      | `rg-castle-clash-staging`                              |
-| Environment        | `cae-castle-clash`                                     | `cae-castle-clash-staging`                             |
+| Environment        | `cae-castle-clash` (logs: `log-castle-clash`)          | `cae-castle-clash-staging`                             |
 | Apps               | `ca-castle-clash-{server,client}`                      | `ca-castle-clash-{server,client}-staging`              |
 | Client URL         | `https://castle-clash.atomic-nucleus.com`              | `https://castle-clash-staging.atomic-nucleus.com`      |
 | Game server URL    | `wss://castle-clash-game.atomic-nucleus.com`           | `wss://castle-clash-game-staging.atomic-nucleus.com`   |

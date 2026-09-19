@@ -20,6 +20,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="theme-color" content="#16130f" />
+        {/* "Add to Home Screen" launches without browser chrome. iOS ignores the manifest's
+            `orientation`, so the rotate prompt on /play still matters there. */}
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-title" content="Castle Clash" />
         <Meta />
         <Links />
         {/*
@@ -50,6 +55,7 @@ export const links = () => [
   { rel: "icon", href: "/favicon.ico", sizes: "48x48" },
   { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
   { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
+  { rel: "manifest", href: "/manifest.webmanifest" },
   {
     rel: "preload",
     href: "/fonts/pixelify-sans-latin-700-normal.woff2",

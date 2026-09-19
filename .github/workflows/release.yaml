@@ -59,6 +59,8 @@ jobs:
       packages: read
       id-token: write
     uses: ./.github/workflows/deploy.yaml
+    # Forwarded again by deploy.yaml to the environment-scoped job (see there).
+    secrets: inherit
     with:
       version: ${{ needs.release-please.outputs.tag_name }}
       server_digest: ${{ needs.images.outputs.server_digest }}

@@ -103,3 +103,14 @@ Trivy re-scan (plan's nightly workflow) was added.
    `supabase/setup-cli` + `supabase start` in the job (as `integration.yaml` does), then pass
    `SUPABASE_URL` / the publishable and secret keys to the server container over a network it can reach
    (`--network host` or `host.containers.internal`). Left for a deliberate change with a CI run to test it.
+
+## First production deploy (2026-09-19): what it taught
+
+- **Environment secrets need `secrets: inherit`.** The first `deploy` run failed at `azure/login` with empty
+  `client-id`/`tenant-id` although the secrets existed in the `production` environment: environment
+  *variables* reached the called workflow (via the job's `environment:`), environment *secrets* did not. The
+  working pattern is `environment:` on the called workflow's job **plus** `secrets: inherit` at every calling
+  level (`release.yaml` -> `deploy.yaml` -> `deploy-environment.yaml`). It forwards only repo/org secrets (none
+  exist) alongside the environment's own.
+- **A `production` deploy can only be dispatched from `main`** (the environment's deployment-branch policy), so a
+  workflow fix must be merged before it can be exercised.

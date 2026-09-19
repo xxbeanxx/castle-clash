@@ -262,7 +262,7 @@ importers:
         version: 2.116.0(@opentelemetry/api@1.9.1)
       colyseus:
         specifier: '0.18'
-        version: 0.18.5(@colyseus/auth@0.18.2)(@colyseus/better-call@1.3.3(zod@4.6.4))(@colyseus/core@0.18.13)(@colyseus/redis-driver@0.18.2(@colyseus/auth@0.18.2)(@colyseus/better-call@1.3.3(zod@4.6.4))(@colyseus/schema@5.0.32(typescript@6.0.3))(@colyseus/ws-transport@0.18.2)(@pm2/io@6.1.0)(express@5.2.1)(zod@4.6.4))(@colyseus/redis-presence@0.18.4(@colyseus/auth@0.18.2)(@colyseus/better-call@1.3.3(zod@4.6.4))(@colyseus/schema@5.0.32(typescript@6.0.3))(@colyseus/ws-transport@0.18.2)(@pm2/io@6.1.0)(express@5.2.1)(zod@4.6.4))(@colyseus/schema@5.0.32(typescript@6.0.3))(@colyseus/uwebsockets-transport@0.18.2(@colyseus/core@0.18.13))(@colyseus/ws-transport@0.18.2)(@pm2/io@6.1.0)(express@5.2.1)(vite@8.3.0(@types/node@24.13.4)(esbuild@0.27.7)(tsx@4.23.13))(zod@4.6.4)
+        version: 0.18.6(@colyseus/auth@0.18.2)(@colyseus/better-call@1.3.3(zod@4.6.4))(@colyseus/core@0.18.13)(@colyseus/redis-driver@0.18.2(@colyseus/auth@0.18.2)(@colyseus/better-call@1.3.3(zod@4.6.4))(@colyseus/schema@5.0.32(typescript@6.0.3))(@colyseus/ws-transport@0.18.2)(@pm2/io@6.1.0)(express@5.2.1)(zod@4.6.4))(@colyseus/redis-presence@0.18.4(@colyseus/auth@0.18.2)(@colyseus/better-call@1.3.3(zod@4.6.4))(@colyseus/schema@5.0.32(typescript@6.0.3))(@colyseus/ws-transport@0.18.2)(@pm2/io@6.1.0)(express@5.2.1)(zod@4.6.4))(@colyseus/schema@5.0.32(typescript@6.0.3))(@colyseus/uwebsockets-transport@0.18.2(@colyseus/core@0.18.13))(@colyseus/ws-transport@0.18.2)(@pm2/io@6.1.0)(express@5.2.1)(vite@8.3.0(@types/node@24.13.4)(esbuild@0.27.7)(tsx@4.23.13))(zod@4.6.4)
       express:
         specifier: '5.2'
         version: 5.2.1
@@ -1940,8 +1940,8 @@ packages:
     resolution: {integrity: sha512-rwHwUfXL40Chm1r08yrhU3qpUvdVlgkKNeyeGPOxnW8/SyVDvgRaed/Uz54AqWNaTCAThlj6QAs3TZcKI0xDEw==}
     engines: {node: '>=0.10.0'}
 
-  colyseus@0.18.5:
-    resolution: {integrity: sha512-RUM1y5COb2Mfn+7S3lprmeVxdGfqZg2V8ia3xQhtCX6Gqjj4vRVDyJjj1VqNrBVkyAQPOr5qPZJUyNVHOeobyw==}
+  colyseus@0.18.6:
+    resolution: {integrity: sha512-RrwSPCKDVtAmczKDkEms7FE+1uABwDNP0EIGJdeKohrodiAgoyBK4gaWPKzTHE0N8y39EEIGyjrteJ4HUI4oHg==}
     engines: {node: '>= 22.x'}
     peerDependencies:
       '@colyseus/auth': 0.18.x
@@ -4570,7 +4570,7 @@ snapshots:
 
   cluster-key-slot@1.1.1: {}
 
-  colyseus@0.18.5(@colyseus/auth@0.18.2)(@colyseus/better-call@1.3.3(zod@4.6.4))(@colyseus/core@0.18.13)(@colyseus/redis-driver@0.18.2(@colyseus/auth@0.18.2)(@colyseus/better-call@1.3.3(zod@4.6.4))(@colyseus/schema@5.0.32(typescript@6.0.3))(@colyseus/ws-transport@0.18.2)(@pm2/io@6.1.0)(express@5.2.1)(zod@4.6.4))(@colyseus/redis-presence@0.18.4(@colyseus/auth@0.18.2)(@colyseus/better-call@1.3.3(zod@4.6.4))(@colyseus/schema@5.0.32(typescript@6.0.3))(@colyseus/ws-transport@0.18.2)(@pm2/io@6.1.0)(express@5.2.1)(zod@4.6.4))(@colyseus/schema@5.0.32(typescript@6.0.3))(@colyseus/uwebsockets-transport@0.18.2(@colyseus/core@0.18.13))(@colyseus/ws-transport@0.18.2)(@pm2/io@6.1.0)(express@5.2.1)(vite@8.3.0(@types/node@24.13.4)(esbuild@0.27.7)(tsx@4.23.13))(zod@4.6.4):
+  colyseus@0.18.6(@colyseus/auth@0.18.2)(@colyseus/better-call@1.3.3(zod@4.6.4))(@colyseus/core@0.18.13)(@colyseus/redis-driver@0.18.2(@colyseus/auth@0.18.2)(@colyseus/better-call@1.3.3(zod@4.6.4))(@colyseus/schema@5.0.32(typescript@6.0.3))(@colyseus/ws-transport@0.18.2)(@pm2/io@6.1.0)(express@5.2.1)(zod@4.6.4))(@colyseus/redis-presence@0.18.4(@colyseus/auth@0.18.2)(@colyseus/better-call@1.3.3(zod@4.6.4))(@colyseus/schema@5.0.32(typescript@6.0.3))(@colyseus/ws-transport@0.18.2)(@pm2/io@6.1.0)(express@5.2.1)(zod@4.6.4))(@colyseus/schema@5.0.32(typescript@6.0.3))(@colyseus/uwebsockets-transport@0.18.2(@colyseus/core@0.18.13))(@colyseus/ws-transport@0.18.2)(@pm2/io@6.1.0)(express@5.2.1)(vite@8.3.0(@types/node@24.13.4)(esbuild@0.27.7)(tsx@4.23.13))(zod@4.6.4):
     dependencies:
       '@colyseus/auth': 0.18.2(@colyseus/core@0.18.13)(express@5.2.1)(zod@4.6.4)
       '@colyseus/core': 0.18.13(@colyseus/auth@0.18.2)(@colyseus/better-call@1.3.3(zod@4.6.4))(@colyseus/schema@5.0.32(typescript@6.0.3))(@colyseus/ws-transport@0.18.2)(@pm2/io@6.1.0)(express@5.2.1)(zod@4.6.4)

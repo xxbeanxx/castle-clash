@@ -1,0 +1,82 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>PROTOTYPE - ADR 0002 render surface spike (throwaway)</title>
+<style>
+  body { font: 13px system-ui; background: #111; color: #ddd; margin: 12px; }
+  h1 { font-size: 15px; } h2 { font-size: 13px; margin: 14px 0 4px; }
+  table { border-collapse: collapse; } td, th { border: 1px solid #333; padding: 3px 7px; text-align: right; }
+  th:first-child, td:first-child { text-align: left; }
+  .bad { color: #f77; } .ok { color: #7d7; }
+  .row { display: flex; gap: 16px; flex-wrap: wrap; }
+  canvas { image-rendering: pixelated; background: #000; display: block; }
+</style>
+<h1>PROTOTYPE (throwaway): A = virtual 640x360, integer nearest-neighbour, overscan &nbsp;|&nbsp; B = virtual 1280x720, 1:1 art, integer nearest-neighbour</h1>
+<p>World is 1280x720 units (all arenas but Dungeon 1280x420). Model A: 1 art px = 2 world units. Model B: 1 art px = 1 world unit.
+Scale = largest integer s with s*virtualH &lt;= physH (height decides; extra width is overscan). Where s would be 0 the model is forced fractional.</p>
+<div id="table"></div>
+<h2>Mock scene at each model's own resolution, blitted with integer scale (this window)</h2>
+<div class="row" id="live"></div>
+<script>
+const DEVICES = [
+  ["iPhone SE landscape", 667, 375, 2],
+  ["iPhone 14 landscape", 844, 390, 3],
+  ["iPhone 14 Pro Max landscape", 932, 430, 3],
+  ["Pixel 7 landscape", 915, 412, 2.625],
+  ["Small Android 800x360", 800, 360, 2],
+  ["iPad landscape", 1024, 768, 2],
+  ["Laptop 1440x900 (Retina)", 1440, 900, 2],
+  ["Laptop 1366x768", 1366, 768, 1],
+  ["Desktop 1920x1080", 1920, 1080, 1],
+  ["Desktop 2560x1440", 2560, 1440, 1],
+  ["Ultrawide 3440x1440", 3440, 1440, 1],
+  ["4K 3840x2160", 3840, 2160, 1],
+  ["Window 1280x720", 1280, 720, 1],
+];
+const WORLD = { w: 1280, h: 720 };
+function model(vw, vh, cssW, cssH, dpr) {
+  const physW = Math.floor(cssW * dpr), physH = Math.floor(cssH * dpr);
+  const s = Math.floor(Math.min(physH / vh, physW / vw));
+  const fractional = s < 1;
+  const scale = fractional ? Math.min(physH / vh, physW / vw) : s;
+  // Playfield = the 16:9 world at that scale (overscan fills the rest).
+  const fieldPhysH = vh * scale;
+  const fieldPct = fieldPhysH / physH * 100;
+  const knightCssH = 48 / (WORLD.h / vh) * scale / dpr; // hitbox height on screen in CSS px
+  const artPx = scale / dpr; // css px per art px
+  return { scale, fractional, fieldPct, knightCssH, artPx };
+}
+let html = "<table><tr><th>device (css, dpr)</th><th>A scale</th><th>A field/screen h</th><th>A knight h (css px)</th><th>B scale</th><th>B field/screen h</th><th>B knight h (css px)</th></tr>";
+for (const [n, w, h, d] of DEVICES) {
+  const a = model(640, 360, w, h, d), b = model(1280, 720, w, h, d);
+  const c = (m) => `<td class="${m.fractional ? "bad" : ""}">${m.fractional ? "fractional " : ""}${m.scale.toFixed(2)}x</td><td class="${m.fieldPct < 80 ? "bad" : "ok"}">${m.fieldPct.toFixed(0)}%</td><td>${m.knightCssH.toFixed(1)}</td>`;
+  html += `<tr><td>${n} ${w}x${h} @${d}</td>${c(a)}${c(b)}</tr>`;
+}
+document.getElementById("table").innerHTML = html + "</table>";
+
+function scene(ctx, unit) { // unit = art px per 8 world units-ish; draws in world units / (world/virtual)
+  const k = ctx.canvas.width / WORLD.w; // art px per world unit
+  ctx.fillStyle = "#223"; ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+  ctx.fillStyle = "#654";
+  for (const [x, y, w, h] of [[0, 660, 1280, 60], [180, 520, 260, 16], [840, 520, 260, 16], [510, 380, 260, 16]])
+    ctx.fillRect(Math.round(x * k), Math.round(y * k), Math.round(w * k), Math.round(h * k));
+  const knight = (x, y, col) => { // 28x48 hitbox
+    const W = Math.round(28 * k), H = Math.round(48 * k), X = Math.round(x * k), Y = Math.round(y * k);
+    ctx.fillStyle = col; ctx.fillRect(X, Y, W, H);
+    ctx.fillStyle = "#fff"; ctx.fillRect(X + Math.round(W * 0.55), Y + Math.round(H * 0.12), Math.max(1, Math.round(W * 0.2)), Math.max(1, Math.round(H * 0.08)));
+  };
+  knight(300, 472, "#c33"); knight(950, 472, "#39c"); knight(620, 332, "#cc3");
+}
+const dpr = window.devicePixelRatio || 1;
+for (const [label, vw, vh] of [["A 640x360", 640, 360], ["B 1280x720", 1280, 720]]) {
+  const off = document.createElement("canvas"); off.width = vw; off.height = vh;
+  scene(off.getContext("2d"));
+  const m = model(vw, vh, Math.min(innerWidth - 40, 1200) / 2, 1e6, dpr);
+  const s = Math.max(1, Math.floor(m.scale));
+  const cv = document.createElement("canvas");
+  cv.width = vw * s; cv.height = vh * s; // physical px
+  cv.style.width = (cv.width / dpr) + "px"; cv.style.height = (cv.height / dpr) + "px";
+  const cx = cv.getContext("2d"); cx.imageSmoothingEnabled = false; cx.drawImage(off, 0, 0, cv.width, cv.height);
+  const d = document.createElement("div"); d.innerHTML = `${label} at ${s}x (dpr ${dpr})`; d.appendChild(cv);
+  document.getElementById("live").appendChild(d);
+}
+</script>

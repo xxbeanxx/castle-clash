@@ -22,10 +22,29 @@ environment), and every secret the pipeline uses. Terraform >= 1.9; providers `a
 ```sh
 az login
 export GITHUB_TOKEN="$(gh auth token)"        # for the GitHub provider
-export SUPABASE_ACCESS_TOKEN=sbp_...          # dashboard -> Account -> Access Tokens
-terraform -chdir=infra/terraform init
+export SUPABASE_ACCESS_TOKEN="$(secret-tool lookup service 'Supabase CLI' username supabase)"
+terraform -chdir=infra/terraform init         # first time on a machine
 terraform -chdir=infra/terraform plan
+terraform -chdir=infra/terraform apply
 ```
+
+The `secret-tool` line reads the token the Supabase CLI stored when you ran `supabase login`. If it
+prints nothing, create a personal access token instead (dashboard -> Account -> Access Tokens) and
+`export SUPABASE_ACCESS_TOKEN=sbp_...`.
+
+Read every plan before applying, especially anything marked `replace` or `destroy` (the project and
+repository have `prevent_destroy`, so a plan that would delete either fails). For a change worth
+reviewing carefully, save the plan and apply exactly that file, then delete it (plans can contain
+secrets):
+
+```sh
+terraform -chdir=infra/terraform plan -out=change.tfplan
+terraform -chdir=infra/terraform apply change.tfplan && rm infra/terraform/change.tfplan
+```
+
+`main` is protected, so change the `.tf` files in a PR and apply from the merged `main`. The deploy
+workflow changes each app's image, scale and env vars on every release; Terraform ignores those
+(see "What Terraform does *not* own"). A clean `plan` says "No changes".
 
 You need `Storage Blob Data Contributor` on the state account (auth is Entra ID; shared-key
 access is disabled on it), `Owner`/`Contributor` on the subscription for `apply`, rights to edit the

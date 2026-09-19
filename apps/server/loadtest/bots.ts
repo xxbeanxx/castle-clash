@@ -1,4 +1,4 @@
-import { MATCH_ROOM_NAME, MatchState, MESSAGE_TYPES } from "@castle-clash/shared";
+import { MATCH_ROOM_NAME, MatchState, MESSAGE_TYPES, TICK_RATE } from "@castle-clash/shared";
 import { sequence, hold, idle } from "@castle-clash/shared/testing";
 import { Client } from "@colyseus/sdk";
 import { cli, type Options } from "@colyseus/loadtest";
@@ -19,7 +19,7 @@ import { cli, type Options } from "@colyseus/loadtest";
  * seats.
  */
 
-const TICK_RATE_HZ = 60;
+const TICK_RATE_HZ = TICK_RATE;
 
 async function anonymousAccessToken(supabaseUrl: string, publishableKey: string): Promise<string> {
   const response = await fetch(`${supabaseUrl}/auth/v1/signup`, {

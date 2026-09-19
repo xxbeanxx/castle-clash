@@ -69,14 +69,21 @@ export const inputDropsTotal = new Counter({
 });
 
 /** `recordMatchFailureCount` (RecordMatchQueue.ts) is the actual source of
- *  truth — this Gauge just samples it on scrape, so there is exactly one
- *  counter incremented anywhere in the codebase, not two drifting copies. */
-new Gauge({
+ *  truth. This is a real `Counter` (the `_total` suffix promises counter
+ *  semantics — `rate()` must work on it) that catches up to that plain
+ *  number on each scrape by incrementing by the delta, so there is still
+ *  exactly one place the count is incremented in the codebase. */
+let lastSampledFailureCount = 0;
+new Counter({
   name: "castle_clash_record_match_failures_total",
   help: "Matches whose recordMatch never succeeded after exhausting all retries",
   registers: [registry],
   collect() {
-    this.set(recordMatchFailureCount.value);
+    const delta = recordMatchFailureCount.value - lastSampledFailureCount;
+    lastSampledFailureCount = recordMatchFailureCount.value;
+    if (delta > 0) {
+      this.inc(delta);
+    }
   },
 });
 

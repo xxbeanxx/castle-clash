@@ -31,6 +31,18 @@ describe("FixedWindowRateLimiter", () => {
     expect(limiter.consume("b", 0)).toBe(false);
   });
 
+  it("prunes expired windows once the map grows large, so distinct-key floods can't grow it forever", () => {
+    const limiter = new FixedWindowRateLimiter(1, 1000);
+    for (let i = 0; i < 10_000; i++) {
+      limiter.consume(`ip-${i}`, 0);
+    }
+    expect(limiter.size).toBe(10_000);
+
+    limiter.consume("fresh", 5000);
+
+    expect(limiter.size).toBe(1);
+  });
+
   it("forgets a key once deleted", () => {
     const limiter = new FixedWindowRateLimiter(1, 1000);
     expect(limiter.consume("a", 0)).toBe(true);

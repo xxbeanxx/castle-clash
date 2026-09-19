@@ -32,6 +32,7 @@ import {
   type TokenVerifier,
   type VerifiedUser,
 } from "../auth/verifyToken.js";
+import { envNumber } from "../env.js";
 import { logger } from "../logger.js";
 import { DraftService, type DraftRoundPlayer } from "../match/DraftService.js";
 import { MatchDirector, type MatchResult } from "../match/MatchDirector.js";
@@ -46,7 +47,7 @@ import { createDefaultPlayerRepository } from "../persistence/createPlayerReposi
 import type { MatchResultRecord, PlayerRepository } from "../persistence/PlayerRepository.js";
 import { enqueueRecordMatch } from "../persistence/RecordMatchQueue.js";
 import { FixedWindowRateLimiter } from "../rateLimit.js";
-import { isDraining } from "../shutdown.js";
+import { isDraining, trackPendingWrite } from "../shutdown.js";
 import { InputQueue } from "./InputQueue.js";
 import { generateRoomCode } from "./roomCode.js";
 import { IntervalTickDriver, type TickDriver } from "./TickDriver.js";
@@ -98,7 +99,7 @@ const userJoinRateLimiter = new FixedWindowRateLimiter(
  *  deliberately well above that so it only ever fires as a genuine runaway-
  *  creation guardrail, not a normal-operation ceiling. */
 function maxRoomsPerProcess(): number {
-  return Number(process.env["MAX_ROOMS_PER_PROCESS"] ?? 500);
+  return envNumber("MAX_ROOMS_PER_PROCESS", 500);
 }
 
 /** How long a dropped connection's seat stays reserved before the player is
@@ -580,7 +581,11 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
       // actually landed (it reads the stats that write just updated) — a
       // permanently-failed record is still fire-and-forget, just with
       // nothing further to chain.
-      void enqueueRecordMatch(this.#playerRepository, record, this.#recordMatchDelay)
+      const postMatchWrites = enqueueRecordMatch(
+        this.#playerRepository,
+        record,
+        this.#recordMatchDelay,
+      )
         .then((succeeded) => {
           if (!succeeded) {
             return;
@@ -605,10 +610,20 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
           // before: plan Phase 10's shutdown gate says an in-progress match
           // "completes and calls `recordMatch` before exit."
           if (this.#disconnectWhenMatchOver) {
-            void this.disconnect(CloseCode.SERVER_SHUTDOWN).catch(() => {});
+            this.#releaseForShutdown();
           }
         });
+      // `drain()` awaits this before `exit` — including for a room that was
+      // ALREADY `MatchOver` when SIGTERM arrived (released at once by
+      // `onBeforeShutdown`) whose write may still be retrying with backoff.
+      trackPendingWrite(postMatchWrites);
     }
+  }
+
+  #releaseForShutdown(): void {
+    this.disconnect(CloseCode.SERVER_SHUTDOWN).catch((error: unknown) => {
+      this.#logger.warn({ err: error }, "disconnect during shutdown failed");
+    });
   }
 
   /** Plan Phase 10 step 1: "lets running matches finish." Colyseus's default
@@ -625,7 +640,7 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
     // shutdown — notably `@colyseus/testing`'s `shutdown()` — has no timeout,
     // so a room left mid-match would hang it forever.
     if (!isDraining() || phase === "Waiting" || phase === "MatchOver") {
-      void this.disconnect(CloseCode.SERVER_SHUTDOWN).catch(() => {});
+      this.#releaseForShutdown();
       return;
     }
     this.#disconnectWhenMatchOver = true;

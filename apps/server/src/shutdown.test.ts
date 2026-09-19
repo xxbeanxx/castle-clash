@@ -3,6 +3,7 @@ import {
   installGracefulShutdown,
   isDraining,
   resetDrainingForTests,
+  trackPendingWrite,
   type Drainable,
 } from "./shutdown.js";
 
@@ -62,6 +63,29 @@ describe("installGracefulShutdown", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("waits for tracked post-match writes before exiting, even after the rooms are gone", async () => {
+    let sigtermHandler: (() => void) | undefined;
+    const exit = vi.fn();
+    let finishWrite!: () => void;
+    trackPendingWrite(new Promise<void>((resolve) => (finishWrite = resolve)));
+
+    installGracefulShutdown(
+      { gracefullyShutdown: vi.fn().mockResolvedValue(undefined) },
+      {
+        onSignal: (handler) => {
+          sigtermHandler = handler;
+        },
+        exit,
+      },
+    );
+    sigtermHandler!();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    expect(exit).not.toHaveBeenCalled();
+    finishWrite();
+    await vi.waitFor(() => expect(exit).toHaveBeenCalledWith(0));
   });
 
   it("does not force-disconnect when gracefullyShutdown finishes before the timeout", async () => {

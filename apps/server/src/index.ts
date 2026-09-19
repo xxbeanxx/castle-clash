@@ -1,6 +1,7 @@
 import { MATCH_ROOM_NAME } from "@castle-clash/shared";
 import { monitor } from "@colyseus/monitor";
 import { defineRoom, defineServer, WebSocketTransport } from "colyseus";
+import { envNumber } from "./env.js";
 import { registerHealthRoutes } from "./http.js";
 import { logger } from "./logger.js";
 import { registerMetricsRoute } from "./observability/metrics.js";
@@ -17,7 +18,7 @@ const MAX_MESSAGE_BYTES = 4 * 1024;
 /** Plan Phase 10 step 1's "join rate limit per IP": runs in the transport's
  *  `beforeUpgrade` hook, before any room/auth work happens, so a flood of
  *  connection attempts costs one map lookup each. */
-const MAX_UPGRADES_PER_IP_PER_MINUTE = Number(process.env["MAX_UPGRADES_PER_IP_PER_MINUTE"] ?? 60);
+const MAX_UPGRADES_PER_IP_PER_MINUTE = envNumber("MAX_UPGRADES_PER_IP_PER_MINUTE", 60);
 const upgradeRateLimiter = new FixedWindowRateLimiter(MAX_UPGRADES_PER_IP_PER_MINUTE, 60_000);
 
 export const server = defineServer({
@@ -50,7 +51,7 @@ export const server = defineServer({
 });
 
 installGracefulShutdown(server, {
-  drainTimeoutMs: process.env.DRAIN_TIMEOUT_MS ? Number(process.env.DRAIN_TIMEOUT_MS) : undefined,
+  drainTimeoutMs: envNumber("DRAIN_TIMEOUT_MS", 10 * 60 * 1000),
 });
 
 const isEntrypoint = import.meta.url === `file://${process.argv[1]}`;

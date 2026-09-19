@@ -43,6 +43,17 @@ infra**.
 - Error reporting (Sentry) — optional in the plan, needs a DSN.
 - The `e2e`/`smoke` CI jobs still lack real Supabase (Phase 8's open gap, untouched).
 
+### Known limitations (found in review, not fixed)
+
+- The per-IP limit runs in the WebSocket `beforeUpgrade` hook only. Colyseus's HTTP matchmake
+  request (which reserves seats and can create rooms) is not separately rate-limited; the room cap
+  is its only bound. Not verified against the installed `ws-transport` whether a hook exists there.
+- `context.ip` honours whatever proxy-header handling Colyseus does; behind a reverse proxy, confirm
+  it can't be spoofed via `X-Forwarded-For` before trusting the per-IP limit.
+- Drain: clients can still join non-full *running* rooms while draining (only room *creation* is
+  blocked, matching the plan's "stops accepting new rooms").
+- The load-test budget comparison is a live-run observation in this document, not an automated gate.
+
 ## Findings from checking installed packages
 
 1. **`patch bytes per second` is not implemented.** `Room.broadcastPatch()` returns only a boolean;

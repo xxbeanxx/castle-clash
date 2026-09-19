@@ -9,6 +9,18 @@ const DEFAULT_DRAIN_TIMEOUT_MS = 10 * 60 * 1000;
 
 let draining = false;
 
+/** Post-match writes (`recordMatch` + unlock grants) are fire-and-forget from
+ *  the room's perspective, and can still be retrying with backoff after the
+ *  room itself has been released. `drain()` awaits these before `exit` — a
+ *  process that exits with a match result still unwritten loses it, which is
+ *  the one thing a graceful drain must not do. */
+const pendingWrites = new Set<Promise<unknown>>();
+
+export function trackPendingWrite(write: Promise<unknown>): void {
+  pendingWrites.add(write);
+  void write.finally(() => pendingWrites.delete(write)).catch(() => {});
+}
+
 /** Read by `http.ts`'s `/readyz` (503 while draining) and `MatchRoom.
  *  onCreate` (rejects new rooms while draining) — plan step 1: "the server
  *  stops accepting new rooms" and "`/readyz` returns 503 while draining." */
@@ -81,12 +93,14 @@ async function drain(
   logger.info({ drainTimeoutMs }, "shutdown: draining, waiting for in-progress matches to finish");
 
   const timedOut = Symbol("drain-timeout");
+  let timer: ReturnType<typeof setTimeout> | undefined;
   const result = await Promise.race([
     server.gracefullyShutdown(false).then(() => "graceful" as const),
     new Promise<typeof timedOut>((resolve) => {
-      setTimeout(() => resolve(timedOut), drainTimeoutMs);
+      timer = setTimeout(() => resolve(timedOut), drainTimeoutMs);
     }),
   ]);
+  clearTimeout(timer);
 
   if (result === timedOut) {
     logger.warn(
@@ -97,6 +111,10 @@ async function drain(
   } else {
     logger.info("shutdown: all rooms drained gracefully");
   }
+
+  // `allSettled`: a failed write already logged/counted itself in
+  // `RecordMatchQueue`; it must not stop the process from exiting.
+  await Promise.allSettled([...pendingWrites]);
 
   exit(0);
 }

@@ -7,6 +7,7 @@ import {
 } from "@castle-clash/shared";
 import { createClient, type Session } from "@supabase/supabase-js";
 import { getRuntimeConfig } from "../config/runtime.js";
+import { rememberNext } from "./pendingNext.js";
 
 /**
  * The ONLY module in `apps/client` that imports `@supabase/supabase-js`
@@ -65,11 +66,12 @@ export function onAuthStateChange(callback: (session: Session | null) => void): 
   return () => subscription.unsubscribe();
 }
 
-/** Magic-link sign-in — also the upgrade path for an anonymous guest: per
- *  Supabase's own anonymous-user docs, calling this while signed in
- *  anonymously LINKS the email to the existing (same-id) user instead of
- *  creating a new one, so a guest's `player_stats` row (keyed on that same
- *  id) survives the upgrade untouched. */
+/** Magic-link sign-in. This is a plain sign-in, NOT an upgrade path for a guest:
+ *  `signInWithOtp` sends no session token (auth-js 2.116 `GoTrueClient.signInWithOtp`),
+ *  so it signs into, or creates, a different user and the guest's progress is
+ *  left behind. A guest keeps their progress by linking Google
+ *  (`signInWithGoogle`). Upgrading a guest by email would be
+ *  `updateUser({ email })`, which has not been verified against the hosted project. */
 export async function signInWithMagicLink(email: string): Promise<void> {
   const { error } = await client().auth.signInWithOtp({ email });
   if (error) {
@@ -77,17 +79,46 @@ export async function signInWithMagicLink(email: string): Promise<void> {
   }
 }
 
-/** Google only: Discord was removed (plan decision D8) until it is configured
- *  end to end on the hosted project. */
-export type OAuthProvider = "google";
+/** Where Google sends the browser back to. A bare path on purpose: Supabase
+ *  matches it against its redirect allow-list including any query string, so the
+ *  post-login destination travels in `pendingNext` instead. */
+function googleRedirectTo(): string {
+  return `${window.location.origin}/auth/callback`;
+}
 
-export async function signInWithOAuth(provider: OAuthProvider): Promise<void> {
-  // Back to /login specifically, not just the origin: it's the one route
-  // that watches `onAuthStateChange` and navigates onward once the
-  // redirect hands back a session (see routes/login.tsx's doc comment).
+/** Sign in with Google, keeping a guest's progress.
+ *
+ *  For an anonymous guest this LINKS Google to the guest's own account
+ *  (`linkIdentity`): same user id, so their stats, unlocks and loadout stay
+ *  theirs. It must not call `signInWithOAuth` for them, which would create or
+ *  pick a different user and orphan the guest (research note
+ *  `phase12-supabase-google-oauth.md`, finding 9). Everyone else signs in
+ *  normally.
+ *
+ *  Both calls navigate the browser to Google, so this only returns when starting
+ *  failed (linking is off on the project, say). If the Google account already
+ *  belongs to someone else that surfaces later, on `/auth/callback`, where the
+ *  guest is offered `signInToExistingGoogleAccount`. */
+export async function signInWithGoogle(next?: string | null): Promise<void> {
+  rememberNext(next);
+  const session = await getSession();
+  const options = { redirectTo: googleRedirectTo() };
+  const { error } = session?.user.is_anonymous
+    ? await client().auth.linkIdentity({ provider: "google", options })
+    : await client().auth.signInWithOAuth({ provider: "google", options });
+  if (error) {
+    throw error;
+  }
+}
+
+/** Sign in to a Google account that already exists, leaving the current guest
+ *  behind. Only for the collision path, after the player has confirmed that the
+ *  guest's progress will not come with them. */
+export async function signInToExistingGoogleAccount(next?: string | null): Promise<void> {
+  rememberNext(next);
   const { error } = await client().auth.signInWithOAuth({
-    provider,
-    options: { redirectTo: `${window.location.origin}/login` },
+    provider: "google",
+    options: { redirectTo: googleRedirectTo() },
   });
   if (error) {
     throw error;

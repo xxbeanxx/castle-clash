@@ -116,6 +116,13 @@ type Phase =
 
 export class GameClient {
   #phase: Phase = { tag: "idle" };
+  /** Input sources beyond the keyboard (touch, later gamepad), owned by the caller: the UI layer
+   *  creates them, `start()` attaches them for the match's life and `destroy()` detaches them. */
+  readonly #extraInputs: readonly InputSource[];
+
+  constructor(extraInputs: readonly InputSource[] = []) {
+    this.#extraInputs = extraInputs;
+  }
 
   #prevLocalPos: Vec = { x: 0, y: 0 };
   readonly #remoteInterpolators = new Map<PlayerId, Interpolator>();
@@ -316,7 +323,7 @@ export class GameClient {
       },
     );
 
-    const input = new CompositeInput([new KeyboardInput()]);
+    const input = new CompositeInput([new KeyboardInput(), ...this.#extraInputs]);
     input.attach();
 
     const resources: Resources = {

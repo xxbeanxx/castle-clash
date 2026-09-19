@@ -183,6 +183,10 @@
   position: relative;
   width: 100%;
   height: 100%;
+  /* A game surface, not a page: no scroll, pinch, double-tap zoom or pull-to-refresh while
+     playing. Text stays selectable: the private-room code has to be copyable. */
+  touch-action: none;
+  overscroll-behavior: none;
 }
 .cc-game__canvas {
   width: 100%;

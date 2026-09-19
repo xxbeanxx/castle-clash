@@ -4,11 +4,13 @@ import { getAccessToken } from "../auth/supabase.js";
 import { getRuntimeConfig } from "../config/runtime.js";
 import { installE2eDebugHook } from "../game/debug.js";
 import { GameClient } from "../game/GameClient.js";
+import { TouchInput } from "../game/input/TouchInput.js";
 import { resolveJoinIntent, storeReconnectionToken } from "../game/reconnection.js";
 import { CombatHud } from "./CombatHud.js";
 import { DraftOverlay } from "./DraftOverlay.js";
 import { MatchBanner } from "./MatchBanner.js";
 import { ResultsOverlay } from "./ResultsOverlay.js";
+import { TouchControls } from "./TouchControls.js";
 import { UnlockToast } from "./UnlockToast.js";
 
 /** `roomId` is `"new"` for a not-yet-created room (quick play, or a private
@@ -18,6 +20,8 @@ export function GameCanvas({ roomId }: { roomId: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [client, setClient] = useState<GameClient | null>(null);
   const [searchParams] = useSearchParams();
+  // One per mounted game surface: the overlay writes into it, each GameClient reads from it.
+  const [touch] = useState(() => new TouchInput());
 
   useEffect(() => {
     const container = containerRef.current;
@@ -25,7 +29,7 @@ export function GameCanvas({ roomId }: { roomId: string }) {
       return;
     }
 
-    const gameClient = new GameClient();
+    const gameClient = new GameClient([touch]);
     setClient(gameClient);
     installE2eDebugHook(gameClient);
     const intent = resolveJoinIntent(roomId, searchParams);
@@ -64,7 +68,7 @@ export function GameCanvas({ roomId }: { roomId: string }) {
       void gameClient.destroy();
     };
     // oxlint-disable-next-line react/exhaustive-deps -- `searchParams` intentionally excluded: it only matters for the initial join, and including it would re-run this effect (tearing down and rejoining) on every URL change.
-  }, [roomId]);
+  }, [roomId, touch]);
 
   return (
     <div className="cc-game">
@@ -74,6 +78,7 @@ export function GameCanvas({ roomId }: { roomId: string }) {
       {client && <DraftOverlay client={client} />}
       {client && <ResultsOverlay client={client} />}
       {client && <UnlockToast client={client} />}
+      <TouchControls input={touch} />
     </div>
   );
 }

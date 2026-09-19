@@ -1,4 +1,4 @@
-import { defineConfig } from "@playwright/test";
+import { defineConfig, devices } from "@playwright/test";
 
 /**
  * Runs against a real client + server, not `pnpm dev` in-process — CI's
@@ -23,4 +23,22 @@ export default defineConfig({
     trace: "retain-on-failure",
     video: "retain-on-failure",
   },
+  projects: [
+    // Everything except the device-profile smoke, at Playwright's default desktop viewport. Specs
+    // that need a phone (render-surface, touch-controls, landscape) build their own contexts.
+    { name: "desktop", testIgnore: /mobile-smoke\.spec\.ts/ },
+    // Phase 13: device emulation. CI installs Chromium only, so these are Chromium with the
+    // devices' viewport, DPR, touch and user agent, NOT WebKit: iOS Safari's own behavior (safe
+    // areas, gesture leaks, Fullscreen) stays on the manual real-device checklist.
+    {
+      name: "pixel-7-landscape",
+      testMatch: /mobile-smoke\.spec\.ts/,
+      use: { ...devices["Pixel 7 landscape"], defaultBrowserType: "chromium" },
+    },
+    {
+      name: "iphone-14-landscape",
+      testMatch: /mobile-smoke\.spec\.ts/,
+      use: { ...devices["iPhone 14 landscape"], defaultBrowserType: "chromium" },
+    },
+  ],
 });

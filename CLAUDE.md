@@ -351,6 +351,33 @@ Gotchas from checking this live rather than trusting tests:
 - Quick play joins one shared public room, so an e2e spec must not assume it is fresh: assert the
   local player's HUD (`combat-hud`), not the match banner.
 
+### Render surface, input, and phones (Phase 13)
+
+Describes the tree once Phase 13's PRs are all merged. `docs/adr/0002-render-surface.md` is the
+decision; `docs/research/phase13-mobile-browser-facts.md` says what was verified about iOS/Android
+and what was not; `docs/research/phase13-real-device-checklist.md` is the manual gate no CI replaces.
+
+- **The world draws on a 640x360 art-pixel grid** (1 art px = 2 world units), at the largest integer
+  scale that fits the _physical_ screen, with overscan, never bars. `game/render/surface.ts` is the
+  pure `(CSS size, DPR)` maths; `SurfaceController` owns the backing-store size (Pixi runs at
+  `resolution: 1`, on purpose). The camera no longer follows or zooms: the whole arena always fits,
+  so `Camera` is centering plus shake, in whole art pixels.
+- **Input is `InputSource`s ORed by `CompositeInput`** (`game/input/`): keyboard, touch, gamepad.
+  `HeldBits` latches every press until the next 60 Hz sample so a sub-tick tap is not lost; new
+  sources must go through it (gamepad is polled, so it cannot). `TouchInput` is pure; the DOM overlay
+  `ui/TouchControls.tsx` only reports pointers into it. No React under `game/**`.
+- **Phones:** portrait shows a CSS-only rotate prompt (iOS ignores the manifest's `orientation` and
+  has no iPhone Fullscreen API). nginx must serve `manifest.webmanifest` as `application/manifest+json`
+  (the image's `mime.types` lacks it). A dropped socket is the SDK's own reconnect; `GameClient`
+  pauses prediction and input meanwhile and `ConnectionOverlay` shows it. The SDK ignores a client
+  close code other than 4010 as a drop, and does not retry inside its 5 s `minUptime`.
+- **Testing phones:** `e2e/playwright.config.ts` has `pixel-7-landscape` and `iphone-14-landscape`
+  projects. CI installs Chromium only, so these are Chromium with a device profile, not WebKit.
+  Multi-touch is driven with CDP `Input.dispatchTouchEvent` (`touch-controls.spec.ts`).
+  `window.__CC_DEBUG__` (E2E builds) also exposes `surface()`, `frameStats()`, `dropConnection()`.
+- An inline `<canvas>` adds a baseline gap below itself (10 px of page scroll on a phone);
+  `.cc-game__canvas canvas` is `display: block` for that reason.
+
 ### Workspace layout and package boundaries
 
 ```

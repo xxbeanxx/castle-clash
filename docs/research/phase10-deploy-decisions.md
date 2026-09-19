@@ -122,6 +122,18 @@ Trivy re-scan (plan's nightly workflow) was added.
 - **Verified live on production (2026-09-19, real browser):** `https://castle-clash.atomic-nucleus.com` served the
   SPA with the right runtime config and the strict CSP; guest sign-in reached `/lobby`; "Create private room"
   matchmade against `wss://castle-clash-game.atomic-nucleus.com` and rendered the Pixi canvas (arena, knight, HUD,
-  room code) with no CSP errors. The pipeline's own smoke has not yet passed end to end: the remaining checks
-  (config, anonymous sign-in, room join/leave, smoke match write) still need a deploy run after the smoke fix.
+  room code) with no CSP errors.
+- **The smoke must come from the release being deployed.** `deploy-environment.yaml` checks out the release
+  tag, so re-deploying `v1.0.0` ran `v1.0.0`'s own (buggy) smoke and could never pass; the fix shipped as
+  `v1.1.0`. That is the intended design (the smoke matches the version it verifies), not something to work around.
+- **A transient Supabase error failed one join once.** The first `v1.1.0` run's smoke failed at "join and leave a
+  private room" with `getUnlocks(...) failed: JWT issued at future` (PostgREST rejecting a token issued slightly
+  ahead of its clock). It appeared exactly once in the whole server log history, did not reproduce (0 of 80
+  requests with the server's real secret key), and did not recur on the next run. The auto-rollback correctly
+  reverted to the previous images. Not fixed, but a join currently fails outright if Supabase blips once on the
+  loadout/unlocks reads in `MatchRoom.onJoin`; a short retry in `SupabasePlayerRepository` would absorb it.
+- **First fully green pipeline (2026-09-19): `v1.1.0`.** `release-please` -> images (amd64, Trivy, promote) ->
+  `deploy` (approval gate) -> migrations -> server by digest (version wait) -> client by digest -> all 7 deploy
+  smoke checks (server health/readiness/version, client, client config, anonymous sign-in, private-room join and
+  leave, smoke match write). Production runs `v1.1.0`.
 

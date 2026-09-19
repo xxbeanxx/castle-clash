@@ -67,6 +67,12 @@ infra**.
 3. **`roomCount` is incremented after `onCreate` resolves**, so the capacity check is `>=`, not `>`.
 4. **`prom-client@15.1.3` is deprecated but still npm's `latest`**; the announced successor
    `@prometheus-io/client` is `0.16.x`. Kept `prom-client`, per the plan.
+5a. **The CSP broke the game canvas (found by the first real CI e2e run, 2026-09-19).** Pixi v8 builds
+   shader-sync code with `new Function`; under `script-src` without `'unsafe-eval'`, `Application.init`
+   throws "Current environment does not allow unsafe-eval, please use pixi.js/unsafe-eval" and the game
+   never starts. The earlier live check only confirmed the *page* rendered under the CSP, not a Pixi
+   canvas. Fixed by importing Pixi's own `pixi.js/unsafe-eval` entry point (`app/game/pixiCsp.ts`), which
+   keeps `'unsafe-eval'` out of the policy. Lesson: verify the CSP against a real match, not just `/`.
 5. **CSP needs `script-src 'unsafe-inline'`.** React Router's SPA-mode `index.html` inlines its
    hydration scripts; the nginx image has no tooling to hash them at container start. `connect-src`
    (the plan's stated requirement) is strict.

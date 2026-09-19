@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { signInAsGuest } from "./helpers.js";
 
 /**
  * Plan Phase 5's e2e gate: context A creates a private room and reads the
@@ -11,7 +12,7 @@ test("two browsers play a private match end to end", async ({ browser }) => {
   const [contextA, contextB] = await Promise.all([browser.newContext(), browser.newContext()]);
   const [pageA, pageB] = await Promise.all([contextA.newPage(), contextB.newPage()]);
 
-  await pageA.goto("/lobby");
+  await signInAsGuest(pageA);
   await pageA.getByText("Create private room").click();
   await pageA.waitForURL(/\/play\/(?!new\b)/);
 
@@ -19,7 +20,7 @@ test("two browsers play a private match end to end", async ({ browser }) => {
   const code = codeText?.split(":").pop()?.trim();
   expect(code).toMatch(/^[A-Z0-9]{6}$/);
 
-  await pageB.goto("/lobby");
+  await signInAsGuest(pageB);
   await pageB.getByLabel("Room code").fill(code!);
   await pageB.getByText("Join").click();
   await pageB.waitForURL(/\/play\/(?!new\b)/);

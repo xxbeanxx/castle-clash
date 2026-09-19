@@ -1,4 +1,5 @@
 import { Application, Container } from "pixi.js";
+import "../pixiCsp.js";
 import { PlayerRectsView } from "./PlayerRects.js";
 
 const PREVIEW_ID = "preview";

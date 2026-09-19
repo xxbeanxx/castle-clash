@@ -1,13 +1,8 @@
 import { expect, test } from "@playwright/test";
+import { signInAsGuest } from "./helpers.js";
 
 const CUSTOM_TINT_LABEL = "#ff4444";
 const CUSTOM_TINT_VALUE = 0xff4444;
-
-async function signInAsGuest(page: import("@playwright/test").Page): Promise<void> {
-  await page.goto("/login");
-  await page.getByText("Play as guest").click();
-  await page.waitForURL("/lobby");
-}
 
 /**
  * Plan Phase 9's e2e gate: a guest changes their tint, saves it, and joins
@@ -26,12 +21,6 @@ async function signInAsGuest(page: import("@playwright/test").Page): Promise<voi
  * why a real fight isn't needed) — a second, heavier spec, not an addition
  * to this one. `MatchRoom.cosmetics.test.ts` already covers "a completed
  * match increments stats and can grant an unlock" server-side.
- *
- * Like `private-match.spec.ts`, this needs a real Supabase instance
- * reachable from the client under test — `.github/workflows/e2e.yml`
- * doesn't wire one in yet (`docs/research/phase8-scope-deviations.md`), so
- * this spec fails in CI the same known way `private-match.spec.ts` already
- * does, not from anything specific to Phase 9.
  */
 test("a guest customizes, saves, and sees their cosmetic in another browser", async ({
   browser,
@@ -41,13 +30,17 @@ test("a guest customizes, saves, and sees their cosmetic in another browser", as
 
   await signInAsGuest(pageA);
   await pageA.goto("/loadout");
-  await pageA.getByLabel(CUSTOM_TINT_LABEL).click();
+  // Both palettes (primary and secondary tint) offer the same swatch labels.
+  const primaryTint = pageA.getByRole("group", { name: "Primary tint" });
+  await primaryTint.getByLabel(CUSTOM_TINT_LABEL).click();
   await pageA.getByText("Save loadout").click();
   await expect(pageA.getByText("Saved.")).toBeVisible();
 
   // Persistence across a fresh page load, not just in-memory React state.
   await pageA.reload();
-  await expect(pageA.getByLabel(CUSTOM_TINT_LABEL)).toHaveAttribute("aria-pressed", "true");
+  await expect(
+    pageA.getByRole("group", { name: "Primary tint" }).getByLabel(CUSTOM_TINT_LABEL),
+  ).toHaveAttribute("aria-pressed", "true");
 
   await pageA.goto("/lobby");
   await pageA.getByText("Create private room").click();

@@ -93,9 +93,6 @@ export default function Login() {
         <div className="cc-divider">or</div>
 
         <div className="cc-stack">
-          <Button block onClick={() => handleOAuth("discord")} disabled={pending}>
-            Continue with Discord
-          </Button>
           <Button block onClick={() => handleOAuth("google")} disabled={pending}>
             Continue with Google
           </Button>

@@ -61,12 +61,18 @@ describe("Login route", () => {
     expect(screen.getByText("Check your email for a link")).toBeDefined();
   });
 
-  it("calls OAuth sign-in with the right provider", async () => {
+  it("calls OAuth sign-in with Google", async () => {
     renderLogin();
 
-    fireEvent.click(screen.getByText("Continue with Discord"));
+    fireEvent.click(screen.getByText("Continue with Google"));
 
-    await waitFor(() => expect(signInWithOAuthMock).toHaveBeenCalledWith("discord"));
+    await waitFor(() => expect(signInWithOAuthMock).toHaveBeenCalledWith("google"));
+  });
+
+  it("offers no Discord button until Discord is configured end to end", () => {
+    renderLogin();
+
+    expect(screen.queryByText(/discord/i)).toBeNull();
   });
 
   it("navigates to /lobby once onAuthStateChange reports a session", async () => {

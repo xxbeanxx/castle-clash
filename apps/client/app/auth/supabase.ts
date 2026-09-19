@@ -77,7 +77,9 @@ export async function signInWithMagicLink(email: string): Promise<void> {
   }
 }
 
-export type OAuthProvider = "discord" | "google";
+/** Google only: Discord was removed (plan decision D8) until it is configured
+ *  end to end on the hosted project. */
+export type OAuthProvider = "google";
 
 export async function signInWithOAuth(provider: OAuthProvider): Promise<void> {
   // Back to /login specifically, not just the origin: it's the one route

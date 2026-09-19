@@ -606,9 +606,9 @@ Browser-mode tests (Render row) need `@vitest/browser-playwright` installed as a
 
 ## Appendix B — Open Decisions (resolve before the relevant phase)
 
-1. **Players per match** (P5): 1v1 focus versus 2–6 free-for-all. This affects arena scale, camera, and patch rate.
-2. **Arena selection** (P6): random, vote, or loser-picks.
-3. **Guest stats** (P8): whether anonymous users appear on leaderboards before linking an account.
+1. **Players per match** (P5): 1v1 focus versus 2–6 free-for-all. This affects arena scale, camera, and patch rate. **Resolved (P5): free-for-all, 2–6 players** (`MIN_PLAYERS`/`MAX_PLAYERS` in `config/game.ts`).
+2. **Arena selection** (P6): random, vote, or loser-picks. **Resolved (P6): the host picks for private rooms, quick play is random** (the lobby's arena picker).
+3. **Guest stats** (P8): whether anonymous users appear on leaderboards before linking an account. **Still open — carried to v2 as D3** (`docs/IMPLEMENTATION_PLAN_V2.md`, Appendix A).
 4. **Hosting target** (P10): this determines the concrete deploy step in `deploy.yaml`. **Decided 2026-09-19: Azure Container Apps** (see `docs/hosting.md`).
-5. **Art pipeline** (P4/P6): commissioned or asset packs, and Aseprite → TexturePacker export conventions.
+5. **Art pipeline** (P4/P6): commissioned or asset packs, and Aseprite → TexturePacker export conventions. **Still open — carried to v2 as D1/Phase 15.**
 6. **Ranked play**: out of scope here. The `matches` and `match_participants` schema can support a later ELO/Glicko phase.

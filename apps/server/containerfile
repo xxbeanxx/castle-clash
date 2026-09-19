@@ -1,6 +1,6 @@
 # corepack isn't reliably bundled across node:24-alpine builds (it's being
 # phased out of Node core), so pin pnpm/turbo via npm instead.
-FROM docker.io/library/node:24-alpine AS base
+FROM docker.io/library/node:25-alpine AS base
 RUN npm install -g pnpm@12.4.1 turbo@2.10.13
 
 FROM base AS pruner
@@ -28,7 +28,7 @@ WORKDIR /app
 COPY --from=builder /app/ .
 RUN pnpm deploy --filter=@castle-clash/server --prod /out
 
-FROM docker.io/library/node:24-alpine AS runtime
+FROM docker.io/library/node:25-alpine AS runtime
 RUN addgroup -S app && adduser -S app -G app
 WORKDIR /app
 COPY --from=deployer --chown=app:app /out .

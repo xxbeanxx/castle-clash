@@ -1,0 +1,112 @@
+name: deploy
+
+# Rolls a release out: staging automatically, then production once its
+# required reviewers approve. Chained from release.yaml after the images are
+# built, or run by hand for any existing release tag:
+#
+#   deploy   version=v1.2.3                              staging -> production
+#   deploy   version=v1.2.3 target=staging               staging only
+#   rollback version=v1.2.2 rollback=true target=production
+#
+# Both apps are deployed by the *digest* the tag points at when this run starts,
+# not by tag, so what was scanned and smoke-tested is exactly what runs even if
+# a tag is later moved. A rollback is a deploy of an older tag with the database
+# push skipped: database changes are never rolled back automatically (which is
+# why migrations follow expand/contract, see docs/hosting.md).
+on:
+  workflow_call:
+    inputs:
+      version:
+        type: string
+        required: true
+      rollback:
+        type: boolean
+        default: false
+      target:
+        type: string
+        default: both
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release tag, e.g. v1.2.3"
+        type: string
+        required: true
+      rollback:
+        description: "Redeploy an older release (skips the database push)"
+        type: boolean
+        default: false
+      target:
+        description: "Where to deploy"
+        type: choice
+        options: [both, staging, production]
+        default: both
+
+permissions:
+  contents: read
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    outputs:
+      server_image: ${{ steps.refs.outputs.server }}
+      client_image: ${{ steps.refs.outputs.client }}
+    steps:
+      - name: Validate version
+        run: |
+          case "$VERSION" in
+            v[0-9]*.[0-9]*.[0-9]*) ;;
+            *) echo "::error::version must look like vX.Y.Z (got '$VERSION')"; exit 1 ;;
+          esac
+        env:
+          VERSION: ${{ inputs.version }}
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: refs
+        run: |
+          for app in server client; do
+            image="ghcr.io/${OWNER}/castle-clash-${app}"
+            digest="$(docker buildx imagetools inspect "${image}:${VERSION}" --format '{{.Manifest.Digest}}')"
+            echo "${app}=${image}@${digest}" >> "$GITHUB_OUTPUT"
+            echo "${app}: ${image}@${digest}" >> "$GITHUB_STEP_SUMMARY"
+          done
+        env:
+          OWNER: ${{ github.repository_owner }}
+          VERSION: ${{ inputs.version }}
+
+  staging:
+    needs: resolve
+    if: inputs.target != 'production'
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/deploy-environment.yml
+    with:
+      environment: staging
+      version: ${{ inputs.version }}
+      server_image: ${{ needs.resolve.outputs.server_image }}
+      client_image: ${{ needs.resolve.outputs.client_image }}
+      rollback: ${{ inputs.rollback }}
+
+  production:
+    needs: [resolve, staging]
+    # `staging` is skipped (not failed) when target=production; a *failed*
+    # staging must still stop the rollout.
+    if: ${{ !cancelled() && !failure() && inputs.target != 'staging' }}
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/deploy-environment.yml
+    with:
+      environment: production
+      version: ${{ inputs.version }}
+      server_image: ${{ needs.resolve.outputs.server_image }}
+      client_image: ${{ needs.resolve.outputs.client_image }}
+      rollback: ${{ inputs.rollback }}
+      auto_rollback: true

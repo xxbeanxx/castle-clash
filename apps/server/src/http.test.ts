@@ -15,6 +15,13 @@ describe("registerHealthRoutes", () => {
     expect(response.status).toBe(200);
   });
 
+  it("reports the running server version from /healthz, so a deploy smoke can confirm which image is live", async () => {
+    const app = express();
+    registerHealthRoutes(app, () => false, "1.2.3");
+    const response = await request(app).get("/healthz");
+    expect(response.body).toEqual({ status: "ok", version: "1.2.3" });
+  });
+
   it("returns 200 from /readyz", async () => {
     const response = await request(createApp()).get("/readyz");
     expect(response.status).toBe(200);

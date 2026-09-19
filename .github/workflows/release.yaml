@@ -1,0 +1,61 @@
+name: release
+
+# Every push to main runs release-please, which keeps a "release PR" open
+# (version bump + CHANGELOG from Conventional Commits). Merging that PR makes it
+# create the `vX.Y.Z` tag and GitHub release, and *this same run* then builds the
+# images (docker.yml) and rolls them out (deploy.yml: staging, then production
+# behind required reviewers). Chained with `uses:` rather than triggered by the
+# tag because a tag created with GITHUB_TOKEN starts no workflows.
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    outputs:
+      release_created: ${{ steps.rp.outputs.release_created }}
+      tag_name: ${{ steps.rp.outputs.tag_name }}
+    steps:
+      - id: rp
+        uses: googleapis/release-please-action@v5
+        with:
+          # A PAT here (RELEASE_PLEASE_TOKEN) makes the release PR run the normal
+          # CI checks; with the default GITHUB_TOKEN it cannot, which matters if
+          # those checks are required by branch protection. The image build
+          # and deploy do not depend on this: they are chained below either way.
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  images:
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/docker.yml
+    with:
+      tag: ${{ needs.release-please.outputs.tag_name }}
+
+  deploy:
+    needs: [release-please, images]
+    if: needs.release-please.outputs.release_created == 'true'
+    permissions:
+      contents: read
+      packages: read
+      id-token: write
+    uses: ./.github/workflows/deploy.yml
+    with:
+      version: ${{ needs.release-please.outputs.tag_name }}

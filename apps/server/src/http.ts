@@ -6,9 +6,10 @@ import type { Application } from "express";
 export function registerHealthRoutes(
   app: Application,
   isDraining: () => boolean = () => false,
+  version?: string,
 ): void {
   app.get("/healthz", (_req, res) => {
-    res.status(200).json({ status: "ok" });
+    res.status(200).json({ status: "ok", version });
   });
 
   app.get("/readyz", (_req, res) => {

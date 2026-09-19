@@ -1,0 +1,14 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "bootstrap-sha": "e8f8166c523e3806d851a1546f672264f82bfa2b",
+  "release-type": "simple",
+  "include-component-in-tag": false,
+  "bump-minor-pre-major": true,
+  "bump-patch-for-minor-pre-major": false,
+  "packages": {
+    ".": {
+      "package-name": "castle-clash",
+      "changelog-path": "CHANGELOG.md"
+    }
+  }
+}

@@ -1,0 +1,190 @@
+name: deploy-environment
+
+# One environment's rollout, called by deploy.yml for `staging` and then
+# `production`. The GitHub environment named by `environment` supplies that
+# environment's secrets/variables and (for production) the required-reviewers
+# gate; see docs/hosting.md for the full list.
+#
+#   1. migrate the database          (expand/contract; skipped on rollback)
+#   2. deploy the server by digest   -> wait until /healthz reports this version
+#   3. deploy the client by digest
+#   4. deploy smoke                  (scripts/deploy-smoke.ts)
+#   5. if any of that failed and `auto_rollback` is set, put both apps back on
+#      the images they were running before this run started
+on:
+  workflow_call:
+    inputs:
+      environment:
+        type: string
+        required: true
+      version:
+        description: "Release tag, e.g. v1.2.3 (also the git ref whose migrations and smoke script are used)"
+        type: string
+        required: true
+      server_image:
+        description: "Server image pinned by digest: ghcr.io/<owner>/castle-clash-server@sha256:..."
+        type: string
+        required: true
+      client_image:
+        type: string
+        required: true
+      rollback:
+        description: "Redeploy an older release: no database push, since the database is already ahead of it"
+        type: boolean
+        default: false
+      auto_rollback:
+        description: "Revert both apps to their previous images when this deploy fails"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    name: ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: ${{ inputs.environment }}
+    concurrency:
+      group: deploy-${{ inputs.environment }}
+      cancel-in-progress: false
+    env:
+      RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+      SERVER_APP: ${{ vars.SERVER_APP }}
+      CLIENT_APP: ${{ vars.CLIENT_APP }}
+      GAME_SERVER_URL: ${{ vars.GAME_SERVER_URL }}
+      CLIENT_URL: ${{ vars.CLIENT_URL }}
+      SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+      SUPABASE_PUBLISHABLE_KEY: ${{ vars.SUPABASE_PUBLISHABLE_KEY }}
+      SERVER_CPU: ${{ vars.SERVER_CPU || '1.0' }}
+      SERVER_MEMORY: ${{ vars.SERVER_MEMORY || '2Gi' }}
+      CLIENT_MIN_REPLICAS: ${{ vars.CLIENT_MIN_REPLICAS || '0' }}
+      # Colyseus is not given the platform's full termination grace period
+      # (600 s, Container Apps' maximum): its own drain timeout must expire
+      # first so it exits cleanly instead of being SIGKILLed mid-write.
+      DRAIN_TIMEOUT_MS: "540000"
+      EXPECTED_VERSION: ${{ inputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.version }}
+
+      - uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Record the images currently running (rollback target)
+        id: previous
+        run: |
+          for kind in server client; do
+            app_var="${kind^^}_APP"
+            image="$(az containerapp show --name "${!app_var}" --resource-group "$RESOURCE_GROUP" \
+              --query 'properties.template.containers[0].image' -o tsv)"
+            echo "${kind}=${image}" >> "$GITHUB_OUTPUT"
+            echo "previous ${kind}: ${image}"
+          done
+
+      # Expand/contract discipline (docs/hosting.md): every migration must
+      # leave the *previous* release working, so the schema can move first and
+      # a failed rollout never needs a database rollback. Never run on a
+      # rollback: the database is ahead of the older tag's migration folder,
+      # which `db push` rejects.
+      - if: ${{ !inputs.rollback }}
+        uses: supabase/setup-cli@v3
+        with:
+          version: latest
+      - name: Push database migrations
+        if: ${{ !inputs.rollback }}
+        run: supabase db push --db-url "$SUPABASE_DB_URL" --skip-vault
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+
+      - name: Deploy server (by digest)
+        run: |
+          az containerapp ingress update --name "$SERVER_APP" --resource-group "$RESOURCE_GROUP" \
+            --target-port 2567 --output none
+          az containerapp update --name "$SERVER_APP" --resource-group "$RESOURCE_GROUP" \
+            --image "$SERVER_IMAGE" \
+            --revision-suffix "r${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            --cpu "$SERVER_CPU" --memory "$SERVER_MEMORY" \
+            --min-replicas 1 --max-replicas 1 \
+            --termination-grace-period 600 \
+            --set-env-vars \
+              "SUPABASE_URL=${SUPABASE_URL}" \
+              "SUPABASE_SECRET_KEY=secretref:supabase-secret-key" \
+              "SMOKE_TOKEN=secretref:smoke-token" \
+              "DRAIN_TIMEOUT_MS=${DRAIN_TIMEOUT_MS}" \
+            --output none
+        env:
+          SERVER_IMAGE: ${{ inputs.server_image }}
+
+      # Single-revision mode: the new revision takes traffic once it is up and
+      # the old one gets SIGTERM, which the server turns into a drain (running
+      # matches finish; /readyz answers 503). Wait until the *new* version is
+      # what answers before touching the client.
+      - name: Wait for the new server version
+        run: |
+          origin="${GAME_SERVER_URL/#wss:/https:}"
+          origin="${origin/#ws:/http:}"
+          want="${EXPECTED_VERSION#v}"
+          for attempt in $(seq 1 60); do
+            got="$(curl -fsS "${origin}/healthz" 2>/dev/null | jq -r '.version // empty' || true)"
+            [ "$got" = "$want" ] && { echo "server is on ${want}"; exit 0; }
+            echo "attempt ${attempt}: server reports '${got}', waiting for '${want}'"
+            sleep 10
+          done
+          echo "::error::server never reported version ${want}"
+          exit 1
+
+      - name: Deploy client (by digest)
+        run: |
+          az containerapp ingress update --name "$CLIENT_APP" --resource-group "$RESOURCE_GROUP" \
+            --target-port 8080 --output none
+          az containerapp update --name "$CLIENT_APP" --resource-group "$RESOURCE_GROUP" \
+            --image "$CLIENT_IMAGE" \
+            --revision-suffix "r${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            --min-replicas "$CLIENT_MIN_REPLICAS" --max-replicas 2 \
+            --set-env-vars \
+              "GAME_SERVER_URL=${GAME_SERVER_URL}" \
+              "SUPABASE_URL=${SUPABASE_URL}" \
+              "SUPABASE_PUBLISHABLE_KEY=${SUPABASE_PUBLISHABLE_KEY}" \
+            --output none
+        env:
+          CLIENT_IMAGE: ${{ inputs.client_image }}
+
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @castle-clash/shared run build
+      - name: Deploy smoke
+        run: pnpm --filter @castle-clash/server run deploy-smoke
+        env:
+          SMOKE_TOKEN: ${{ secrets.SMOKE_TOKEN }}
+          SMOKE_ATTEMPTS: "60"
+          SMOKE_RETRY_DELAY_MS: "5000"
+
+      - name: Roll the apps back to their previous images
+        if: ${{ failure() && inputs.auto_rollback }}
+        run: |
+          for kind in server client; do
+            app_var="${kind^^}_APP"
+            prev_var="PREVIOUS_${kind^^}"
+            case "${!prev_var}" in
+              ghcr.io/*) ;;
+              *) echo "no previous release image for ${kind} (was '${!prev_var}'), leaving it"; continue ;;
+            esac
+            az containerapp update --name "${!app_var}" --resource-group "$RESOURCE_GROUP" \
+              --image "${!prev_var}" \
+              --revision-suffix "rb${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" --output none
+          done
+          echo "::warning::rolled back to the previous images; the database was NOT rolled back"
+        env:
+          PREVIOUS_SERVER: ${{ steps.previous.outputs.server }}
+          PREVIOUS_CLIENT: ${{ steps.previous.outputs.client }}

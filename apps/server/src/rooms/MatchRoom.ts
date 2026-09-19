@@ -49,13 +49,9 @@ import { enqueueRecordMatch } from "../persistence/RecordMatchQueue.js";
 import { FixedWindowRateLimiter } from "../rateLimit.js";
 import { isDraining, trackPendingWrite } from "../shutdown.js";
 import { InputQueue } from "./InputQueue.js";
+import { serverVersion } from "../serverVersion.js";
 import { generateRoomCode } from "./roomCode.js";
 import { IntervalTickDriver, type TickDriver } from "./TickDriver.js";
-
-/** This repo has no real release versioning yet (every `package.json` in
- *  the workspace is still `0.0.0`) — tracks that placeholder rather than
- *  inventing a scheme `matches.server_version` doesn't need yet. */
-const SERVER_VERSION = "0.0.0";
 
 /** Generous headroom over one input per tick, so a legitimate client that
  *  briefly resends (e.g. after a reconnect) isn't punished, while a flood is. */
@@ -773,7 +769,7 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
       startedAt: this.#startedAt,
       endedAt: new Date(),
       winnerId: result.winner ? this.#requireUserId(result.winner) : null,
-      serverVersion: SERVER_VERSION,
+      serverVersion: serverVersion(),
       participants: (Object.keys(result.stats) as PlayerId[]).map((id) => {
         const stats = result.stats[id]!;
         const powerups = this.#sim.players[id]?.powerups ?? {};

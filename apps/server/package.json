@@ -9,6 +9,7 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
+    "deploy-smoke": "tsx scripts/deploy-smoke.ts",
     "dev": "tsx watch src/index.ts",
     "format:check": "oxfmt --check",
     "format:fix": "oxfmt",

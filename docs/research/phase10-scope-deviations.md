@@ -34,10 +34,10 @@ infra**.
 
 ### Deferred (needs decisions or credentials only the user has)
 
-- `docker.yml` multi-arch builds, `provenance`/`sbom`, Trivy gating; `deploy.yml`
-  (staging → production → rollback) with GitHub environments and secrets; release-please/Changesets;
-  the `deploy smoke` script; hosting docs and the concrete deploy step. All blocked on the hosting
-  target and secrets.
+- **Since built (2026-09-19, Azure Container Apps chosen): see `phase10-deploy-decisions.md` and
+  `docs/hosting.md`.** `docker.yml` multi-arch/provenance/SBOM/Trivy, `deploy.yml` (staging →
+  production → rollback), release-please, the `deploy smoke` script, hosting docs. Written and linted,
+  but never run on GitHub/Azure; the cloud provisioning has not been executed.
 - `@colyseus/redis-presence`/`redis-driver` and `publicAddress`: the plan says to start
   single-process; left off.
 - Error reporting (Sentry) — optional in the plan, needs a DSN.

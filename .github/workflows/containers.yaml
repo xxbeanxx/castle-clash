@@ -4,7 +4,8 @@ on:
   pull_request:
   push:
     branches: [main]
-    tags: ["v*"]
+    # Release (`vX.Y.Z`) images are built by docker.yml, not here: they need
+    # multi-arch, provenance/SBOM and a Trivy gate this smoke-first flow lacks.
 
 concurrency:
   group: containers-${{ github.ref }}
@@ -25,7 +26,6 @@ jobs:
           tags: |
             type=raw,value=sha-{{sha}},enable={{is_default_branch}}
             type=raw,value=main,enable={{is_default_branch}}
-            type=semver,pattern={{version}}
       # Build the image locally; only the `push` job (gated on `smoke`
       # passing) publishes to GHCR.
       - name: Build image
@@ -156,7 +156,6 @@ jobs:
           tags: |
             type=raw,value=sha-{{sha}},enable={{is_default_branch}}
             type=raw,value=main,enable={{is_default_branch}}
-            type=semver,pattern={{version}}
       - name: Push image
         run: |
           while IFS= read -r tag || [ -n "$tag" ]; do

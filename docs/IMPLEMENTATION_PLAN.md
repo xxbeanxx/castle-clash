@@ -609,6 +609,6 @@ Browser-mode tests (Render row) need `@vitest/browser-playwright` installed as a
 1. **Players per match** (P5): 1v1 focus versus 2–6 free-for-all. This affects arena scale, camera, and patch rate.
 2. **Arena selection** (P6): random, vote, or loser-picks.
 3. **Guest stats** (P8): whether anonymous users appear on leaderboards before linking an account.
-4. **Hosting target** (P10): this determines the concrete deploy step in `deploy.yml`.
+4. **Hosting target** (P10): this determines the concrete deploy step in `deploy.yml`. **Decided 2026-09-19: Azure Container Apps** (see `docs/hosting.md`).
 5. **Art pipeline** (P4/P6): commissioned or asset packs, and Aseprite → TexturePacker export conventions.
 6. **Ranked play**: out of scope here. The `matches` and `match_participants` schema can support a later ELO/Glicko phase.

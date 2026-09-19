@@ -1,0 +1,168 @@
+name: docker
+
+# Plan Phase 10's release image build: multi-arch, with provenance and an SBOM,
+# gated by a Trivy scan, publishing immutable digests. Not triggered by a `v*`
+# tag push directly: release-please creates the tag with the built-in
+# GITHUB_TOKEN, and events raised by that token start no workflows, so
+# `release.yaml` calls this file instead (see docs/hosting.md, "Releases").
+# `containers.yaml` still builds/smokes/pushes the `main` and `sha-` images.
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: "Release tag to build, e.g. v1.2.3"
+        type: string
+        required: true
+    outputs:
+      server_digest:
+        description: "sha256 digest of the published server image index"
+        value: ${{ jobs.digests.outputs.server_digest }}
+      client_digest:
+        description: "sha256 digest of the published client image index"
+        value: ${{ jobs.digests.outputs.client_digest }}
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag to (re)build, e.g. v1.2.3"
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+env:
+  REGISTRY: ghcr.io
+  OWNER: ${{ github.repository_owner }}
+
+jobs:
+  build:
+    name: build ${{ matrix.app }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: true
+      matrix:
+        app: [server, client]
+    steps:
+      - name: Validate tag
+        run: |
+          case "$TAG" in
+            v[0-9]*.[0-9]*.[0-9]*) ;;
+            *) echo "::error::tag must look like vX.Y.Z (got '$TAG')"; exit 1 ;;
+          esac
+        env:
+          TAG: ${{ inputs.tag }}
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag }}
+      - uses: docker/setup-qemu-action@v4
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Compute names
+        id: names
+        run: |
+          version="${TAG#v}"
+          {
+            echo "image=${REGISTRY}/${OWNER}/castle-clash-${APP}"
+            echo "version=${version}"
+            echo "minor=${version%.*}"
+            echo "short_sha=$(git rev-parse --short=7 HEAD)"
+          } >> "$GITHUB_OUTPUT"
+        env:
+          TAG: ${{ inputs.tag }}
+          APP: ${{ matrix.app }}
+      # Only the `sha-` tag is published here. The release tags (vX.Y.Z, X.Y)
+      # are added by the "Promote" step after the scan passes, so a vulnerable
+      # image never carries a tag anything deploys from.
+      - id: build
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: apps/${{ matrix.app }}/containerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.names.outputs.image }}:sha-${{ steps.names.outputs.short_sha }}
+          provenance: mode=max
+          sbom: true
+          build-args: |
+            SERVER_VERSION=${{ steps.names.outputs.version }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.version=${{ steps.names.outputs.version }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.app }}
+          cache-to: type=gha,scope=${{ matrix.app }},mode=max
+      # Scans the exact pushed digest (linux/amd64 — Trivy resolves the runner's
+      # platform), failing the job on any CRITICAL finding that has a fix.
+      - uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: ${{ steps.names.outputs.image }}@${{ steps.build.outputs.digest }}
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          format: table
+        env:
+          TRIVY_USERNAME: ${{ github.actor }}
+          TRIVY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+      - name: Promote to release tags
+        run: |
+          docker buildx imagetools create \
+            --tag "${IMAGE}:${TAG}" \
+            --tag "${IMAGE}:${MINOR}" \
+            "${IMAGE}@${DIGEST}"
+        env:
+          IMAGE: ${{ steps.names.outputs.image }}
+          TAG: ${{ inputs.tag }}
+          MINOR: ${{ steps.names.outputs.minor }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+      - name: Summary
+        run: |
+          {
+            echo "### ${APP} ${TAG}"
+            echo ""
+            echo "- image: \`${IMAGE}\`"
+            echo "- digest: \`${DIGEST}\`"
+            echo "- tags: \`${TAG}\`, \`${MINOR}\`, \`sha-${SHORT}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+        env:
+          APP: ${{ matrix.app }}
+          TAG: ${{ inputs.tag }}
+          IMAGE: ${{ steps.names.outputs.image }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+          MINOR: ${{ steps.names.outputs.minor }}
+          SHORT: ${{ steps.names.outputs.short_sha }}
+
+  # A matrix job's outputs collide (last writer wins), so the two digests are
+  # read back from the registry under their release tag instead.
+  digests:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    outputs:
+      server_digest: ${{ steps.read.outputs.server }}
+      client_digest: ${{ steps.read.outputs.client }}
+    steps:
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: read
+        run: |
+          for app in server client; do
+            digest="$(docker buildx imagetools inspect "${REGISTRY}/${OWNER}/castle-clash-${app}:${TAG}" --format '{{.Manifest.Digest}}')"
+            echo "${app}=${digest}" >> "$GITHUB_OUTPUT"
+            echo "${app}: ${digest}" >> "$GITHUB_STEP_SUMMARY"
+          done
+        env:
+          TAG: ${{ inputs.tag }}

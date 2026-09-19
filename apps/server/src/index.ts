@@ -1,13 +1,17 @@
 import { MATCH_ROOM_NAME } from "@castle-clash/shared";
 import { monitor } from "@colyseus/monitor";
 import { defineRoom, defineServer, WebSocketTransport } from "colyseus";
+import { createDefaultTokenVerifier } from "./auth/verifyToken.js";
 import { envNumber } from "./env.js";
 import { registerHealthRoutes } from "./http.js";
 import { logger } from "./logger.js";
 import { registerMetricsRoute } from "./observability/metrics.js";
+import { createDefaultPlayerRepository } from "./persistence/createPlayerRepository.js";
 import { FixedWindowRateLimiter } from "./rateLimit.js";
 import { MatchRoom } from "./rooms/MatchRoom.js";
+import { serverVersion } from "./serverVersion.js";
 import { installGracefulShutdown, isDraining } from "./shutdown.js";
+import { registerSmokeRoutes } from "./smokeRoutes.js";
 
 /** Plan Phase 10 step 1's "max message size": `ws` closes a connection with
  *  1009 (message too big) for any frame over this. The largest legitimate
@@ -41,8 +45,17 @@ export const server = defineServer({
   // see that module's doc comment for why.
   gracefullyShutdown: false,
   express: (app) => {
-    registerHealthRoutes(app, isDraining);
+    registerHealthRoutes(app, isDraining, serverVersion());
     registerMetricsRoute(app);
+    const smokeToken = process.env["SMOKE_TOKEN"];
+    if (smokeToken) {
+      registerSmokeRoutes(app, {
+        smokeToken,
+        verifyToken: createDefaultTokenVerifier(),
+        repository: createDefaultPlayerRepository(),
+        serverVersion: serverVersion(),
+      });
+    }
     if (process.env.NODE_ENV !== "production") {
       app.use("/colyseus", monitor());
     }

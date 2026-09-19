@@ -122,6 +122,20 @@ a dependency of other tasks. The `smoke` job runs `pnpm --filter @castle-clash/s
 right before `smoke-join` for exactly this reason; a fresh runner that skips straight from
 `pnpm install` to `smoke-join` fails with `ERR_MODULE_NOT_FOUND`.
 
+### Releases and deployment (Azure Container Apps)
+
+`docs/hosting.md` is the runbook; `docs/research/phase10-deploy-decisions.md` records the decisions,
+the facts checked, and what is still unproven. In short: `release.yaml` (release-please) → `docker.yml`
+(multi-arch, provenance/SBOM, Trivy gate, then release tags) → `deploy.yml` → `deploy-environment.yml`
+for `staging`, then `production` behind a required reviewer, deploying by image digest and finishing
+with `pnpm --filter @castle-clash/server run deploy-smoke`. `infra/azure/` and `infra/github/` are the
+one-time setup scripts. **As of writing no workflow has run on GitHub and the provisioning scripts
+have never been executed** (the session's classifier blocked cloud writes) — treat first runs as
+expected to need fixes. `SERVER_VERSION` is stamped into the server image by build-arg and shows up in
+`/healthz` and `matches.server_version`. `POST /smoke/record-match` exists only when the server has a
+`SMOKE_TOKEN`; `record_match_result()` skips `player_stats` for `mode = 'smoke'`. Migrations follow
+expand/contract because rollbacks never revert the database.
+
 ## Architecture
 
 ### The isomorphic boundary is enforced by tooling, not just convention

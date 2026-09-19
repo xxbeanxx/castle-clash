@@ -15,6 +15,11 @@ export const ARENA_LABELS: Record<ArenaId, string> = {
   [ARENA_IDS.DUNGEON]: "Dungeon",
 };
 
+/** The name for an arena id known only as a string (an `ArenaDefinition.id`). Falls back to the id itself. */
+export function arenaLabel(id: string): string {
+  return ARENA_LABELS[id as ArenaId] ?? id;
+}
+
 const HAZARD_LABELS: Record<HazardKind, string> = {
   fireZone: "Fire",
   breakableFloor: "Breakable floor",

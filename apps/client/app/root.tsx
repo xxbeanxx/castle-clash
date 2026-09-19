@@ -45,7 +45,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 /** Site-wide default; each route's own `meta` replaces it. Also what the SPA shell (`index.html`) carries. */
 export const meta = () => pageMeta({ path: "/" });
 
-/** Preload the two faces every page paints first, so text swaps in without a visible reflow. */
+/** Icons, plus a preload of the two faces every page paints first so text swaps in without a visible reflow. */
 export const links = () => [
   { rel: "icon", href: "/favicon.ico", sizes: "48x48" },
   { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },

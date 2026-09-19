@@ -89,6 +89,74 @@ jobs:
         run: pnpm --filter @castle-clash/client exec playwright install-deps chromium
       - run: pnpm --filter @castle-clash/client run test:browser
 
+  # v2 plan Phase 11: the public landing page has a budget. The built client is
+  # served by the same nginx image and config production uses (so gzip, the
+  # prerender routing and the CSP are all in play), then audited by Lighthouse
+  # (mobile emulation, throttled) three times; the median must meet
+  # performance >= 90, accessibility >= 95 and LCP <= 2.5 s. A separate,
+  # cheaper check fails if PixiJS or supabase-js sneaks into what `/` loads.
+  # Skipped on a PR that can't change the client (the `browser` filter: client,
+  # shared, root files). Not a required check, so a plain job-level `if` is fine.
+  web-quality:
+    needs: changes
+    if: github.event_name != 'schedule' && needs.changes.outputs.browser == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm turbo run build --filter=@castle-clash/client
+        env:
+          TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+          TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
+      - run: pnpm --filter @castle-clash/client run check:landing
+      - id: playwright-version
+        run: echo "version=$(pnpm --filter @castle-clash/client exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v6
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ steps.playwright-version.outputs.version }}-${{ runner.os }}
+      - if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: pnpm --filter @castle-clash/client exec playwright install --with-deps chromium
+      - if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: pnpm --filter @castle-clash/client exec playwright install-deps chromium
+      - name: Serve the build behind the production nginx config
+        run: |
+          HTML_DIR=apps/client/build/client CSP_CONF="$RUNNER_TEMP/csp-headers.conf" \
+          GAME_SERVER_URL=wss://game.example.test \
+          SUPABASE_URL=https://project.supabase.example \
+          SUPABASE_PUBLISHABLE_KEY=lighthouse \
+            sh apps/client/docker/entrypoint.sh
+          podman run -d --name web -p 8080:8080 \
+            -v "$PWD/apps/client/build/client:/usr/share/nginx/html:ro,z" \
+            -v "$PWD/apps/client/docker/nginx.conf:/etc/nginx/conf.d/default.conf:ro,z" \
+            -v "$RUNNER_TEMP/csp-headers.conf:/tmp/csp-headers.conf:ro,z" \
+            docker.io/nginxinc/nginx-unprivileged:1.31-alpine
+          for i in $(seq 1 30); do curl -fs http://127.0.0.1:8080/ >/dev/null && break; sleep 1; done
+      - name: Lighthouse (3 runs)
+        run: |
+          export CHROME_PATH="$(pnpm --filter @castle-clash/client exec node -p "require('playwright').chromium.executablePath()")"
+          for i in 1 2 3; do
+            npx -y lighthouse@12.8.2 http://127.0.0.1:8080/ \
+              --chrome-flags="--headless=new --no-sandbox" \
+              --only-categories=performance,accessibility \
+              --output=json --output-path="$RUNNER_TEMP/lh-$i.json" --quiet
+          done
+      - run: node apps/client/scripts/web-quality.mjs lighthouse "$RUNNER_TEMP"/lh-1.json "$RUNNER_TEMP"/lh-2.json "$RUNNER_TEMP"/lh-3.json
+      - if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: lighthouse-reports
+          path: ${{ runner.temp }}/lh-*.json
+          retention-days: 7
+      - if: always()
+        run: podman rm -f web
+
   # Plan Phase 7's CI/CD integration step — nightly (or on-demand via
   # workflow_dispatch), never on a PR/push: it tracks power-up/weapon win-rate
   # trends for tuning, nothing blocks on it.

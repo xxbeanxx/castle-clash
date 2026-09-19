@@ -287,11 +287,19 @@ export async function getMyMatchHistory(limit = 20): Promise<MatchHistoryEntry[]
 
 /** A page of `public.leaderboard`, ordered by wins (plan Phase 9 step 4:
  *  "reads the leaderboard view with pagination") — `offset`/`limit` map
- *  straight onto PostgREST's `range()`. */
+ *  straight onto PostgREST's `range()`.
+ *
+ *  Only players with a display name are ranked: the page is public (readable
+ *  with no session), and guests have no name, so listing them would print
+ *  "Anonymous" rows and put a stranger's throwaway account on a public board.
+ *  Filtering in the query, not after, keeps `range()` pagination exact. This is
+ *  the v2 plan's decision D3 taken in its least-committal form (no migration);
+ *  drop the `.not()` to list everyone. */
 export async function getLeaderboard(offset: number, limit: number): Promise<LeaderboardRow[]> {
   const { data, error } = await client()
     .from("leaderboard")
     .select("display_name, matches_played, wins, eliminations, deaths, rounds_won")
+    .not("display_name", "is", null)
     .order("wins", { ascending: false })
     .range(offset, offset + limit - 1);
 

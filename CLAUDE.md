@@ -269,6 +269,55 @@ more undocumented `.d.ts` modules than fit in this phase. Don't "simplify" the h
 onto the built-in one without redoing that evaluation; it's a real, deliberately-deferred option
 for a later phase, not an obviously-superseded first attempt.
 
+### The front door (Phase 11)
+
+`apps/client` styles through CSS custom properties, never inline `style` (only data-driven values:
+a bar's width, a swatch's colour). `app/styles/tokens.css` is the whole theme; `app/ui/kit/` holds
+the primitives (`Button`, `ButtonLink`, `Panel`, `Field`/`Input`/`Select`, `Modal`, `Nav`) — reach
+for them before writing markup. Fonts are OFL files vendored in `public/fonts/` (the CSP has no
+`font-src`); never point at Google Fonts.
+
+`routes.ts` puts every page except `/play/:roomId` under `layouts/SiteLayout.tsx` (header, footer,
+skip link). Each route exports `meta` through `app/meta.ts` (`pageMeta` for public pages,
+`privatePageMeta` = `noindex` for guarded ones); a route's `meta` replaces its parent's wholesale.
+`/`, `/how-to-play`, `/privacy`, `/terms`, `/about` are **prerendered** (`react-router.config.ts`).
+That changes what nginx must do, and `docker/nginx.conf` encodes it: unknown routes fall back to
+`__spa-fallback.html` (never `index.html`, which is now the landing page), and prerendered pages are
+found as `$uri/index.html` (a bare `$uri/` makes nginx redirect using its own port, 8080). Anything
+you add to the prerender list needs a matching entry in `public/sitemap.xml` if it is public.
+`docs/research/phase11-prerender-and-metadata.md` has the evidence.
+
+Auth: `/`, `/leaderboard` and the static pages are public; `lobby`, `play`, `loadout`, `stats` call
+`requireSession(request)`, which redirects to `/login?next=<path+query>`; `login` honours `next` only
+through `auth/nextPath.ts`'s `safeNextPath` (same-origin paths only). OAuth still returns to plain
+`/login`, so `next` is lost across a Google round trip until Phase 12 carries it in `redirectTo`.
+The leaderboard query excludes players without a display name (v2 decision D3, no migration).
+`auth/supabase.js` is imported dynamically by anything on the landing page's path (`useSession`,
+`PlayNowButton`, `LeaderboardTeaser`, the header's sign-out) to keep `supabase-js` out of its
+critical path; keep it that way.
+
+The server's `GET /stats` (`publicStats.ts`) feeds the landing page's "players online" line and the
+footer's version, and is checked by the deploy smoke. Every consumer treats failure as "show
+nothing". `pnpm --filter @castle-clash/client run check:landing` fails if Pixi or `supabase-js`
+enter `/`'s script graph; CI's `web-quality` job also holds Lighthouse to performance >= 90,
+accessibility >= 95, LCP <= 2.5 s.
+
+Gotchas from checking this live rather than trusting tests:
+
+- `<script src="/config.js">` must stay a plain synchronous script. React Router emits its own
+  module script as `async`, so `defer` on `config.js` races it.
+- nginx ships with gzip off; without `gzip on` the JS bundle is ~4x larger and the landing page's
+  LCP misses its budget on a throttled phone.
+- Serving `build/client` from a podman bind mount: a rebuild replaces the directory, so restart the
+  container afterwards or it 500s. Run `docker/entrypoint.sh` (with `HTML_DIR`/`CSP_CONF`) to
+  generate `config.js` and the real CSP. `VITE_E2E=1` is needed at build time for the e2e specs'
+  `window.__CC_DEBUG__`.
+- `pnpm dev` is React StrictMode, which double-mounts `GameClient.start()`; quick play from a cold
+  page can fail there with "user is already connected to this match". The production build doesn't
+  do it, so run Playwright against a built client, not the dev server.
+- Quick play joins one shared public room, so an e2e spec must not assume it is fresh: assert the
+  local player's HUD (`combat-hud`), not the match banner.
+
 ### Workspace layout and package boundaries
 
 ```

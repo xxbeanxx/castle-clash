@@ -19,6 +19,15 @@ describe("pageMeta", () => {
     );
   });
 
+  it("uses the same URL for canonical and og:url", () => {
+    for (const path of ["/", "/privacy"]) {
+      const meta = pageMeta({ path });
+      expect(find(meta, "rel", "canonical")?.["href"]).toBe(
+        find(meta, "property", "og:url")?.["content"],
+      );
+    }
+  });
+
   it("always canonicalises to the production origin, with a trailing slash only for the root", () => {
     expect(find(pageMeta({ path: "/" }), "rel", "canonical")?.["href"]).toBe(`${SITE_URL}/`);
     expect(find(pageMeta({ path: "/terms" }), "rel", "canonical")?.["href"]).toBe(

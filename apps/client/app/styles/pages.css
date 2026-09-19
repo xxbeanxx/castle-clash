@@ -67,3 +67,58 @@
   height: 1px;
   background: var(--line);
 }
+
+/* Lobby: the Play hub */
+.cc-page--hub {
+  max-width: 52rem;
+}
+.cc-hub {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+@media (max-width: 40rem) {
+  .cc-hub {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.cc-hub__quick {
+  grid-column: 1 / -1;
+  background: var(--stone-800);
+  border-color: var(--gold-600);
+}
+.cc-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cc-tile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  height: 100%;
+  padding: var(--space-4) var(--space-5);
+  background: var(--stone-900);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  color: var(--ink);
+  text-decoration: none;
+  transition: border-color var(--duration-fast) var(--ease-out);
+}
+.cc-tile:hover {
+  border-color: var(--gold-600);
+  color: var(--ink);
+}
+.cc-tile__title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-lg);
+  color: var(--gold-300);
+}
+.cc-tile__blurb {
+  color: var(--ink-dim);
+  font-size: var(--text-sm);
+}

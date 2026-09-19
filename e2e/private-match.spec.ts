@@ -22,7 +22,7 @@ test("two browsers play a private match end to end", async ({ browser }) => {
 
   await signInAsGuest(pageB);
   await pageB.getByLabel("Room code").fill(code!);
-  await pageB.getByText("Join").click();
+  await pageB.getByRole("button", { name: "Join", exact: true }).click();
   await pageB.waitForURL(/\/play\/(?!new\b)/);
 
   await expect(pageA.getByTestId("match-banner")).toContainText("Fight", { timeout: 15000 });

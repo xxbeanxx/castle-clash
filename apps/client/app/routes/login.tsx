@@ -1,5 +1,5 @@
 import { type FormEvent, useEffect, useState } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 import {
   onAuthStateChange,
   type OAuthProvider,
@@ -7,6 +7,7 @@ import {
   signInWithMagicLink,
   signInWithOAuth,
 } from "../auth/supabase.js";
+import { safeNextPath } from "../auth/nextPath.js";
 import { Button, Field, Input, Panel } from "../ui/kit/index.js";
 import { privatePageMeta } from "../meta.js";
 
@@ -23,6 +24,8 @@ export const meta = () => privatePageMeta("Sign in");
  */
 export default function Login() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const destination = safeNextPath(searchParams.get("next")) ?? "/lobby";
   const [email, setEmail] = useState("");
   const [magicLinkSent, setMagicLinkSent] = useState(false);
   const [pending, setPending] = useState(false);
@@ -31,10 +34,10 @@ export default function Login() {
   useEffect(() => {
     return onAuthStateChange((session) => {
       if (session) {
-        navigate("/lobby");
+        navigate(destination, { replace: true });
       }
     });
-  }, [navigate]);
+  }, [navigate, destination]);
 
   async function withErrorHandling(action: () => Promise<void>): Promise<void> {
     setError(null);

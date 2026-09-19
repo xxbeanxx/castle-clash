@@ -21,7 +21,7 @@ decision it led to.
   `app/meta.ts`'s `pageMeta()`; the root `meta` is only the default and what `__spa-fallback.html`
   carries.
 - **Pixi stays out of `/`.** The prerendered `index.html`'s `modulepreload` list contains the root,
-  layout, `home`, supabase and shared chunks and nothing from Pixi (`grep -ci pixi index.html` is 0).
+  layout, `home` and shared chunks and nothing from Pixi (or, since the lazy-import change below, `supabase-js`) (`grep -ci pixi index.html` is 0).
   Route modules are already code-split; `game/**` is only reachable from `play` and `loadout`.
 - **Prerendering runs the routes' render path once in Node.** Anything touching `window` during
   render would break the build. Nothing does: `getRuntimeConfig()`, `useSession`, `useServerStats`
@@ -70,5 +70,29 @@ Probed after the fix: `/`, `/privacy`, `/privacy/`, `/how-to-play` → their own
   page, add a line.
 - **OG image** (`public/og.png`, 1200x630) was rendered once with Playwright from an HTML file using
   the vendored fonts and is committed as a binary; regenerate it by hand if the hero copy changes.
-- **`supabase-js` (341 KB raw) is in the `/` chunk graph** because the header's `useSession` and the
-  Play-now button import `auth/supabase.ts`. Lighthouse decides whether that needs lazy-loading.
+- **`supabase-js` (~200 KB) was in the `/` chunk graph** (header `useSession`, Play-now button, teaser). Lighthouse decided it: those three now `import()` `auth/supabase.js` on demand, and `check:landing` fails if the library reappears up front.
+
+## Knobs added alongside (verified where stated)
+
+- **`GET /stats` and `CORS_ORIGINS`.** Reads `matchMaker.stats.local` (`{ ccu, roomCount }`, checked in
+  `@colyseus/core@0.18.13`'s `Stats.d.ts`; `getGlobalCCU()` exists for multi-process, unused because
+  production runs one server process). `CORS_ORIGINS` (comma list) is **set nowhere yet**, so the live
+  behaviour is `Access-Control-Allow-Origin: *`; that is deliberate for two public counters, but the
+  plan's "CORS to the client origin" needs `CORS_ORIGINS` wired through Terraform. Colyseus's own
+  permissive CORS headers apply only to its matchmaker routes, not this Express route (checked with
+  `curl -I` against a running server).
+- **Rate-limit key.** Keyed on the **rightmost** `X-Forwarded-For` hop (the address the platform proxy
+  appended), because the left of that header is client-controlled. Not verified against Azure Container
+  Apps' ingress itself (that needs a deployed environment); if ingress appends more than one hop the
+  key would be its own address and the limit would become global.
+- **Lighthouse** is pinned to `lighthouse@12.8.2` in `ci.yaml` (what the local measurements used).
+  Measured locally on the production build behind the real nginx config: performance 95, accessibility
+  100, LCP 2458 ms on Lighthouse's default mobile throttling. Before `gzip on` in `nginx.conf` and
+  before `supabase-js` was made a dynamic import it was performance 66, LCP 5.5 s. The LCP margin
+  against the 2.5 s budget is small; `config.js` is a render-blocking script costing ~150 ms, and
+  making it `defer` is **not** safe (React Router emits its own module script as `async`).
+- **`web-quality` is not a required check.** The `main` ruleset in `infra/terraform/` lists
+  `verify`/`browser`/`build`/`smoke`; add `web-quality` there to make it block merges.
+- **Not done:** the plan's "M matches played" (needs a DB count), the touch half of the landing's
+  control scheme (Phase 13), and a drift test tying `content/controls.ts` to `KeyboardInput`'s
+  `KEY_TO_BIT` (that map is not exported).

@@ -1,7 +1,6 @@
 import { Link } from "react-router";
 import { useServerStats } from "../api/serverStats.js";
-
-export const REPO_URL = "https://github.com/xxbeanxx/castle-clash";
+import { REPO_URL } from "../content/site.js";
 
 export function SiteFooter() {
   const stats = useServerStats();

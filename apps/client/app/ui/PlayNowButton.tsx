@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
-import { getSession, signInAsGuest } from "../auth/supabase.js";
 import { Button, type ButtonSize, type ButtonVariant } from "./kit/index.js";
 
 /**
@@ -26,6 +25,8 @@ export function PlayNowButton({
     setPending(true);
     setError(null);
     try {
+      // Loaded on demand: keeps supabase-js off the landing page's critical path.
+      const { getSession, signInAsGuest } = await import("../auth/supabase.js");
       const session = await getSession();
       if (!session) {
         await signInAsGuest();

@@ -1,6 +1,5 @@
 import { PLAYER_HEIGHT, PLAYER_WIDTH, type ArenaDefinition } from "@castle-clash/shared";
-import { ARENA_LABELS } from "../content/arenas.js";
-import type { ArenaId } from "@castle-clash/shared";
+import { arenaLabel } from "../content/arenas.js";
 
 /**
  * A top-down-free, side-on map of an arena drawn from its real definition:
@@ -16,7 +15,7 @@ export function ArenaPreview({
   showKnights?: boolean;
 }) {
   const { bounds } = arena;
-  const label = ARENA_LABELS[arena.id as ArenaId] ?? arena.id;
+  const label = arenaLabel(arena.id);
   const knightSpawns = showKnights ? arena.spawns.slice(0, 2) : [];
 
   return (

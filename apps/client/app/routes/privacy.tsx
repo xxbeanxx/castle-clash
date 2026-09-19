@@ -1,6 +1,6 @@
 import { pageMeta } from "../meta.js";
 import { ProsePage } from "../ui/ProsePage.js";
-import { REPO_URL } from "../ui/SiteFooter.js";
+import { REPO_URL } from "../content/site.js";
 
 export const meta = () =>
   pageMeta({

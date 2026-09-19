@@ -1,6 +1,5 @@
 import { Link, useNavigate } from "react-router";
 import { useSession } from "../auth/useSession.js";
-import { signOut } from "../auth/supabase.js";
 import { Brand } from "./Brand.js";
 import { Button, ButtonLink, Nav, type NavItem } from "./kit/index.js";
 
@@ -23,6 +22,8 @@ export function SiteHeader() {
 
   async function handleSignOut(): Promise<void> {
     try {
+      // Loaded on demand: keeps supabase-js off the public pages' critical path.
+      const { signOut } = await import("../auth/supabase.js");
       await signOut();
     } finally {
       navigate("/");

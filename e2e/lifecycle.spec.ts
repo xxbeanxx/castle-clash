@@ -44,6 +44,8 @@ test("the debug hook reports frame times", async ({ page }) => {
   await page.waitForTimeout(1500);
   const stats = await page.evaluate(() => window.__CC_DEBUG__?.frameStats());
   expect(stats).not.toBeNull();
-  expect(stats!.frames).toBeGreaterThan(30);
+  // Only that frames are being recorded: how many fit in 1.5 s depends on how loaded the runner is
+  // (a headless software-rendered browser among a dozen others managed 21).
+  expect(stats!.frames).toBeGreaterThan(5);
   expect(stats!.meanMs).toBeGreaterThan(0);
 });

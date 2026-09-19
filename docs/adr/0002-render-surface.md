@@ -3,7 +3,8 @@
 The client draws the world onto a virtual surface where **1 art pixel = 2 world units** (so the
 28x48 hitbox is exactly 14x24 art pixels and the 1280x720 arena is exactly 640x360). That surface is
 presented with `nearest` sampling at the **largest integer scale that fits the physical screen**:
-`S = floor(physH / 360)`, with `physH = floor(cssH x devicePixelRatio)`. The canvas is the whole
+`S = floor(min(physW / 640, physH / 360))`, with `physW = floor(cssW x devicePixelRatio)` (and
+`physH` likewise; width binds on 4:3 tablets). The canvas is the whole
 container, not a letterboxed 16:9 box; where the screen is wider or taller than the arena (a 20:9
 phone, an ultrawide, the 1280x420 Dungeon) the surplus is **overscan**: background art, never black
 bars, and never gameplay information, because every arena's bounds are the same for every player.
@@ -29,7 +30,7 @@ character.
 The 1280x720 model needs 720 physical rows for its first integer step and 1440 for the next, so
 most phones, iPads and every 1080p display are stuck at 1x: the knight is a third smaller than under
 640x360 on phones (16-18 px against 24-27) and a third smaller on a 1080p desktop (48 against 72).
-The 640x360 model has a step every 360 rows. It also costs a quarter of the art per frame. The one
+The 640x360 model has a step every 360 rows (or 640 columns, if width binds). It also costs a quarter of the art per frame. The one
 thing 1280x720 buys, detail per character, is not recoverable on the devices where the choice
 matters. Rejected.
 
@@ -67,3 +68,8 @@ for pixel art at any resolution, which is why this decision comes before any art
   screen puts the knight at about 24 CSS px. Bigger characters on phones need the crop option
   above, at the cost of seeing less of the arena than desktop players, a fairness question that is
   Phase 14+'s to raise, not this ADR's.
+- **Pixi is initialised at `resolution: 1` and sized in physical pixels by us**, not with the
+  plan's `resolution` + `autoDensity`. Pixi's own DPR handling rounds a fractional DPR its own way,
+  which can disagree by a row with `computeSurface` and flip a whole scale step; owning the backing
+  store size removes the disagreement. `antialias: false`, `roundPixels: true` and `nearest`
+  texture scaling are set as the plan says.

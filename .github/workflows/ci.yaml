@@ -95,8 +95,11 @@ jobs:
   # (mobile emulation, throttled) three times; the median must meet
   # performance >= 90, accessibility >= 95 and LCP <= 2.5 s. A separate,
   # cheaper check fails if PixiJS or supabase-js sneaks into what `/` loads.
+  # Skipped on a PR that can't change the client (the `browser` filter: client,
+  # shared, root files). Not a required check, so a plain job-level `if` is fine.
   web-quality:
-    if: github.event_name != 'schedule'
+    needs: changes
+    if: github.event_name != 'schedule' && needs.changes.outputs.browser == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

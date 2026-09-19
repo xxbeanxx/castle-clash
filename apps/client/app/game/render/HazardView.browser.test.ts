@@ -19,16 +19,7 @@ describe("HazardView", () => {
 
     view.sync([
       { id: "fire", kind: "fireZone", x: 10, y: 20, w: 30, h: 40, active: true, phase: "on" },
-      {
-        id: "floor",
-        kind: "breakableFloor",
-        x: 50,
-        y: 60,
-        w: 70,
-        h: 16,
-        active: true,
-        phase: "solid",
-      },
+      { id: "floor", kind: "breakableFloor", x: 50, y: 60, w: 70, h: 16, active: true, phase: "solid" },
     ]);
 
     expect(app.stage.children).toHaveLength(2);
@@ -42,12 +33,8 @@ describe("HazardView", () => {
   it("moves an existing hazard's graphic instead of creating a new one", () => {
     const view = new HazardView(app.stage);
 
-    view.sync([
-      { id: "fire", kind: "fireZone", x: 0, y: 0, w: 10, h: 10, active: true, phase: "on" },
-    ]);
-    view.sync([
-      { id: "fire", kind: "fireZone", x: 15, y: 25, w: 10, h: 10, active: true, phase: "on" },
-    ]);
+    view.sync([{ id: "fire", kind: "fireZone", x: 0, y: 0, w: 10, h: 10, active: true, phase: "on" }]);
+    view.sync([{ id: "fire", kind: "fireZone", x: 15, y: 25, w: 10, h: 10, active: true, phase: "on" }]);
 
     expect(app.stage.children).toHaveLength(1);
     const [graphics] = app.stage.children as [Graphics];
@@ -58,9 +45,7 @@ describe("HazardView", () => {
   it("removes graphics for hazards no longer present", () => {
     const view = new HazardView(app.stage);
 
-    view.sync([
-      { id: "fire", kind: "fireZone", x: 0, y: 0, w: 10, h: 10, active: true, phase: "on" },
-    ]);
+    view.sync([{ id: "fire", kind: "fireZone", x: 0, y: 0, w: 10, h: 10, active: true, phase: "on" }]);
     view.sync([]);
 
     expect(app.stage.children).toHaveLength(0);
@@ -69,33 +54,11 @@ describe("HazardView", () => {
   it("dims alpha once a hazard goes inactive (broken/fallen)", () => {
     const view = new HazardView(app.stage);
 
-    view.sync([
-      {
-        id: "floor",
-        kind: "breakableFloor",
-        x: 0,
-        y: 0,
-        w: 10,
-        h: 10,
-        active: true,
-        phase: "solid",
-      },
-    ]);
+    view.sync([{ id: "floor", kind: "breakableFloor", x: 0, y: 0, w: 10, h: 10, active: true, phase: "solid" }]);
     const [activeGraphics] = app.stage.children as [Graphics];
     const activeAlpha = activeGraphics.alpha;
 
-    view.sync([
-      {
-        id: "floor",
-        kind: "breakableFloor",
-        x: 0,
-        y: 0,
-        w: 10,
-        h: 10,
-        active: false,
-        phase: "broken",
-      },
-    ]);
+    view.sync([{ id: "floor", kind: "breakableFloor", x: 0, y: 0, w: 10, h: 10, active: false, phase: "broken" }]);
     const [brokenGraphics] = app.stage.children as [Graphics];
 
     expect(brokenGraphics.alpha).toBeLessThan(activeAlpha);

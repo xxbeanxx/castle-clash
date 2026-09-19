@@ -1,0 +1,50 @@
+name: changes
+
+# Reusable: reports which parts of the repo a pull request touches, per
+# .github/paths-filter.yaml, so callers (ci.yaml, containers.yaml) can skip jobs
+# it can't affect.
+#
+# Only pull requests are filtered. Every other trigger (push to main, manual
+# dispatch) reports everything as changed: main always gets the full run, and
+# containers.yaml's `push` job must always publish images from it.
+#
+# A caller must not skip a matrix job with a job-level `if` on these outputs:
+# GitHub then never expands the matrix, so the required checks named after its
+# expanded entries (`build (server)`) never report and the PR waits on them
+# forever. Gate that job's steps instead. A plain (non-matrix) job can be
+# skipped at job level — a skipped job counts as passing for a required check.
+on:
+  workflow_call:
+    outputs:
+      code:
+        description: "'true' if lint/typecheck/test/build inputs changed"
+        value: ${{ jobs.filter.outputs.code }}
+      browser:
+        description: "'true' if the client's browser tests' inputs changed"
+        value: ${{ jobs.filter.outputs.browser }}
+      images:
+        description: "'true' if the container images' inputs changed"
+        value: ${{ jobs.filter.outputs.images }}
+
+jobs:
+  filter:
+    runs-on: ubuntu-latest
+    # A job-level `permissions` replaces the defaults, so contents is explicit.
+    # pull-requests: paths-filter lists a PR's files through the API.
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      code: ${{ github.event_name != 'pull_request' || steps.paths.outputs.code }}
+      browser: ${{ github.event_name != 'pull_request' || steps.paths.outputs.browser }}
+      images: ${{ github.event_name != 'pull_request' || steps.paths.outputs.images }}
+    steps:
+      # The filters file lives in the repo, so it has to be checked out; the
+      # changed-file list itself still comes from the API, not git history.
+      - if: github.event_name == 'pull_request'
+        uses: actions/checkout@v7
+      - if: github.event_name == 'pull_request'
+        id: paths
+        uses: dorny/paths-filter@v4
+        with:
+          filters: .github/paths-filter.yaml

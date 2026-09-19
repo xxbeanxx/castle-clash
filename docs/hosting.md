@@ -180,27 +180,31 @@ Container App secrets (server only): `supabase-secret-key`, `smoke-token`.
 
 ## Google sign-in
 
-Needs two things nothing in CI can do: a Google Cloud OAuth client (no API or Terraform resource
-exists for a consumer web client) and a handful of Supabase auth settings. Both are one wizard:
+Two parts. The **Supabase auth settings are Terraform** (`infra/terraform/supabase.tf`, decision D2):
+Google enabled, anonymous sign-ins ON, **manual linking** ON (required by `linkIdentity`, which is how
+a guest keeps their progress), unverified-email sign-ins OFF, `site_url` at the client origin, and
+`<client origin>/auth/callback` in the redirect allow-list. Only those keys are managed; the rest of the
+project's auth config is never read or written. The **Google Cloud OAuth client** is the one thing no
+API or Terraform resource can create (Google shut its API for it down in 2026), so it is a wizard:
 
 ```sh
-./scripts/setup-google-login.sh     # defaults to production; CLIENT_ORIGIN / SUPABASE_PROJECT_REF override
+./scripts/setup-google-login.sh     # run from a checkout of main that includes the supabase_settings resource
 ```
 
 It walks the Google console (consent-screen branding with the `/privacy` and `/terms` pages, publish
 to _In production_, the three sign-in scopes, a Web client whose redirect URI is
-`https://<project-ref>.supabase.co/auth/v1/callback`), then runs
-`pnpm --filter @castle-clash/server run auth-config`. That script is a **dry run** until given
-`--apply`; it sets only Google (enabled, client id, secret), anonymous sign-ins ON, **manual linking**
-ON (required by `linkIdentity`, which is how a guest keeps their progress), unverified-email sign-ins
-OFF, and adds `<client origin>/auth/callback` to the redirect allow-list. It never touches other keys,
-and after writing it re-reads the whole config and fails if any other setting moved (Supabase does not
-document that PATCH is a true partial update; this proves it on every real run). The client secret and
-your access token stay in memory and are never written to a file, `.env`, or GitHub. Google shows the
-secret once; lose it and create a new one in the console.
+`https://<project-ref>.supabase.co/auth/v1/callback`), writes the client id (not a secret) to
+`infra/terraform/google.auto.tfvars`, adopts the project's auth settings into Terraform on the first run
+(`terraform import supabase_settings.main <ref>`), shows the plan, and then applies it with the secret.
+It needs `az login`, `gh`, `terraform`, and `secret-tool` or a Supabase access token (the same
+prerequisites as `infra/terraform/README.md`). Commit `google.auto.tfvars` in a PR afterwards.
 
-Supabase stores the Google secret hashed, so the script can neither read it back nor compare it: pass
-`GOOGLE_CLIENT_SECRET` only when setting or rotating it.
+The client secret never touches a file, `.env` or GitHub: it reaches Terraform as
+`TF_VAR_supabase_google_client_secret` for one command and ends up in Terraform state, which is already
+sensitive (see the README). Google shows a secret once; lose it and create a new one in the console.
+Supabase stores it hashed, so Terraform cannot detect drift in it: pass the variable only when setting or
+rotating it. The wizard previews the plan **without** the secret first, because a plan that includes it
+prints `(sensitive value)` for the whole `auth` block, and that preview is where you check the allow-list.
 
 Everything above is researched in `docs/research/phase12-supabase-google-oauth.md`, which also lists
 what was **not** verified (whether Google requires the Supabase domain under authorized domains; the

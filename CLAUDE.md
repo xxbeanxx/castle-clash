@@ -325,9 +325,14 @@ that gate).
   and never stored, so `profiles.display_name` stays null for them (D3), and RLS refuses a guest's
   name update. `PlayerState.name` and `MatchResult.names` carry names to the client, with fallbacks
   for a server that predates them.
-- **Hosted Supabase auth config is not applied by CI or Terraform** (open decision D2). Use
-  `pnpm --filter @castle-clash/server run auth-config` (dry run unless `--apply`) or
-  `scripts/setup-google-login.sh`. Local `supabase/config.toml` needs `enable_manual_linking = true`.
+- **Terraform owns the hosted Supabase auth settings** (decision D2), only the keys the game needs
+  (`supabase_settings.main` in `infra/terraform/supabase.tf`). The Google client secret is the one
+  input Terraform cannot mint: pass it as `TF_VAR_supabase_google_client_secret` only when setting or
+  rotating it, and review the plan *without* it first, since a plan that includes it hides the whole
+  `auth` block. `scripts/setup-google-login.sh` walks the Google console and does both. CI never applies
+  it. Local `supabase/config.toml` needs `enable_manual_linking = true`. When a Terraform expression
+  builds optional keys, use filtered `for` expressions: a conditional between differently-shaped objects
+  unifies to `map(string)` and turns booleans into strings.
 
 Gotchas from checking this live rather than trusting tests:
 

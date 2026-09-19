@@ -187,18 +187,25 @@ finish() {
 TOTAL_STAGES=6
 
 # Repeatable setup path for "Sign in with Google" (docs/hosting.md, "Google sign-in").
-# Deliberately persists nothing: the Google client secret is shown by Google only once
-# and lives on in Supabase (which stores it hashed); the Supabase token is yours. Both
-# stay in this shell's memory for the one `auth-config` run. That is why this wizard
-# never calls write_env / set_secret, unlike the template's example.
+# Stages 1-4 are the Google Cloud console (nothing can automate them); stages 5-6 hand the
+# result to Terraform, which owns the Supabase auth settings (infra/terraform/supabase.tf).
+#
+# Persists no secret: the Google client secret is shown by Google only once; it lives on in
+# Supabase (which stores it hashed) and in Terraform state. Here it stays in this shell's
+# memory and reaches Terraform as TF_VAR_supabase_google_client_secret for one command. That is
+# why this wizard never calls write_env / set_secret, unlike the template's example. The client
+# id is not secret and is written to infra/terraform/google.auto.tfvars.
+#
+# Run it from a checkout of main that already contains the supabase_settings resource.
 
 cd "$(git rev-parse --show-toplevel)"
 
-# Defaults are production. Override to set up staging:
-#   CLIENT_ORIGIN=https://castle-clash-staging.atomic-nucleus.com SUPABASE_PROJECT_REF=... ./scripts/setup-google-login.sh
+# Production. (Staging is not provisioned; when it is, this needs its own Terraform workspace.)
 CLIENT_ORIGIN="${CLIENT_ORIGIN:-https://castle-clash.atomic-nucleus.com}"
 SUPABASE_PROJECT_REF="${SUPABASE_PROJECT_REF:-vrcxprhmonzpuelfnijy}"
 AUTHORIZED_DOMAIN="atomic-nucleus.com"
+TF_DIR="infra/terraform"
+TFVARS="$TF_DIR/google.auto.tfvars"
 
 banner "Castle Clash: Google sign-in ($CLIENT_ORIGIN)"
 
@@ -253,36 +260,60 @@ if [[ -z "$GOOGLE_CLIENT_ID" || -z "$GOOGLE_CLIENT_SECRET" ]]; then
   exit 1
 fi
 
-# ── 5. Supabase: what would change ────────────────────────────────────────
-stage "Supabase: preview the auth settings change"
-say "This turns on Google, guest-to-account linking, and the /auth/callback redirect."
-say "It reads the live project first and prints a diff. Nothing is written yet."
+# ── 5. Terraform: read the plan ───────────────────────────────────────────
+stage "Terraform: preview the Supabase auth settings"
+say "Terraform now owns the Supabase auth settings. This stage prints the plan for them and"
+say "changes nothing. Read it: it is the only chance to see the allow-list and every other"
+say "change before they apply (a plan that includes the secret hides the settings, so this"
+say "preview deliberately leaves the secret out)."
+if ! grep -q 'resource "supabase_settings" "main"' "$TF_DIR/supabase.tf"; then
+  warn "$TF_DIR/supabase.tf has no supabase_settings resource. Run this from a checkout of main"
+  warn "that includes the Google setup pull request."
+  exit 1
+fi
+if ! az account show >/dev/null 2>&1; then
+  warn "Not signed in to Azure. Run 'az login' first: the plan refreshes the whole environment."
+  exit 1
+fi
 if [[ -z "${SUPABASE_ACCESS_TOKEN:-}" ]]; then
   SUPABASE_ACCESS_TOKEN="$(secret-tool lookup service 'Supabase CLI' username supabase 2>/dev/null || true)"
 fi
 if [[ -z "${SUPABASE_ACCESS_TOKEN:-}" ]]; then
   open_url "https://supabase.com/dashboard/account/tokens"
-  step "Generate a personal access token (name it 'castle-clash auth-config') and copy it."
+  step "Generate a personal access token (name it 'castle-clash terraform') and copy it."
   ask_secret SUPABASE_ACCESS_TOKEN "Paste the access token (sbp_..., hidden):"
 else
   note "Using the token from your Supabase CLI login (or SUPABASE_ACCESS_TOKEN)."
 fi
-export SUPABASE_ACCESS_TOKEN SUPABASE_PROJECT_REF CLIENT_ORIGIN GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET
+GITHUB_TOKEN="${GITHUB_TOKEN:-$(gh auth token 2>/dev/null || true)}"
+export SUPABASE_ACCESS_TOKEN GITHUB_TOKEN
 
-preview_status=0
-pnpm --filter @castle-clash/server run auth-config || preview_status=$?
-if [[ "$preview_status" -ne 0 && "$preview_status" -ne 2 ]]; then
-  warn "The preview failed (see above). Nothing was changed."
-  exit 1
+printf 'supabase_google_client_id = "%s"\n' "$GOOGLE_CLIENT_ID" > "$TFVARS"
+printf '  %s✓ wrote%s the client id (not a secret) to %s\n' "$GREEN" "$RESET" "$TFVARS"
+note "Commit it in a pull request afterwards so the next person's plan matches."
+
+terraform -chdir="$TF_DIR" init -input=false >/dev/null
+if ! terraform -chdir="$TF_DIR" state list 2>/dev/null | grep -qx 'supabase_settings.main'; then
+  say "Adopting the project's existing auth settings into Terraform (first run only)..."
+  terraform -chdir="$TF_DIR" import -input=false supabase_settings.main "$SUPABASE_PROJECT_REF" >/dev/null
 fi
-pause "Read the diff above. Continue to apply it?"
+say ""
+terraform -chdir="$TF_DIR" plan -input=false
+say ""
+note "Expect: supabase_settings.main updated in place. Check the uri_allow_list line: it REPLACES"
+note "the dashboard's list, so anything that must stay goes in var.supabase_extra_redirect_urls."
+note "On this first plan after the import, some unrelated keys may show a cosmetic difference."
+pause "Read the plan above. Continue?"
 
-# ── 6. Supabase: apply and verify ─────────────────────────────────────────
-stage "Supabase: apply the change"
-say "Writes only the keys shown in the diff, then re-reads the whole config and fails"
-say "if anything else changed. This is the LIVE project: $SUPABASE_PROJECT_REF"
+# ── 6. Terraform: apply, with the secret ──────────────────────────────────
+stage "Terraform: apply, including the Google client secret"
+say "Plans and applies again, now with the secret, then deletes the saved plan (it holds the"
+say "secret). This is the LIVE project: $SUPABASE_PROJECT_REF"
 if confirm "Apply to the live project now?"; then
-  pnpm --filter @castle-clash/server run auth-config -- --apply
+  TF_VAR_supabase_google_client_secret="$GOOGLE_CLIENT_SECRET" \
+    terraform -chdir="$TF_DIR" plan -input=false -out=google.tfplan >/dev/null
+  terraform -chdir="$TF_DIR" apply -input=false google.tfplan
+  rm -f "$TF_DIR/google.tfplan"
   say ""
   step "Then eyeball it once: Supabase dashboard > Authentication > Sign In / Providers."
   step "Google is enabled, and 'Allow manual linking' is on."

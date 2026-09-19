@@ -95,8 +95,13 @@ export async function runDeploySmoke(config: DeploySmokeConfig): Promise<StepRes
       "client loads",
       async () => {
         const html = await (await fetchOk(config, `${config.clientUrl}/`)).text();
-        if (!html.includes("<div")) {
-          throw new Error("client index.html has no app markup");
+        // React Router's SPA-mode index.html is a shell (title + module preloads, no
+        // `<div>`: React renders the root itself), so identify the app by its title.
+        // That rejects Azure's placeholder page, an nginx default page and error pages.
+        if (!html.includes("<title>Castle Clash</title>")) {
+          throw new Error(
+            "client index.html is not the Castle Clash app (no <title>Castle Clash</title>)",
+          );
         }
       },
     ],

@@ -114,3 +114,14 @@ Trivy re-scan (plan's nightly workflow) was added.
   exist) alongside the environment's own.
 - **A `production` deploy can only be dispatched from `main`** (the environment's deployment-branch policy), so a
   workflow fix must be merged before it can be exercised.
+- **Re-running a failed run replays the workflow at its original commit.** "Re-run jobs" on the failed deploy
+  ran attempt 2 against the pre-fix `d668aba` and failed identically; use **Run workflow** for a fresh run.
+- **The deploy smoke's client check was wrong, not the site.** After login, migrations, the server rollout
+  (`/healthz` reported 1.0.0) and the client rollout all succeeded, the smoke failed "client loads" because it
+  looked for a `<div>`; React Router's SPA-mode `index.html` is a shell with none. It now checks the title.
+- **Verified live on production (2026-09-19, real browser):** `https://castle-clash.atomic-nucleus.com` served the
+  SPA with the right runtime config and the strict CSP; guest sign-in reached `/lobby`; "Create private room"
+  matchmade against `wss://castle-clash-game.atomic-nucleus.com` and rendered the Pixi canvas (arena, knight, HUD,
+  room code) with no CSP errors. The pipeline's own smoke has not yet passed end to end: the remaining checks
+  (config, anonymous sign-in, room join/leave, smoke match write) still need a deploy run after the smoke fix.
+

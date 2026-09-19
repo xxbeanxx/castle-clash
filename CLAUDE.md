@@ -133,7 +133,7 @@ resources, the `atomic-nucleus.com` DNS records, the Supabase project, and the G
 `main` ruleset requires a PR plus the `verify`/`browser`/`build`/`smoke` checks, squash-only) and its
 `production` environment. It also generates every secret and wires each to its consumers, so nothing
 is set by hand; state is in an Azure storage account and is sensitive (its README says what Terraform
-leaves to the deploy workflow). **As of writing no workflow has run on GitHub** — treat first runs as expected to need fixes. `SERVER_VERSION` is stamped into the server image by build-arg and shows up in
+leaves to the deploy workflow). **Production was first deployed 2026-09-19** (`v1.0.0`; server and client live, game verified in a real browser under the CSP) after several first-run fixes — see the "First production deploy" section of `docs/research/phase10-deploy-decisions.md`. Lessons that bite: re-running a failed run replays the *old* workflow commit (dispatch a new run instead); environment secrets need `secrets: inherit` in a reusable-workflow chain; Turborepo strict env mode drops `VITE_E2E` unless `turbo.json` declares it; PixiJS needs `pixi.js/unsafe-eval` under the client's CSP. `SERVER_VERSION` is stamped into the server image by build-arg and shows up in
 `/healthz` and `matches.server_version`. `POST /smoke/record-match` exists only when the server has a
 `SMOKE_TOKEN`; `record_match_result()` skips `player_stats` for `mode = 'smoke'`. Migrations follow
 expand/contract because rollbacks never revert the database.

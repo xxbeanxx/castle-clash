@@ -5,6 +5,7 @@ export default [
   layout("layouts/SiteLayout.tsx", [
     index("routes/home.tsx"),
     route("login", "routes/login.tsx"),
+    route("auth/callback", "routes/auth.callback.tsx"),
     route("lobby", "routes/lobby.tsx"),
     route("loadout", "routes/loadout.tsx"),
     route("stats", "routes/stats.tsx"),

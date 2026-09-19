@@ -2,10 +2,9 @@ import { type FormEvent, useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import {
   onAuthStateChange,
-  type OAuthProvider,
   signInAsGuest,
+  signInWithGoogle,
   signInWithMagicLink,
-  signInWithOAuth,
 } from "../auth/supabase.js";
 import { safeNextPath } from "../auth/nextPath.js";
 import { Button, Field, Input, Panel } from "../ui/kit/index.js";
@@ -59,8 +58,11 @@ export default function Login() {
     });
   }
 
-  function handleOAuth(provider: OAuthProvider): void {
-    void withErrorHandling(() => signInWithOAuth(provider));
+  // Google leaves the site, so where to come back to travels with the request
+  // (`/auth/callback` reads it) instead of relying on this route still being
+  // mounted afterwards.
+  function handleGoogle(): void {
+    void withErrorHandling(() => signInWithGoogle(destination));
   }
 
   function handleGuest(): void {
@@ -93,10 +95,7 @@ export default function Login() {
         <div className="cc-divider">or</div>
 
         <div className="cc-stack">
-          <Button block onClick={() => handleOAuth("discord")} disabled={pending}>
-            Continue with Discord
-          </Button>
-          <Button block onClick={() => handleOAuth("google")} disabled={pending}>
+          <Button block onClick={handleGoogle} disabled={pending}>
             Continue with Google
           </Button>
           <Button block variant="ghost" onClick={handleGuest} disabled={pending}>

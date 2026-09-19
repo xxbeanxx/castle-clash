@@ -14,7 +14,11 @@ export function safeNextPath(raw: string | null | undefined): string | null {
   } catch {
     return null;
   }
-  if (url.origin !== "http://placeholder.invalid" || url.pathname.startsWith("/login")) {
+  if (
+    url.origin !== "http://placeholder.invalid" ||
+    url.pathname.startsWith("/login") ||
+    url.pathname.startsWith("/auth/")
+  ) {
     return null;
   }
   return `${url.pathname}${url.search}${url.hash}`;

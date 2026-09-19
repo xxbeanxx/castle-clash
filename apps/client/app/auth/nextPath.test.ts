@@ -20,6 +20,8 @@ describe("safeNextPath", () => {
     ["a backslash trick", "/\\evil.example"],
     ["a relative path", "lobby"],
     ["the login page itself (a redirect loop)", "/login?next=/lobby"],
+    ["the auth callback itself (a redirect loop)", "/auth/callback"],
+    ["a tab hiding a protocol-relative URL", "/\t/evil.example"],
   ])("drops %s", (_label, raw) => {
     expect(safeNextPath(raw)).toBeNull();
   });

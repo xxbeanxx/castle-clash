@@ -5,14 +5,14 @@ import Login from "./login.js";
 
 const signInAsGuestMock = vi.fn().mockResolvedValue(undefined);
 const signInWithMagicLinkMock = vi.fn().mockResolvedValue(undefined);
-const signInWithOAuthMock = vi.fn().mockResolvedValue(undefined);
+const signInWithGoogleMock = vi.fn().mockResolvedValue(undefined);
 let authStateCallback: ((session: unknown) => void) | undefined;
 const unsubscribeMock = vi.fn();
 
 vi.mock("../auth/supabase.js", () => ({
   signInAsGuest: () => signInAsGuestMock(),
   signInWithMagicLink: (email: string) => signInWithMagicLinkMock(email),
-  signInWithOAuth: (provider: string) => signInWithOAuthMock(provider),
+  signInWithGoogle: (next?: string) => signInWithGoogleMock(next),
   onAuthStateChange: (callback: (session: unknown) => void) => {
     authStateCallback = callback;
     return unsubscribeMock;
@@ -37,7 +37,7 @@ describe("Login route", () => {
     cleanup();
     signInAsGuestMock.mockClear();
     signInWithMagicLinkMock.mockClear();
-    signInWithOAuthMock.mockClear();
+    signInWithGoogleMock.mockClear();
     authStateCallback = undefined;
   });
 
@@ -61,12 +61,36 @@ describe("Login route", () => {
     expect(screen.getByText("Check your email for a link")).toBeDefined();
   });
 
-  it("calls OAuth sign-in with the right provider", async () => {
+  it("starts Google sign-in, defaulting the return trip to the lobby", async () => {
     renderLogin();
 
-    fireEvent.click(screen.getByText("Continue with Discord"));
+    fireEvent.click(screen.getByText("Continue with Google"));
 
-    await waitFor(() => expect(signInWithOAuthMock).toHaveBeenCalledWith("discord"));
+    await waitFor(() => expect(signInWithGoogleMock).toHaveBeenCalledWith("/lobby"));
+  });
+
+  it("carries a private-room link through Google, so the friend lands in the room (F5)", async () => {
+    renderLogin(`/login?next=${encodeURIComponent("/play/new?mode=private&code=ABC123")}`);
+
+    fireEvent.click(screen.getByText("Continue with Google"));
+
+    await waitFor(() =>
+      expect(signInWithGoogleMock).toHaveBeenCalledWith("/play/new?mode=private&code=ABC123"),
+    );
+  });
+
+  it("does not hand Google a destination that leaves the site", async () => {
+    renderLogin(`/login?next=${encodeURIComponent("https://evil.example/x")}`);
+
+    fireEvent.click(screen.getByText("Continue with Google"));
+
+    await waitFor(() => expect(signInWithGoogleMock).toHaveBeenCalledWith("/lobby"));
+  });
+
+  it("offers no Discord button until Discord is configured end to end", () => {
+    renderLogin();
+
+    expect(screen.queryByText(/discord/i)).toBeNull();
   });
 
   it("navigates to /lobby once onAuthStateChange reports a session", async () => {

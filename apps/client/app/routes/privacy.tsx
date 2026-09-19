@@ -77,8 +77,8 @@ export default function Privacy() {
           <strong>Microsoft Azure</strong> hosts the website and the game server, in Canada Central.
         </li>
         <li>
-          <strong>Google or Discord</strong>, only if you choose to sign in with them, under their
-          own privacy policies.
+          <strong>Google</strong>, only if you choose to sign in with it, under its own privacy
+          policy.
         </li>
       </ul>
       <p>We do not sell your data or share it for advertising.</p>

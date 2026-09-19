@@ -34,17 +34,41 @@ jobs:
             --build-arg VITE_E2E=1 \
             -t castle-clash-client:e2e .
 
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # Since Phase 8 nothing works without a real Supabase: the browser signs
+      # in anonymously against it and the server verifies that login's JWT. Same
+      # local stack as integration.yml / containers.yaml's smoke job.
+      - run: pnpm exec supabase start --exclude studio,logflare,vector,imgproxy
+      - name: Export local Supabase connection info
+        run: |
+          status=$(pnpm exec supabase status -o json)
+          {
+            echo "SUPABASE_URL=$(echo "$status" | jq -r '.API_URL')"
+            echo "SUPABASE_PUBLISHABLE_KEY=$(echo "$status" | jq -r '.PUBLISHABLE_KEY')"
+            echo "SUPABASE_SECRET_KEY=$(echo "$status" | jq -r '.SECRET_KEY')"
+          } >> "$GITHUB_ENV"
+
       - name: Start containers
         run: |
           podman network create cc-net
-          podman run -d --name server --network cc-net -p 2567:2567 \
+          # Host networking: local Supabase is published on the runner's
+          # 127.0.0.1:54321, unreachable from a container on cc-net.
+          podman run -d --name server --network host \
+            -e SUPABASE_URL="$SUPABASE_URL" \
+            -e SUPABASE_SECRET_KEY="$SUPABASE_SECRET_KEY" \
             --health-cmd 'wget -q --spider http://127.0.0.1:2567/healthz' \
             --health-interval 2s --health-timeout 2s --health-retries 15 \
             castle-clash-server:local
           podman run -d --name client --network cc-net -p 8080:8080 \
             -e GAME_SERVER_URL=ws://localhost:2567 \
-            -e SUPABASE_URL=http://localhost:0 \
-            -e SUPABASE_PUBLISHABLE_KEY=local-dev-placeholder \
+            -e SUPABASE_URL="$SUPABASE_URL" \
+            -e SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY" \
             --health-cmd 'wget -q --spider http://127.0.0.1:8080/' \
             --health-interval 2s --health-timeout 2s --health-retries 15 \
             castle-clash-client:e2e
@@ -62,13 +86,6 @@ jobs:
               sleep 2
             done
           done
-
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
 
       - id: playwright-version
         run: echo "version=$(pnpm --filter @castle-clash/e2e exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
@@ -98,3 +115,5 @@ jobs:
         run: |
           podman rm -f server client
           podman network rm cc-net
+      - if: always()
+        run: pnpm exec supabase stop

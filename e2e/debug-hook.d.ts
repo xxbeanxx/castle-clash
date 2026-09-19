@@ -17,6 +17,18 @@ declare global {
         capeId: string;
         weaponStyleId: string;
       }>;
+      surface(): {
+        layout: {
+          physW: number;
+          physH: number;
+          scale: number;
+          fractional: boolean;
+          viewW: number;
+          viewH: number;
+        };
+        canvas: { width: number; height: number };
+        stage: { scale: number; x: number; y: number };
+      } | null;
     };
   }
 }

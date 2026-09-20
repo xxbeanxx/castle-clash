@@ -201,7 +201,10 @@ the render-scaling model that Phase 15's art depends on.
 
 ### Implementation steps
 
-1. **ADR 0002: render surface** (decide before any code). Problem: pixel art needs integer pixel
+1. **ADR 0002: render surface: decided, see [`docs/adr/0002-render-surface.md`](adr/0002-render-surface.md).**
+   It chose the 640×360 grid with integer scaling and overscan; the spike rejected 1280×720 1:1. It
+   also drops the camera's zoom (the whole arena always fits), so the "one discrete zoom step"
+   below is deferred. The original brief, for context: Problem: pixel art needs integer pixel
    scaling; the camera currently zooms fractionally (F9); phones are 20:9 with DPR 2–3.
    Recommendation:
    - Render the world to a fixed **virtual resolution of 640×360** (1 art pixel = 2 world units; the

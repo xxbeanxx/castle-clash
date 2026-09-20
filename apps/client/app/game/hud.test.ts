@@ -40,6 +40,10 @@ describe("matchStateToHud", () => {
         stamina: 50,
         weapon: "sword",
         action: "Block",
+        attackKind: "",
+        dropThroughTicks: 0,
+        grounded: false,
+        y: 0,
         powerups: [],
       },
     ]);

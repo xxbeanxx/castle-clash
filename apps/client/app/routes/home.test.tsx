@@ -159,11 +159,43 @@ describe("Play now", () => {
 
 describe("Practice vs a bot", () => {
   it("signs in as a guest, then starts a practice match, with nobody else online", async () => {
+    localStorage.setItem("cc:tutorial:seen", "1");
     const router = renderHome();
     fireEvent.click(screen.getByRole("button", { name: "Practice vs a bot" }));
 
     await waitFor(() => expect(router.state.location.pathname).toBe("/play/new"));
     expect(router.state.location.search).toBe("?mode=practice&bots=1&tier=normal");
     expect(signInAsGuestMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("first visit", () => {
+  it("meets the tutorial before quick play, which it remembers to go on to", async () => {
+    localStorage.clear();
+    const router = renderHome();
+    fireEvent.click(screen.getAllByRole("button", { name: "Play now" })[0] as HTMLElement);
+
+    await waitFor(() => expect(router.state.location.pathname).toBe("/play/new"));
+    expect(router.state.location.search).toBe("?mode=tutorial&next=%2Fplay%2Fnew");
+  });
+
+  it("a practice click on a first visit also goes through the tutorial, then on to practice", async () => {
+    localStorage.clear();
+    const router = renderHome();
+    fireEvent.click(screen.getByRole("button", { name: "Practice vs a bot" }));
+
+    await waitFor(() => expect(router.state.location.pathname).toBe("/play/new"));
+    expect(new URLSearchParams(router.state.location.search).get("next")).toBe(
+      "/play/new?mode=practice&bots=1&tier=normal",
+    );
+  });
+
+  it("a returning visitor goes straight to quick play", async () => {
+    localStorage.setItem("cc:tutorial:seen", "1");
+    const router = renderHome();
+    fireEvent.click(screen.getAllByRole("button", { name: "Play now" })[0] as HTMLElement);
+
+    await waitFor(() => expect(router.state.location.pathname).toBe("/play/new"));
+    expect(router.state.location.search).toBe("");
   });
 });

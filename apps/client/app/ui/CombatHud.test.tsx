@@ -14,6 +14,10 @@ function snapshot(overrides: Partial<HudPlayerSnapshot>): HudPlayerSnapshot {
     stamina: 100,
     weapon: "sword",
     action: "Idle",
+    attackKind: "",
+    dropThroughTicks: 0,
+    grounded: true,
+    y: 632,
     powerups: [],
     ...overrides,
   };

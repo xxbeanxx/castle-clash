@@ -19,6 +19,11 @@ const RANDOM_ARENA = "";
 
 /** Where a player goes when they are not about to fight: each is a first-class page. */
 const DESTINATIONS = [
+  {
+    to: "/play/new?mode=tutorial&next=%2Flobby",
+    title: "Tutorial",
+    blurb: "Learn the controls against a training dummy.",
+  },
   { to: "/loadout", title: "Loadout", blurb: "Weapon, colours, helmet and cape." },
   { to: "/stats", title: "Stats", blurb: "Your record and recent matches." },
   { to: "/leaderboard", title: "Leaderboard", blurb: "See who tops the board." },

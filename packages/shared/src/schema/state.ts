@@ -128,7 +128,7 @@ export class MatchState extends Schema {
    *  needs "is it on" for a banner, but the number lets it show the damage ramp. */
   @type("number") suddenDeathTicks = 0;
 
-  // Solo play (Phase 14). `mode` is the room's `MatchMode` ("quick", "private", "practice"), set once at `onCreate`, so the client can word its results screen without
+  // Solo play (Phase 14). `mode` is the room's `MatchMode` ("quick", "private", "practice", "tutorial"), set once at `onCreate`, so the client can word its results screen without
   // remembering how it got here. `backfillOfferable` is the server saying "you have been alone
   // long enough that a bot may be requested" (decision D4: offered, never automatic).
   @type("string") mode = "quick";

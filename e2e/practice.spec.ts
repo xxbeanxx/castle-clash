@@ -14,6 +14,8 @@ test("a lone visitor starts practice from the landing page, finishes the match, 
 }) => {
   test.setTimeout(240_000);
 
+  // A returning visitor: the tutorial (tutorial.spec.ts) is what a first visit meets.
+  await page.addInitScript(() => localStorage.setItem("cc:tutorial:seen", "1"));
   const arrived = Date.now();
   await page.goto("/");
   await page.getByRole("button", { name: "Practice vs a bot" }).click();

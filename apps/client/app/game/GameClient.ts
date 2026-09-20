@@ -38,7 +38,8 @@ import {
 } from "./render/SurfaceController.js";
 import type { SurfaceLayout } from "./render/surface.js";
 import { HazardView } from "./render/HazardView.js";
-import { PlayerRectsView } from "./render/PlayerRects.js";
+import { KnightAtlas } from "./render/KnightAtlas.js";
+import { createPlayerRenderer, type PlayerRenderer } from "./render/PlayerRenderer.js";
 import { hazardsToRects } from "./viewmodel/hazardsToRects.js";
 import { playersToRects } from "./viewmodel/playersToRects.js";
 
@@ -112,7 +113,7 @@ interface Resources {
   readonly surface: SurfaceController;
   readonly room: Room<unknown, MatchState>;
   readonly input: InputSource;
-  readonly view: PlayerRectsView;
+  readonly view: PlayerRenderer;
   readonly arenaView: ArenaView;
   readonly hazardView: HazardView;
   readonly localId: PlayerId;
@@ -396,9 +397,17 @@ export class GameClient {
     const arenaLayer = new Container();
     const hazardLayer = new Container();
     const playerLayer = new Container();
-    app.stage.addChild(arenaLayer, hazardLayer, playerLayer);
+    // Cosmetic indicators draw over the knights, not among them.
+    const cosmeticLayer = new Container();
+    app.stage.addChild(arenaLayer, hazardLayer, playerLayer, cosmeticLayer);
 
-    const view = new PlayerRectsView(playerLayer);
+    // The art loads alongside the join and is never awaited here: the room's message handlers
+    // must be registered the moment `joinRoom` resolves. A failed load falls back to rects.
+    const view = createPlayerRenderer(
+      playerLayer,
+      cosmeticLayer,
+      KnightAtlas.load().catch(() => null),
+    );
     const arenaView = new ArenaView(arenaLayer);
     const hazardView = new HazardView(hazardLayer);
     const client = new Client(roomUrl);
@@ -407,6 +416,7 @@ export class GameClient {
     }
     const room = await joinRoom(client, intent);
     if (this.#getPhase().tag === "destroyed") {
+      view.destroy();
       await room.leave();
       app.destroy(true, { children: true });
       return;
@@ -540,8 +550,15 @@ export class GameClient {
       }
 
       const alpha = this.#accumulatorMs / FIXED_DT_MS;
-      const rects = playersToRects(room.state, this.#renderOverrides(alpha));
-      view.sync(rects);
+      const localPhase = this.#getPhase();
+      const rects = playersToRects(
+        room.state,
+        this.#renderOverrides(alpha),
+        localPhase.tag === "predicting"
+          ? { id: localPhase.resources.localId, player: localPhase.reconciler.predicted }
+          : undefined,
+      );
+      view.sync(rects, ticker.deltaMS);
 
       if (this.#resolvedArena) {
         hazardView.sync(hazardsToRects(room.state, this.#resolvedArena.hazards));
@@ -568,6 +585,7 @@ export class GameClient {
     resources.surface.stop();
     await resources.room.leave();
     resources.app.destroy(true, { children: true });
+    resources.view.destroy();
   }
 
   #getPhase(): Phase {

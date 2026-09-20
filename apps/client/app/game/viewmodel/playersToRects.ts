@@ -1,4 +1,4 @@
-import { getCosmeticTint, type MatchState, type Vec } from "@castle-clash/shared";
+import { getCosmeticTint, type MatchState, type SimPlayer, type Vec } from "@castle-clash/shared";
 
 export interface PlayerRect {
   id: string;
@@ -20,6 +20,16 @@ export interface PlayerRect {
   capeTint?: number;
 }
 
+/** A `PlayerRect` plus what `knightAnimation.ts` needs to pick a clip and frame, and which way the
+ *  knight faces. Only `KnightView` reads the extra fields. */
+export interface KnightRect extends PlayerRect {
+  actionTick: number;
+  attackKind: string;
+  weapon: string;
+  facing: 1 | -1;
+  vy: number;
+}
+
 const RGB_MASK = 0xffffff;
 
 /**
@@ -32,16 +42,25 @@ const RGB_MASK = 0xffffff;
 export function playersToRects(
   state: MatchState,
   positionOverrides: Readonly<Partial<Record<string, Vec>>> = {},
-): PlayerRect[] {
-  const rects: PlayerRect[] = [];
+  /** The local player's predicted sim state. Its combat fields replace the schema's, which trail
+   *  the input by a round trip, so the local knight swings on the frame the key is pressed. */
+  predicted?: { id: string; player: SimPlayer },
+): KnightRect[] {
+  const rects: KnightRect[] = [];
   state.players.forEach((player) => {
     const pos = positionOverrides[player.id] ?? player;
+    const own = predicted?.id === player.id ? predicted.player : undefined;
     rects.push({
       id: player.id,
       x: pos.x,
       y: pos.y,
       tint: player.colorSeed & RGB_MASK,
-      action: player.action,
+      action: own?.action ?? player.action,
+      actionTick: own?.actionTick ?? player.actionTick,
+      attackKind: own ? (own.attackKind ?? "") : player.attackKind,
+      weapon: own?.weapon ?? player.weapon,
+      facing: own?.facing ?? (player.facing < 0 ? -1 : 1),
+      vy: own?.vel.y ?? player.vy,
       helmetTint: getCosmeticTint(player.cosmetics.helmetId),
       capeTint: getCosmeticTint(player.cosmetics.capeId),
     });

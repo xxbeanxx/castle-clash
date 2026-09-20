@@ -56,27 +56,33 @@ export interface AttackClipSpec {
   recovery: number;
 }
 
+/** Frame counts are the Fantasy Knight pack's (`art/knight/README.md` says which sheet each clip
+ *  comes from). `block`, `block-stun` and `guard-broken` have no art in the pack and reuse its
+ *  crouch and hit frames as stand-ins. One-shot clips are stretched over their sim length. */
 export const LOOP_CLIPS: Readonly<Record<KnightClip, LoopClipSpec>> = {
-  idle: { frames: 4, ticksPerFrame: 12, loop: true },
-  run: { frames: 6, ticksPerFrame: 5, loop: true },
-  "jump-rise": { frames: 2, ticksPerFrame: 6, loop: false },
-  "jump-fall": { frames: 2, ticksPerFrame: 6, loop: true },
-  block: { frames: 2, ticksPerFrame: 4, loop: false },
-  "block-stun": { frames: 2, ticksPerFrame: Math.ceil(BLOCK_STUN_TICKS / 2), loop: false },
-  dodge: { frames: 4, ticksPerFrame: Math.ceil(DODGE_TOTAL_TICKS / 4), loop: false },
-  "hit-stun": { frames: 3, ticksPerFrame: 4, loop: false },
-  "guard-broken": { frames: 3, ticksPerFrame: 6, loop: false },
-  dead: { frames: 5, ticksPerFrame: 6, loop: false },
+  idle: { frames: 10, ticksPerFrame: 6, loop: true },
+  run: { frames: 10, ticksPerFrame: 3, loop: true },
+  "jump-rise": { frames: 3, ticksPerFrame: 4, loop: false },
+  "jump-fall": { frames: 3, ticksPerFrame: 4, loop: true },
+  block: { frames: 1, ticksPerFrame: 1, loop: false },
+  "block-stun": { frames: 1, ticksPerFrame: BLOCK_STUN_TICKS, loop: false },
+  dodge: { frames: 12, ticksPerFrame: DODGE_TOTAL_TICKS / 12, loop: false },
+  "hit-stun": { frames: 1, ticksPerFrame: 1, loop: false },
+  "guard-broken": { frames: 1, ticksPerFrame: 1, loop: false },
+  dead: { frames: 10, ticksPerFrame: 6, loop: false },
 };
 
-/** Placeholder frame budget per phase; the real numbers come from the art (bible: "attack clips"). */
-const DEFAULT_ATTACK_SPEC: AttackClipSpec = { startup: 2, active: 2, recovery: 3 };
+/** Sword swing 1 (4 frames: wind-up, two swoosh frames, follow-through) serves light and air;
+ *  swing 2 (6 frames: two wind-up, two swoosh, two follow-through) serves heavy. The pack has one
+ *  weapon, so mace and spear reuse the sword's frames until they get art of their own. */
+const LIGHT_SPEC: AttackClipSpec = { startup: 1, active: 2, recovery: 1 };
+const HEAVY_SPEC: AttackClipSpec = { startup: 2, active: 2, recovery: 2 };
 
 export const ATTACK_CLIPS: Readonly<Record<AttackClip, AttackClipSpec>> = Object.fromEntries(
   Object.values(WEAPON_IDS).flatMap((weapon) =>
     (["light", "heavy", "air"] as const).map((kind) => [
       `${weapon}-attack-${kind}`,
-      DEFAULT_ATTACK_SPEC,
+      kind === "heavy" ? HEAVY_SPEC : LIGHT_SPEC,
     ]),
   ),
 ) as Record<AttackClip, AttackClipSpec>;

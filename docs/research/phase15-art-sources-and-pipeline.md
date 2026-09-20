@@ -16,8 +16,10 @@ replaces the plan's recommended hybrid (commissioned knights). Consequences the 
   art's frame count is free; its silhouette is not.
 - Cohesion across packs (palette, outline, light direction) is on us: see `docs/art/BIBLE.md`.
 
-The 15.0 spike uses generated placeholder art, so D1 does not decide the look yet. Choosing the
-actual pack is a look decision and needs a person (see "Human gates").
+**Update, same day:** the owner then picked aamatniekss's Fantasy Knight for the knight, which is not
+Creative Commons, so "free Creative Commons" is now true only of the candidate arena/UI packs
+(Kenney). The 15.0 slice was built with the real knight, not placeholders. World, hazard and UI art
+are still unchosen.
 
 ## Verified: candidate packs
 
@@ -77,15 +79,40 @@ config"). So the pipeline needs its own step that turns `frameTags` (or a hand-w
 packs that are plain PNG strips) into `animations`. That step is what `assets:check` should also
 read. Not built yet.
 
+## Verified after downloading Fantasy Knight (2026-09-20)
+
+Measured from `FreeKnight_v1.zip` with Pillow, not taken from the listing page:
+
+- **Frames are 120x80**, not "80x120" as the page says. Sheets are horizontal strips; the feet are on
+  the bottom row of every frame. Frame counts match the page (Idle 10, Run 10, Attack 4, Attack2 6, Roll
+  12, Death 10, Jump 3, Fall 3, Hit 1).
+- **Idle body is 21x38 px** (x 44-65, y 42-80), body centre column ~55, not the frame centre 60. Run is 28
+  wide, attacks reach to x 118 (about 60 px right of the body).
+- **Exactly 10 opaque colours** in every sheet of both colour sets, alpha always 255. So an exact palette
+  remap is possible and lossless (D6).
+- Both `Colour1` and `Colour2` and both `Outline` / `NoOutline` variants have the same structure; only
+  `Colour1/Outline` is used.
+- The zip has **no licence file**; the itch.io page is the only statement of terms.
+- `NoMovement` variants exist for Attack, Attack2 and Death (root motion removed, which suits a sim-driven
+  body); Roll and Dash have none.
+- Pixel-art look confirmed in the real client behind the production nginx image and CSP: atlas served as
+  `image/png`, no console errors, recoloured knights, swoosh and flip render, `check:landing` still passes,
+  and 24/24 e2e specs pass on the built client (one tutorial failure in an earlier parallel run passed on
+  re-run; a touch-controls failure in another run was a real bug this change introduced and fixed, see
+  `PlayerRenderer.ts`).
+
 ## Not verified
 
-- **No pack has been downloaded or looked at.** Licences are read from listing pages; the zips'
-  own licence files were not read. Do that before committing any file, and log it in
-  `art/LICENSES.md` (does not exist yet; the bible requires it).
-- Whether the itch.io "CC0" claim holds for every file in LuizMelo's zip.
-- What either pack looks like next to Kenney tiles at one shared palette.
-- D6 (tint technique) on any real sprite. Multiply tint on a coloured sprite is expected to look
-  muddy; a greyscale-plus-palette-swap route is untried.
+- Only Fantasy Knight has been downloaded. LuizMelo's, rgsdev's and Kenney's licences are read from
+  listing pages only, and nothing from them is used.
+- What the knight looks like next to any world art: no arena, hazard, FX or UI art exists yet, so the
+  knight stands on the old placeholder rectangles.
+- Whether the knight-to-hitbox size (21x38 px art vs 14x24 px hitbox) plays fairly. Not judged by a
+  person.
+- How the local knight feels: its animation follows the client's predicted state, but attack windup
+  frames vs hit timing have not been played against a real opponent.
+- Roll (dodge) carries its own root motion on top of the sim's dodge movement.
+- The look on a phone (about 24 CSS px tall at 3x per ADR 0002) and on a 4K monitor.
 - Whether the second chained light attack is distinguishable in synced state. `attackKind` is
   `light` for both; `comboCount` counts hits landed, not chain steps. If the art wants a different
   second swing, it needs a synced chain index (schema change) or one clip for both.
@@ -94,9 +121,10 @@ read. Not built yet.
 
 ## Human gates
 
-1. Pick the actual knight, tile and UI packs (or one pack for all) after seeing them in engine.
-2. Decide CC-BY / CC-BY-SA acceptability, and that a credits page is acceptable.
-3. Approve the knight-to-hitbox size relationship.
+1. Pick the world (tile, hazard, background) and UI art, and any FX, after seeing them in engine.
+2. Ask the knight's author for written OK on the public-repo and AI-clause terms, or keep the
+   recorded acceptance; decide CC-BY / CC-BY-SA acceptability for the rest; add a credits page.
+3. Approve the knight-to-hitbox size relationship by playing it (21x38 px art on a 14x24 px hitbox).
 4. Sign off the look on a phone and a 4K monitor (plan's Phase 15 gate).
 
 ## Related finding (not fixed here)

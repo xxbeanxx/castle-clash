@@ -14,7 +14,8 @@ leaderboard), and a production deploy (live since 2026-09-19, currently `v1.1.0`
 next is `docs/IMPLEMENTATION_PLAN_V2.md`, Phases 11–17** (landing page and UI kit, Google login,
 mobile controls, bots, pixel art, audio, hardening); its section 0 lists verified findings about
 today's tree, and its Appendix A lists decisions still open. Everything a _player_ sees is still
-placeholder: knights are tinted rects and there is no art or audio. (Touch input landed in Phase 13
+placeholder except the knight sprite (Phase 15 in progress): arenas, hazards, FX and UI are still
+rects, and there is no audio. (Touch input landed in Phase 13
 and bots, practice, backfill and a tutorial in Phase 14, so a lone visitor can play; neither phase's
 real-device or feel gate has been passed by a person.) `docs/adr/` records specific decisions;
 `docs/research/` records version/API facts verified against live docs and every scope deviation
@@ -405,6 +406,27 @@ the facts (including what was found broken and what is unverified). In short:
 - Gotchas: a connection is limited to 120 messages/s, so a test must not send an input per stepped
   tick; `/play/new?...` to another `/play/new?...` needs the play route's `location.key` to remount;
   a tapped jump is a short hop (the tutorial says to hold it).
+
+### Pixel art (Phase 15, in progress)
+
+`docs/art/BIBLE.md` has the rules and `docs/research/phase15-art-sources-and-pipeline.md` the facts
+and open questions. In short:
+
+- **The knight is a third-party pack** (aamatniekss's Fantasy Knight, a custom licence, not CC).
+  `art/LICENSES.md` logs every third-party file and the risks the owner accepted; add a row in the
+  same commit as any new asset. The raw sheets are deliberately not committed:
+  `art/knight/build_atlas.py` rebuilds `apps/client/public/assets/knight/` from the zip
+  (`art/knight/README.md`).
+- **The animation contract is `viewmodel/knightAnimation.ts`** (`LOOP_CLIPS`, `ATTACK_CLIPS`); the atlas's
+  `animations` must match it (`render/knightAtlas.test.ts` fails otherwise). Attack phases map tick-for-tick
+  onto `combat/weapons.ts` frame data, and a test fails if either drifts.
+- **Player colour is an exact palette remap** (`render/paletteSwap.ts`), not a multiply tint: the pack is
+  ten unantialiased colours. Sprites are drawn at 2 world units per art pixel and snapped to even units.
+- **`GameClient` must never await the atlas.** The room's message handlers have to be registered the
+  moment `joinRoom` resolves (the server sends the match code on join); `PlayerRenderer` takes the atlas as
+  a promise and draws nothing until it lands, or falls back to rects if it fails. Awaiting it broke private
+  rooms once, and only the e2e suite noticed.
+- Pixi 8.20.1 does not read Aseprite `frameTags`, and the plan's claim that it does is wrong.
 
 ### Workspace layout and package boundaries
 

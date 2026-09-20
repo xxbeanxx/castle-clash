@@ -15,6 +15,14 @@ const HELMET_OFFSET_Y = -COSMETIC_INDICATOR_SIZE / 2 - 2;
 const CAPE_OFFSET_X = -COSMETIC_INDICATOR_SIZE / 2 - 2;
 const CAPE_OFFSET_Y = PLAYER_SIZE / 2;
 
+/** With the knight art drawn (`KnightView`), the indicators sit on the 42x76-unit sprite instead of
+ *  the 32x32 rect: the helmet marker floats above the head, the cape marker at the back. Offsets
+ *  are from the hitbox's top-left (28x48 units), like the rect-mode ones above. */
+const ART_HELMET_OFFSET_X = 14;
+const ART_HELMET_OFFSET_Y = -34;
+const ART_CAPE_OFFSET_X = -12;
+const ART_CAPE_OFFSET_Y = 10;
+
 /** Placeholder combat feedback until real knight sprites/animations exist
  *  (Phase 4 has no art assets in this repo yet — see
  *  docs/research/phase4-knight-rendering-deviation.md): overrides the
@@ -50,9 +58,13 @@ export class PlayerRectsView {
   readonly #container: Container;
   readonly #spritesById = new Map<string, Sprite>();
   readonly #cosmeticSpritesById = new Map<string, Partial<Record<CosmeticSlotKey, Sprite>>>();
+  readonly #drawBody: boolean;
+  #known = new Set<string>();
 
-  constructor(container: Container) {
+  /** `body: false` draws only the cosmetic indicators (the body is `KnightView`'s art). */
+  constructor(container: Container, options: { body?: boolean } = {}) {
     this.#container = container;
+    this.#drawBody = options.body ?? true;
   }
 
   sync(rects: readonly PlayerRect[]): void {
@@ -60,34 +72,38 @@ export class PlayerRectsView {
 
     for (const rect of rects) {
       seen.add(rect.id);
-      const sprite = this.#spriteFor(rect.id);
-      const { tint, alpha } = actionOverride(rect.action, rect.tint);
-      sprite.tint = tint;
-      sprite.alpha = alpha;
-      sprite.position.set(rect.x, rect.y);
+      if (this.#drawBody) {
+        const sprite = this.#spriteFor(rect.id);
+        const { tint, alpha } = actionOverride(rect.action, rect.tint);
+        sprite.tint = tint;
+        sprite.alpha = alpha;
+        sprite.position.set(rect.x, rect.y);
+      }
+      const art = !this.#drawBody;
       this.#syncCosmetic(
         rect.id,
         "helmet",
         rect.helmetTint,
-        rect.x + HELMET_OFFSET_X,
-        rect.y + HELMET_OFFSET_Y,
+        rect.x + (art ? ART_HELMET_OFFSET_X : HELMET_OFFSET_X),
+        rect.y + (art ? ART_HELMET_OFFSET_Y : HELMET_OFFSET_Y),
       );
       this.#syncCosmetic(
         rect.id,
         "cape",
         rect.capeTint,
-        rect.x + CAPE_OFFSET_X,
-        rect.y + CAPE_OFFSET_Y,
+        rect.x + (art ? ART_CAPE_OFFSET_X : CAPE_OFFSET_X),
+        rect.y + (art ? ART_CAPE_OFFSET_Y : CAPE_OFFSET_Y),
       );
     }
 
-    for (const [id, sprite] of this.#spritesById) {
+    for (const id of this.#known) {
       if (!seen.has(id)) {
-        sprite.destroy();
+        this.#spritesById.get(id)?.destroy();
         this.#spritesById.delete(id);
         this.#destroyCosmetics(id);
       }
     }
+    this.#known = seen;
   }
 
   #spriteFor(id: string): Sprite {

@@ -118,6 +118,22 @@ describe("GameClient", () => {
     expect(joinOrCreate).not.toHaveBeenCalled();
   });
 
+  // GameCanvas calls start() only after an async getAccessToken(), so under React StrictMode (and
+  // when a user navigates away quickly) the effect's cleanup runs destroy() BEFORE start(). A
+  // start() that then ran anyway joined the room as the same user a second time ("already
+  // connected to this match" / "seat reservation expired") and left the first seat dangling.
+  it("does nothing when start() is called after destroy()", async () => {
+    const container = document.createElement("div");
+    const client = new GameClient();
+
+    await client.destroy();
+    await client.start(container, "ws://example.test");
+
+    expect(mockApp.init).not.toHaveBeenCalled();
+    expect(joinOrCreate).not.toHaveBeenCalled();
+    expect(container.children.length).toBe(0);
+  });
+
   it("tears down cleanly when destroy() runs before joinOrCreate() resolves", async () => {
     const container = document.createElement("div");
     const client = new GameClient();

@@ -78,6 +78,16 @@ vi.mock("pixi.js", () => ({
   Texture: { WHITE: {} },
 }));
 
+// The real surface needs ResizeObserver/matchMedia and a laid-out container, none of which jsdom
+// has; it is covered by surface.test.ts (pure) and the Playwright e2e specs (real browser).
+vi.mock("./render/SurfaceController.js", () => ({
+  PIXEL_ART_INIT: {},
+  nearestTextureScaling: vi.fn(),
+  SurfaceController: vi.fn().mockImplementation(function SurfaceController() {
+    return { start: vi.fn(), stop: vi.fn(), layout: null };
+  }),
+}));
+
 vi.mock("@colyseus/sdk", () => ({
   Client: vi.fn().mockImplementation(function Client() {
     return { joinOrCreate };

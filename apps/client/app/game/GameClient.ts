@@ -30,11 +30,17 @@ import { matchStateToPhaseBanner, type MatchFlowSnapshot } from "./matchFlow.js"
 import { Interpolator } from "./net/Interpolator.js";
 import { Reconciler } from "./net/Reconciler.js";
 import { ArenaView } from "./render/ArenaView.js";
-import { CameraController, DEFAULT_CAMERA_CONFIG } from "./render/Camera.js";
+import { Camera } from "./render/Camera.js";
+import {
+  PIXEL_ART_INIT,
+  SurfaceController,
+  nearestTextureScaling,
+} from "./render/SurfaceController.js";
+import type { SurfaceLayout } from "./render/surface.js";
 import { HazardView } from "./render/HazardView.js";
 import { PlayerRectsView } from "./render/PlayerRects.js";
 import { hazardsToRects } from "./viewmodel/hazardsToRects.js";
-import { playersToRects, type PlayerRect } from "./viewmodel/playersToRects.js";
+import { playersToRects } from "./viewmodel/playersToRects.js";
 
 const FIXED_DT_MS = 1000 / TICK_RATE;
 
@@ -99,6 +105,7 @@ export type ConnectionState = "connected" | "reconnecting" | "lost";
 
 interface Resources {
   readonly app: Application;
+  readonly surface: SurfaceController;
   readonly room: Room<unknown, MatchState>;
   readonly input: InputSource;
   readonly view: PlayerRectsView;
@@ -143,7 +150,7 @@ export class GameClient {
    *  independently of (and usually before) the local player's own schema
    *  entry, so this doesn't reuse `#ensureReconciler`'s seeding path. */
   #resolvedArena: ArenaDefinition | null = null;
-  #camera: CameraController | null = null;
+  #camera: Camera | null = null;
 
   readonly #frameStats = new FrameStats();
 
@@ -245,6 +252,29 @@ export class GameClient {
     return phase.tag === "predicting" ? phase.reconciler.visualPosition : null;
   }
 
+  /** The render surface's current layout plus the stage transform actually applied, for the
+   *  `VITE_E2E` hook (asserting integer scale on a device viewport without reading pixels).
+   *  `null` until the room is connected. */
+  get surfaceState(): {
+    layout: SurfaceLayout;
+    canvas: { width: number; height: number };
+    stage: { scale: number; x: number; y: number };
+  } | null {
+    const phase = this.#getPhase();
+    if (phase.tag !== "connected" && phase.tag !== "predicting") {
+      return null;
+    }
+    const { app, surface } = phase.resources;
+    if (!surface.layout) {
+      return null;
+    }
+    return {
+      layout: surface.layout,
+      canvas: { width: app.canvas.width, height: app.canvas.height },
+      stage: { scale: app.stage.scale.x, x: app.stage.position.x, y: app.stage.position.y },
+    };
+  }
+
   /** Every connected player's server-synced cosmetics — exists for
    *  `game/debug.ts`'s `VITE_E2E` hook (plan Phase 9's e2e gate: "the
    *  opponent context reads the player's tint via the debug hook"), so a
@@ -299,7 +329,8 @@ export class GameClient {
     this.#phase = { tag: "starting" };
 
     const app = new Application();
-    await app.init({ resizeTo: container, backgroundColor: 0x1a1a1a });
+    nearestTextureScaling();
+    await app.init(PIXEL_ART_INIT);
     // React StrictMode double-invokes the mount effect in dev: destroy() can
     // run while this await was pending. Nothing was in `resources` yet for
     // destroy() to tear down, so this continuation tears down what it just
@@ -312,6 +343,9 @@ export class GameClient {
       return;
     }
     container.appendChild(app.canvas);
+    // Sized to the container in physical pixels, at an integer scale (ADR 0002).
+    const surface = new SurfaceController(app, container);
+    surface.start();
 
     // Layered so hazards always draw over static geometry and players
     // always draw over hazards, regardless of sync/creation order within a
@@ -370,6 +404,7 @@ export class GameClient {
 
     const resources: Resources = {
       app,
+      surface,
       room,
       input,
       view,
@@ -457,7 +492,7 @@ export class GameClient {
       if (this.#resolvedArena) {
         hazardView.sync(hazardsToRects(room.state, this.#resolvedArena.hazards));
       }
-      this.#updateCamera(app, rects, ticker.deltaMS / 1000);
+      this.#updateCamera(app, ticker.deltaMS / 1000);
     });
   }
 
@@ -476,6 +511,7 @@ export class GameClient {
 
   async #teardown(resources: Resources): Promise<void> {
     resources.input.detach();
+    resources.surface.stop();
     await resources.room.leave();
     resources.app.destroy(true, { children: true });
   }
@@ -524,14 +560,7 @@ export class GameClient {
     }
     const arena = getArena(state.arenaId);
     this.#resolvedArena = arena;
-    // Framed against the canvas's actual current size, not a hardcoded
-    // 1280x720 — `resizeTo: container` (see `start()`) means that can
-    // genuinely differ from `DEFAULT_CAMERA_CONFIG`'s fallback.
-    this.#camera = new CameraController(arena.bounds, {
-      ...DEFAULT_CAMERA_CONFIG,
-      viewportWidth: phase.resources.app.screen.width,
-      viewportHeight: phase.resources.app.screen.height,
-    });
+    this.#camera = new Camera(arena.bounds);
     phase.resources.arenaView.setArena(arena);
   }
 
@@ -564,27 +593,23 @@ export class GameClient {
     }
   }
 
-  /** Lerps the camera toward every living player's current render position
-   *  and applies it as `app.stage`'s pan/zoom — every layer (arena,
-   *  hazards, players) is a child of `stage`, so one transform moves them
-   *  together. A no-op until `#ensureArena` seeds `#camera`. */
-  #updateCamera(app: Application, rects: readonly PlayerRect[], dtSeconds: number): void {
+  /** Places the stage for this frame: the arena centered on the integer-scale surface, plus any
+   *  shake (`Camera`, ADR 0002). Every layer is a child of `stage`, so one transform moves them
+   *  together. A no-op until `#ensureArena` seeds `#camera` and the surface has a size. */
+  #updateCamera(app: Application, dtSeconds: number): void {
     const camera = this.#camera;
     const phase = this.#getPhase();
     if (!camera || (phase.tag !== "connected" && phase.tag !== "predicting")) {
       return;
     }
-    const living = rects.filter(
-      (rect) => phase.resources.room.state.players.get(rect.id)?.alive !== false,
-    );
-    camera.update(living, dtSeconds);
-
-    const frame = camera.frame;
-    app.stage.scale.set(frame.zoom);
-    app.stage.position.set(
-      app.screen.width / 2 - frame.x * frame.zoom,
-      app.screen.height / 2 - frame.y * frame.zoom,
-    );
+    const layout = phase.resources.surface.layout;
+    if (!layout) {
+      return;
+    }
+    camera.update(dtSeconds);
+    const transform = camera.transform(layout);
+    app.stage.scale.set(transform.scale);
+    app.stage.position.set(transform.x, transform.y);
   }
 
   #setConnection(state: ConnectionState): void {

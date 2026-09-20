@@ -1,4 +1,7 @@
 import {
+  BACKFILL_OFFER_TICKS,
+  BOT_NAMES,
+  BotBrain,
   COSMETIC_SLOTS,
   createHazardState,
   createSimPlayer,
@@ -7,10 +10,15 @@ import {
   hashSeed,
   HazardState,
   isArenaId,
+  isBotBackfill,
+  isBotTier,
   isDraftPick,
   isInputFrame,
+  isMatchMode,
   MatchState,
   MAX_PLAYERS,
+  MAX_PRACTICE_BOTS,
+  mulberry32,
   MESSAGE_TYPES,
   PATCH_RATE,
   playerId,
@@ -20,8 +28,11 @@ import {
   resolveCosmeticSelection,
   step as simulationStep,
   TICK_RATE,
+  WEAPON_IDS,
   type ArenaId,
+  type BotTier,
   type InputFrame,
+  type MatchMode,
   type PlayerId,
   type SimState,
   type WeaponId,
@@ -105,7 +116,17 @@ const RECONNECTION_WINDOW_SECONDS = 20;
 
 type MatchDirectorEvents = ReturnType<MatchDirector["tick"]>["events"];
 
-export type MatchMode = "quick" | "private";
+export type { MatchMode };
+
+/** Tints bots wear, in seat order: distinct from each other and from the default loadout. */
+const BOT_TINTS: readonly [number, number][] = [
+  [0xb03a2e, 0x7a2018],
+  [0x2e6db0, 0x1a4275],
+  [0x2eb06a, 0x1a7545],
+  [0xb0902e, 0x75601a],
+  [0x8a2eb0, 0x5a1a75],
+  [0x2eb0a8, 0x1a756f],
+];
 
 export interface MatchRoomOptions {
   tickDriver?: TickDriver;
@@ -133,6 +154,10 @@ export interface MatchRoomOptions {
    *  scope for this phase (see `docs/research/phase6-arena-scope-
    *  deviations.md`). */
   arenaId?: string;
+  /** Practice only (client-supplied, so validated): how many bots, 1 to `MAX_PRACTICE_BOTS`. */
+  botCount?: number;
+  /** Practice only (client-supplied, so validated): the bots' difficulty. Defaults to `normal`. */
+  botTier?: string;
 }
 
 export interface MatchRoomMetadata {
@@ -184,7 +209,23 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
    *  message from that session is accepted again. Feeds the
    *  `ABUSE_KICK_THRESHOLD` disconnect in `#onInput`/`#onDraftPick`. */
   readonly #violationStreaks = new Map<string, number>();
-  readonly #director = new MatchDirector();
+  /** Replaced (not reset) on a rematch: a `MatchDirector` has no "start over". */
+  #director = new MatchDirector();
+  #mode: MatchMode = "quick";
+  /** Practice: what to seat when the human arrives. */
+  #practiceBots: { count: number; tier: BotTier } | null = null;
+  /** Every bot's mind, keyed by its seat id. A bot has a seat and a `PlayerState` but no `Client`. */
+  readonly #brains = new Map<PlayerId, BotBrain>();
+  /** Every bot that has had a seat in the current match, including ones since removed: a match any
+   *  bot took part in is never recorded (ADR 0003). */
+  readonly #botIds = new Set<PlayerId>();
+  #botSerial = 0;
+  /** The bot a lone quick-play human asked for, while it can still be sent away by a joining human. */
+  #backfillBotId: PlayerId | null = null;
+  /** Consecutive ticks a single human has waited alone in a public quick-play room. */
+  #aloneTicks = 0;
+  /** Bumped on each rematch, so a new match reseeds its bots and draft. */
+  #matchNumber = 0;
   /** Session ids that joined mid-`RoundActive` and are watching, not
    *  playing, until the next round starts (plan step 3: "late joiners wait
    *  or spectate"). Never in `#sim.players`. */
@@ -249,8 +290,14 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
     // Found by Phase 10's load test: nothing ever set this, so Colyseus's
     // default (unlimited) let quick play stuff every waiting client into ONE
     // room — 24 bots produced a single 24-player match, not four 6-player ones.
-    this.maxClients = MAX_PLAYERS;
+    const requestedMode: unknown = options.mode;
+    const mode: MatchMode = isMatchMode(requestedMode) ? requestedMode : "quick";
+    this.#mode = mode;
+    // A practice room seats one human and any number of bots, and Colyseus's `maxClients` counts
+    // clients only (a bot has none), so one is the whole capacity.
+    this.maxClients = mode === "practice" ? 1 : MAX_PLAYERS;
     this.setState(new MatchState());
+    this.state.mode = mode;
     this.setPatchRate(1000 / PATCH_RATE);
     this.#playerRepository = options.playerRepository ?? createDefaultPlayerRepository();
     this.#recordMatchDelay =
@@ -292,7 +339,15 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
     // only exists in one place.
     projectToSchema(this.#sim, this.state, {});
 
-    const mode: MatchMode = options.mode ?? "quick";
+    if (mode === "practice") {
+      const requested = Math.floor(Number(options.botCount));
+      this.#practiceBots = {
+        count: Number.isFinite(requested) ? Math.min(MAX_PRACTICE_BOTS, Math.max(1, requested)) : 1,
+        tier: isBotTier(options.botTier) ? options.botTier : "normal",
+      };
+      // Nobody but the player who made it should ever be routed here, or shown it.
+      await this.setPrivate(true);
+    }
     await this.setMetadata(mode === "private" ? { mode, code: generateRoomCode() } : { mode });
 
     this.onMessage(MESSAGE_TYPES.INPUT, (client, payload: unknown) => {
@@ -300,6 +355,12 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
     });
     this.onMessage(MESSAGE_TYPES.DRAFT_PICK, (client, payload: unknown) => {
       this.#onDraftPick(client, payload);
+    });
+    this.onMessage(MESSAGE_TYPES.BOT_BACKFILL, (client, payload: unknown) => {
+      this.#onBotBackfill(client, payload);
+    });
+    this.onMessage(MESSAGE_TYPES.REMATCH, (client) => {
+      this.#onRematch(client);
     });
 
     this.#tickDriver = options.tickDriver ?? new IntervalTickDriver(this, TICK_RATE);
@@ -401,6 +462,18 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
     if (this.metadata.mode === "private" && this.metadata.code) {
       client.send(MESSAGE_TYPES.MATCH_CODE, this.metadata.code);
     }
+
+    if (this.#practiceBots && this.#brains.size === 0 && !spectating) {
+      for (let i = 0; i < this.#practiceBots.count; i++) {
+        this.#addBot(this.#practiceBots.tier);
+      }
+    }
+    // A human arrived while the lone player's bot was still only a countdown away from a fight:
+    // the bot steps aside for them (the body is already in `#sim`, so the head count never dips).
+    const phase = this.#director.phase.phase;
+    if (this.#backfillBotId && (phase === "Waiting" || phase === "Countdown")) {
+      this.#dropBackfillBot();
+    }
   }
 
   /** An unconsented drop (plan step 3): keep the seat open for
@@ -440,6 +513,10 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
     const auth = client.auth as VerifiedUser | undefined;
     if (auth) {
       this.#sessionIdByUserId.delete(auth.userId);
+    }
+    // The last holdout leaving can be what makes a rematch unanimous.
+    if (this.#director.phase.phase === "MatchOver" && this.#everyHumanWantsRematch()) {
+      this.#startRematch();
     }
   }
 
@@ -533,6 +610,12 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
     const lastProcessedSeq: Record<string, number> = {};
     const connectedIds = Object.keys(this.#sim.players) as PlayerId[];
 
+    // A bot's frame goes through the same queue a human's does (ADR 0003), decided from the state
+    // at the end of the previous tick, exactly what a client could have seen.
+    for (const [botId, brain] of this.#brains) {
+      this.#inputQueue.push(botId, brain.decide(this.#sim));
+    }
+
     for (const sessionId of connectedIds) {
       const frame = this.#inputQueue.consume(sessionId);
       inputs[sessionId] = frame;
@@ -560,6 +643,7 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
 
     projectToSchema(this.#sim, this.state, lastProcessedSeq);
     this.#syncMatchFlow();
+    this.#updateBackfillOffer();
 
     for (const event of directorResult.events) {
       if (event.type === "roundEnd") {
@@ -567,6 +651,12 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
       }
       if (event.type === "draftStart") {
         this.#startDraft(event.round);
+      }
+      if (event.type === "roundStart" && this.#backfillBotId) {
+        // The fight is on: quick play must stop routing strangers into a match with a bot in it.
+        this.lock().catch((error: unknown) => {
+          this.#logger.warn({ err: error }, "locking a backfill room failed");
+        });
       }
     }
 
@@ -581,52 +671,67 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
         ...directorResult.result,
         names: Object.fromEntries(this.#nameByPlayerId),
       });
-      const record = this.#buildMatchResultRecord(directorResult.result);
-      // Fire-and-forget on purpose (plan step 5): `enqueueRecordMatch`
-      // retries with backoff internally and never throws, so this never
-      // delays or crashes the room's own tick/dispose regardless of
-      // whether the repository write succeeds. Chained, not awaited: unlock
-      // evaluation (plan Phase 9 step 3) only makes sense once `recordMatch`
-      // actually landed (it reads the stats that write just updated) — a
-      // permanently-failed record is still fire-and-forget, just with
-      // nothing further to chain.
-      const postMatchWrites = enqueueRecordMatch(
-        this.#playerRepository,
-        record,
-        this.#recordMatchDelay,
-      )
-        .then((succeeded) => {
-          if (!succeeded) {
-            return;
-          }
-          return evaluateAndGrantUnlocks(
-            this.#playerRepository,
-            record.participants.map((participant) => participant.playerId),
-            (userId, newlyUnlocked) => {
-              const sessionId = this.#sessionIdByUserId.get(userId);
-              const client = sessionId ? this.clients.getById(sessionId) : undefined;
-              client?.send(MESSAGE_TYPES.PROFILE_UNLOCKS, newlyUnlocked);
-            },
-          );
-        })
-        .catch((error: unknown) => {
-          this.#logger.error({ err: error }, "unlock evaluation failed");
-        })
-        .finally(() => {
-          // Draining (`onBeforeShutdown`): this match was allowed to run to
-          // completion, and its result is now recorded — release the room so
-          // the process can exit. Deliberately AFTER `recordMatch`, never
-          // before: plan Phase 10's shutdown gate says an in-progress match
-          // "completes and calls `recordMatch` before exit."
-          if (this.#disconnectWhenMatchOver) {
-            this.#releaseForShutdown();
-          }
-        });
-      // `drain()` awaits this before `exit` — including for a room that was
-      // ALREADY `MatchOver` when SIGTERM arrived (released at once by
-      // `onBeforeShutdown`) whose write may still be retrying with backoff.
-      trackPendingWrite(postMatchWrites);
+      if (this.#recordsThisMatch()) {
+        this.#recordMatchAndUnlocks(directorResult.result);
+      } else if (this.#disconnectWhenMatchOver) {
+        // Nothing to record, so nothing to wait for: release the room for shutdown at once.
+        this.#releaseForShutdown();
+      }
     }
+  }
+
+  /** Only a match between humans is recorded: a bot has no user id to own a participant row, and a
+   *  human-versus-bot result is not a ranked one (ADR 0003). */
+  #recordsThisMatch(): boolean {
+    return this.#botIds.size === 0 && (this.#mode === "quick" || this.#mode === "private");
+  }
+
+  #recordMatchAndUnlocks(result: MatchResult): void {
+    const record = this.#buildMatchResultRecord(result);
+    // Fire-and-forget on purpose (plan step 5): `enqueueRecordMatch`
+    // retries with backoff internally and never throws, so this never
+    // delays or crashes the room's own tick/dispose regardless of
+    // whether the repository write succeeds. Chained, not awaited: unlock
+    // evaluation (plan Phase 9 step 3) only makes sense once `recordMatch`
+    // actually landed (it reads the stats that write just updated) — a
+    // permanently-failed record is still fire-and-forget, just with
+    // nothing further to chain.
+    const postMatchWrites = enqueueRecordMatch(
+      this.#playerRepository,
+      record,
+      this.#recordMatchDelay,
+    )
+      .then((succeeded) => {
+        if (!succeeded) {
+          return;
+        }
+        return evaluateAndGrantUnlocks(
+          this.#playerRepository,
+          record.participants.map((participant) => participant.playerId),
+          (userId, newlyUnlocked) => {
+            const sessionId = this.#sessionIdByUserId.get(userId);
+            const client = sessionId ? this.clients.getById(sessionId) : undefined;
+            client?.send(MESSAGE_TYPES.PROFILE_UNLOCKS, newlyUnlocked);
+          },
+        );
+      })
+      .catch((error: unknown) => {
+        this.#logger.error({ err: error }, "unlock evaluation failed");
+      })
+      .finally(() => {
+        // Draining (`onBeforeShutdown`): this match was allowed to run to
+        // completion, and its result is now recorded — release the room so
+        // the process can exit. Deliberately AFTER `recordMatch`, never
+        // before: plan Phase 10's shutdown gate says an in-progress match
+        // "completes and calls `recordMatch` before exit."
+        if (this.#disconnectWhenMatchOver) {
+          this.#releaseForShutdown();
+        }
+      });
+    // `drain()` awaits this before `exit` — including for a room that was
+    // ALREADY `MatchOver` when SIGTERM arrived (released at once by
+    // `onBeforeShutdown`) whose write may still be retrying with backoff.
+    trackPendingWrite(postMatchWrites);
   }
 
   #releaseForShutdown(): void {
@@ -670,6 +775,15 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
       ownedStacks: this.#sim.players[id]?.powerups ?? {},
     }));
     const offers = this.#draftService.startRound(round, this.#sim.tick, players);
+    // A bot picks the tick its offer exists (seeded, so a replay picks the same), not at the 15 s
+    // timeout: otherwise every draft with a bot in it would last the full fallback.
+    for (const botId of this.#brains.keys()) {
+      const offered = offers.get(botId)?.offers;
+      if (offered) {
+        const rng = mulberry32(hashSeed(this.#sim.rngSeed, round, botId, "botpick"));
+        this.#draftService.pick(botId, offered[Math.floor(rng() * offered.length)]!);
+      }
+    }
     for (const [id, offer] of offers) {
       this.clients.getById(id)?.send(MESSAGE_TYPES.DRAFT_OFFER, {
         offers: offer.offers,
@@ -725,6 +839,171 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
     }
     this.#spectatorIds.clear();
     return { ...sim, players };
+  }
+
+  /** Seats a bot: a `PlayerState` and a `SimPlayer`, but no `Client`, session or user id. Only ever
+   *  called outside `RoundActive` (a practice room's first join, a backfill request in `Waiting`). */
+  #addBot(tier: BotTier): PlayerId {
+    const serial = this.#botSerial++;
+    const id = playerId(`bot-${serial}`);
+    const name = BOT_NAMES[serial % BOT_NAMES.length]!;
+    const weapons = Object.values(WEAPON_IDS);
+    const weapon =
+      weapons[
+        Math.floor(mulberry32(hashSeed(this.#sim.rngSeed, id, "weapon"))() * weapons.length)
+      ]!;
+    const spawn = this.#sim.arena.spawns[this.state.players.size % this.#sim.arena.spawns.length]!;
+    const [tintPrimary, tintSecondary] = BOT_TINTS[serial % BOT_TINTS.length]!;
+
+    const player = new PlayerState();
+    player.id = id;
+    player.x = spawn.x;
+    player.y = spawn.y;
+    player.colorSeed = hashSeed(id);
+    player.name = name;
+    player.isBot = true;
+    player.cosmetics.helmetId = resolveCosmeticSelection(COSMETIC_SLOTS.HELMET, null, []);
+    player.cosmetics.capeId = resolveCosmeticSelection(COSMETIC_SLOTS.CAPE, null, []);
+    player.cosmetics.weaponStyleId = resolveCosmeticSelection(
+      COSMETIC_SLOTS.WEAPON_STYLE,
+      null,
+      [],
+    );
+    player.cosmetics.tintPrimary = tintPrimary;
+    player.cosmetics.tintSecondary = tintSecondary;
+    this.state.players.set(id, player);
+
+    this.#sim = {
+      ...this.#sim,
+      players: { ...this.#sim.players, [id]: createSimPlayer(spawn, weapon) },
+    };
+    this.#director.addPlayer(id);
+    this.#brains.set(
+      id,
+      new BotBrain(id, tier, hashSeed(this.#sim.rngSeed, id, this.#matchNumber)),
+    );
+    this.#botIds.add(id);
+    this.#nameByPlayerId.set(id, name);
+    this.#weaponByPlayerId.set(id, weapon);
+    return id;
+  }
+
+  /** Takes a bot back out before it has played a round, as if it had never been seated. */
+  #removeBot(id: PlayerId): void {
+    this.state.players.delete(id);
+    const remaining = { ...this.#sim.players };
+    delete remaining[id];
+    this.#sim = { ...this.#sim, players: remaining };
+    this.#inputQueue.removePlayer(id);
+    this.#director.discardPlayer(id);
+    this.#draftService.removePlayer(id);
+    this.#brains.delete(id);
+    this.#botIds.delete(id);
+    this.#nameByPlayerId.delete(id);
+    this.#weaponByPlayerId.delete(id);
+  }
+
+  #dropBackfillBot(): void {
+    const id = this.#backfillBotId;
+    if (!id) {
+      return;
+    }
+    const name = this.#nameByPlayerId.get(id) ?? "Your bot";
+    this.#backfillBotId = null;
+    this.#removeBot(id);
+    this.broadcast(MESSAGE_TYPES.BOT_DROPPED, { name });
+  }
+
+  /** The offer (decision D4): a lone human in a public room, waiting a while, may ask for a bot.
+   *  Nothing here ever adds one by itself. */
+  #updateBackfillOffer(): void {
+    const alone =
+      this.#mode === "quick" &&
+      this.#brains.size === 0 &&
+      this.#director.phase.phase === "Waiting" &&
+      this.clients.length === 1;
+    this.#aloneTicks = alone ? this.#aloneTicks + 1 : 0;
+    this.state.backfillOfferable = alone && this.#aloneTicks >= BACKFILL_OFFER_TICKS;
+  }
+
+  #onBotBackfill(client: Client, payload: unknown): void {
+    if (!this.#acceptWithinRateLimit(client, this.#draftRateLimiter, "bot backfill")) {
+      return;
+    }
+    // Re-checked here, not trusted from the client: only while the offer stands.
+    if (!isBotBackfill(payload) || !this.state.backfillOfferable) {
+      return;
+    }
+    this.#backfillBotId = this.#addBot(payload.tier);
+    this.#aloneTicks = 0;
+    this.state.backfillOfferable = false;
+  }
+
+  #everyHumanWantsRematch(): boolean {
+    let humans = 0;
+    let waiting = 0;
+    this.state.players.forEach((player) => {
+      if (player.isBot || player.spectator) {
+        return;
+      }
+      humans += 1;
+      if (player.wantsRematch) {
+        waiting += 1;
+      }
+    });
+    return humans > 0 && humans === waiting;
+  }
+
+  #onRematch(client: Client): void {
+    if (this.#director.phase.phase !== "MatchOver") {
+      return;
+    }
+    const player = this.state.players.get(client.sessionId);
+    if (!player || player.isBot) {
+      return;
+    }
+    player.wantsRematch = true;
+    if (this.#everyHumanWantsRematch()) {
+      this.#startRematch();
+    }
+  }
+
+  /** Same room, same players, a fresh match: full health, no power-ups, no rounds won, a new match
+   *  id (so it is recorded as its own), the bots' minds wiped. */
+  #startRematch(): void {
+    this.#matchNumber += 1;
+    this.#matchId = crypto.randomUUID();
+    this.#startedAt = new Date();
+    this.#director = new MatchDirector();
+    this.#draftService = new DraftService(hashSeed(this.roomId, this.#matchNumber));
+    this.#lastRoundWinner = null;
+    this.#spectatorIds.clear();
+
+    const spawns = this.#sim.arena.spawns;
+    const players: SimState["players"] = {};
+    let seat = 0;
+    this.state.players.forEach((schemaPlayer, sessionId) => {
+      const id = playerId(sessionId);
+      const weapon = this.#weaponByPlayerId.get(id);
+      players[id] = createSimPlayer(spawns[seat % spawns.length]!, weapon);
+      seat += 1;
+      this.#director.addPlayer(id);
+      schemaPlayer.wantsRematch = false;
+      schemaPlayer.spectator = false;
+      schemaPlayer.alive = true;
+    });
+    this.#sim = {
+      ...this.#sim,
+      players,
+      hazards: createHazardState(this.#sim.arena.hazards),
+      suddenDeathTicks: 0,
+    };
+    for (const [id, brain] of [...this.#brains]) {
+      this.#brains.set(
+        id,
+        new BotBrain(id, brain.kind, hashSeed(this.#sim.rngSeed, id, this.#matchNumber)),
+      );
+    }
   }
 
   /** `projectToSchema()` (shared) is the only place `SimState` crosses into

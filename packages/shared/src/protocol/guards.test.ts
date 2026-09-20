@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isDraftPick, isInputFrame } from "./guards.js";
+import { isBotBackfill, isDraftPick, isInputFrame } from "./guards.js";
 
 describe("isInputFrame", () => {
   it("accepts an object with numeric seq and bits", () => {
@@ -39,5 +39,22 @@ describe("isDraftPick", () => {
     ["non-string id", { id: 1 }],
   ])("rejects %s", (_label, value) => {
     expect(isDraftPick(value)).toBe(false);
+  });
+});
+
+describe("isBotBackfill", () => {
+  it.each(["easy", "normal", "hard"])("accepts the %s tier", (tier) => {
+    expect(isBotBackfill({ tier })).toBe(true);
+  });
+
+  it.each([
+    ["dummy (a tutorial-only kind, never a request)", { tier: "dummy" }],
+    ["an unknown tier", { tier: "nightmare" }],
+    ["no tier", {}],
+    ["a bare string", "hard"],
+    ["null", null],
+    ["an array", ["hard"]],
+  ])("rejects %s", (_label, value) => {
+    expect(isBotBackfill(value)).toBe(false);
   });
 });

@@ -1,3 +1,4 @@
+import { isBotTier, type BotTier } from "../bots/tiers.js";
 import type { InputFrame } from "../input/bitmask.js";
 
 export function isInputFrame(value: unknown): value is InputFrame {
@@ -21,4 +22,16 @@ export function isDraftPick(value: unknown): value is DraftPickMessage {
   }
   const candidate = value as Record<string, unknown>;
   return typeof candidate.id === "string";
+}
+
+/** The `bot:backfill` message body: which difficulty the lone player chose. */
+export interface BotBackfillMessage {
+  tier: BotTier;
+}
+
+export function isBotBackfill(value: unknown): value is BotBackfillMessage {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return false;
+  }
+  return isBotTier((value as Record<string, unknown>).tier);
 }

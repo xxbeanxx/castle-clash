@@ -231,3 +231,23 @@ describe("MatchDirector — sudden death (Phase 14)", () => {
     expect(sim.suddenDeathTicks ?? 0).toBe(0);
   });
 });
+
+describe("MatchDirector.discardPlayer", () => {
+  it("forgets a player entirely, so they never appear in the match result", () => {
+    const director = new MatchDirector();
+    director.addPlayer(A);
+    director.addPlayer(B);
+    director.discardPlayer(B);
+    expect(director.isAlive(B)).toBe(false);
+
+    let sim: SimState = { ...initialState(), players: { [A]: initialState().players[A]! } };
+    const only: readonly PlayerId[] = [A];
+    for (let i = 0; i < COUNTDOWN_TICKS + ROUNDS_TO_WIN * 10; i++) {
+      const result = step(sim, {});
+      sim = director.tick(sim, result.state, result.events, only).state;
+    }
+    // One player is below MIN_PLAYERS: the match never starts, and B was never counted.
+    expect(director.phase.phase).toBe("Waiting");
+    expect(director.phase.roundsWon[B]).toBeUndefined();
+  });
+});

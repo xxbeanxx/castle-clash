@@ -4,6 +4,16 @@ export const MAX_PLAYERS = 6;
 export const ROUNDS_TO_WIN = 3;
 export const MATCH_ROOM_NAME = "match";
 
+/** How a `match` room was made. `quick` and `private` are between humans; `practice` is one human
+ *  and 1 to `MAX_PRACTICE_BOTS` bots. A practice room, and any match a bot played in, is never
+ *  recorded (ADR 0003). */
+export const MATCH_MODES = ["quick", "private", "practice"] as const;
+export type MatchMode = (typeof MATCH_MODES)[number];
+
+export function isMatchMode(value: unknown): value is MatchMode {
+  return typeof value === "string" && (MATCH_MODES as readonly string[]).includes(value);
+}
+
 // Movement/physics — px and px/s, y-down (matches PlayerState.x/y and canvas coordinates).
 export const PLAYER_WIDTH = 28;
 export const PLAYER_HEIGHT = 48;
@@ -68,6 +78,12 @@ export const RING_OUT_CREDIT_TICKS = 180; // 3s
 export const SUDDEN_DEATH_RAMP_TICKS = 900; // 15s to full strength
 export const SUDDEN_DEATH_MAX_MULTIPLIER = 4;
 export const SUDDEN_DEATH_BASE_DRAIN_PER_SECOND = 3;
+
+// Solo play (Phase 14) — ticks at 60 Hz.
+/** How long a human waits alone in a public quick-play room before the server offers them a bot.
+ *  Short enough that a lone visitor is fighting inside the 10 s the plan's gate asks for once
+ *  they say yes, long enough that a room with people about to arrive is not a bot match. */
+export const BACKFILL_OFFER_TICKS = 480; // 8s
 
 // Arenas and hazards (Phase 6) — ticks at 60 Hz unless noted.
 /** FireZone's per-tick outward nudge while a player stands in it — small on

@@ -108,6 +108,13 @@ export class MatchDirector {
     this.#alive.delete(id);
   }
 
+  /** Forgets a player completely, stats included: for a seat taken back before any round was
+   *  played (a backfill bot sent away), so it never appears in the match result. */
+  discardPlayer(id: PlayerId): void {
+    this.#alive.delete(id);
+    delete this.#stats[id];
+  }
+
   /**
    * A player leaves — consented or not — during `RoundActive` (plan step 2:
    * "disconnecting during RoundActive" counts as an elimination; a

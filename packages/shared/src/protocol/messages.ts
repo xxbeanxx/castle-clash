@@ -14,6 +14,15 @@ export const MESSAGE_TYPES = {
    *  actually succeeded, from `apps/server/src/match/unlocks.ts`'s
    *  `evaluateAndGrantUnlocks`, not from the tick loop itself. */
   PROFILE_UNLOCKS: "profile:unlocks",
+  /** Client to server, from the one human waiting alone in a public quick-play room, after the
+   *  server has offered a bot (`MatchState.backfillOfferable`). Payload: `{ tier }`. Never silent:
+   *  no bot joins a public room unless a player asks for one (decision D4). */
+  BOT_BACKFILL: "bot:backfill",
+  /** Server to client, when a human joined and the backfill bot stepped aside. Payload: `{ name }`. */
+  BOT_DROPPED: "bot:dropped",
+  /** Client to server, from the results screen: "play again with this room". The match restarts
+   *  once every human still seated has asked (bots always agree). */
+  REMATCH: "match:rematch",
 } as const;
 
 export type MessageType = (typeof MESSAGE_TYPES)[keyof typeof MESSAGE_TYPES];

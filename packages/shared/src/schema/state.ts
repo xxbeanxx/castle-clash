@@ -72,6 +72,10 @@ export class PlayerState extends Schema {
   @type("number") roundsWon = 0;
   @type("boolean") alive = true;
   @type("boolean") spectator = false;
+  /** A server-driven seat (Phase 14, ADR 0003). Always shown to players as one. */
+  @type("boolean") isBot = false;
+  /** This player pressed "Play again" on the results screen and is waiting for the others. */
+  @type("boolean") wantsRematch = false;
 
   // Power-up draft (Phase 7). One entry per stack owned — a power-up owned
   // at 3 stacks appears 3 times, so opponents (and `hud.ts`'s HudPlayerSnapshot)
@@ -123,6 +127,12 @@ export class MatchState extends Schema {
   /** Ticks since sudden death began this round (Phase 14); 0 when it has not. The client only
    *  needs "is it on" for a banner, but the number lets it show the damage ramp. */
   @type("number") suddenDeathTicks = 0;
+
+  // Solo play (Phase 14). `mode` is the room's `MatchMode` ("quick", "private", "practice"), set once at `onCreate`, so the client can word its results screen without
+  // remembering how it got here. `backfillOfferable` is the server saying "you have been alone
+  // long enough that a bot may be requested" (decision D4: offered, never automatic).
+  @type("string") mode = "quick";
+  @type("boolean") backfillOfferable = false;
 
   // Arenas and hazards (Phase 6). `arenaId` is set once, at `onCreate`, and
   // never changes for the rest of the match (arena rotation is per-match,

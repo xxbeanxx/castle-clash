@@ -361,6 +361,13 @@ export class GameClient {
      *  a long-lived tab's later reconnect never sends an expired token. */
     accessToken?: string,
   ): Promise<void> {
+    // A destroy() that ran before this call (the caller awaits a token first, so React StrictMode's
+    // cleanup and a quick navigation both get here first) must not be undone: overwriting
+    // "destroyed" would join the room for an owner that is already gone. (Through #getPhase() for
+    // the same narrowing reason as the checks after each await below.)
+    if (this.#getPhase().tag === "destroyed") {
+      return;
+    }
     this.#phase = { tag: "starting" };
 
     const app = new Application();

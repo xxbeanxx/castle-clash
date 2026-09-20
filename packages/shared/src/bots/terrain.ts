@@ -110,3 +110,70 @@ export function standingOnPlatform(sim: SimState, pos: { x: number; y: number })
     (box) => pos.x < box.x + box.w && pos.x + PLAYER_WIDTH > box.x && Math.abs(box.y - feetY) <= 4,
   );
 }
+
+/** The most a single jump can rise (`JUMP_VELOCITY` peak is ~152), with margin for a lean and a landing. */
+export const MAX_HOP_RISE = 130;
+
+export interface StepStone {
+  /** Where to be (x, top-left of the body) to hop onto it: under a one-way platform, beside a solid. */
+  readonly aimX: number;
+  /** The surface's top y. */
+  readonly top: number;
+  /** A one-way platform can be jumped up through from anywhere beneath it (`left`..`right`); a
+   *  solid cannot, so it is climbed from its side (a hop off the wall). */
+  readonly oneWay: boolean;
+  readonly left: number;
+  readonly right: number;
+}
+
+/**
+ * The next surface a body should hop onto to work its way up toward a target that is too high for
+ * one jump: the highest standable top within a jump of the feet that does not overshoot the
+ * target's own level, nearest first among equals. `null` when there is nothing within reach to
+ * climb (the bot then simply waits below, which sudden death eventually ends). Not a pathfinder:
+ * one step of lookahead, re-chosen every time the bot lands somewhere new.
+ */
+export function nextStepStone(
+  sim: SimState,
+  pos: { x: number; y: number },
+  targetFeetY: number,
+): StepStone | null {
+  const hazards = sim.hazards ?? {};
+  const boxes: { box: AABB; oneWay: boolean }[] = [
+    ...sim.arena.platforms.map((box) => ({ box, oneWay: true })),
+    ...dynamicPlatforms(sim.arena.hazards, hazards).map((box) => ({ box, oneWay: true })),
+    ...sim.arena.solids.map((box) => ({ box, oneWay: false })),
+    ...dynamicSolids(sim.arena.hazards, hazards).map((box) => ({ box, oneWay: false })),
+  ];
+  const feetY = pos.y + PLAYER_HEIGHT;
+  let best: StepStone | null = null;
+  let bestScore = Infinity;
+  for (const { box, oneWay } of boxes) {
+    const rise = feetY - box.y;
+    // Wide enough to land on, above us but within a jump, and not higher than where the target stands.
+    if (box.w < 40 || rise < 12 || rise > MAX_HOP_RISE || box.y < targetFeetY - 6) {
+      continue;
+    }
+    const left = box.x;
+    const right = box.x + box.w - PLAYER_WIDTH;
+    let aimX: number;
+    if (oneWay) {
+      aimX = Math.min(Math.max(pos.x, left), right);
+    } else {
+      // Stand against whichever side is nearer; a solid's own span is no place to be underneath.
+      const leftSide = box.x - PLAYER_WIDTH;
+      const rightSide = box.x + box.w;
+      aimX = Math.abs(pos.x - leftSide) <= Math.abs(pos.x - rightSide) ? leftSide : rightSide;
+    }
+    const sideways = Math.abs(aimX - pos.x);
+    if (sideways > 420) {
+      continue;
+    }
+    const score = Math.abs(box.y - targetFeetY) * 2 + sideways;
+    if (score < bestScore) {
+      bestScore = score;
+      best = { aimX, top: box.y, oneWay, left, right };
+    }
+  }
+  return best;
+}

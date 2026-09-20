@@ -380,11 +380,31 @@ plan.
    tiles + parallax) + one hazard, in-engine, viewed on a phone and a 4K monitor. If it doesn't look
    good here, stop and fix the direction before producing 200 more frames.
 
+### Status (15.0 started; art sourcing decided, look not yet)
+
+- **D1 decided 2026-09-20: free Creative Commons packs**, no commission and no budget (the plan's
+  hybrid recommendation was not taken). Packs have no tint masks or per-weapon clips, so D6 and the
+  weapon layers are harder than planned. Facts and candidates (LuizMelo's CC0 warrior, rgsdev's
+  CC-BY-SA knights, Kenney's CC0 tiles), plus what is unverified, are in
+  `docs/research/phase15-art-sources-and-pipeline.md`. No pack has been downloaded or chosen.
+- **Built (draft PR):** `docs/art/BIBLE.md` (draft; palette, outline and tint rules still open),
+  `art/LICENSES.md` (empty log), and `viewmodel/knightAnimation.ts`, the pure state-to-clip mapping
+  with tests that fail if combat frame data and animation timing drift apart.
+- **Not built:** the vertical slice (`KnightView`, atlas loader, one arena, one hazard), `assets:check`,
+  the Aseprite-tags-to-`animations` converter, the ADR for D6. The slice is meant to use generated
+  placeholder art so the plumbing can be proven before anyone picks a look.
+- **Deviation:** step 3 below said Pixi v8 reads Aseprite tags natively. It does not in 8.20.1
+  (`frameTags` is typed but never read), so the pipeline needs its own converter.
+- **Human gates still open:** pick the packs after seeing them in engine; accept CC-BY/-SA terms and a
+  credits page; approve the knight-to-hitbox size (a 26x38 px pack knight against a 14x24 px hitbox);
+  sign off the look on a phone and a 4K monitor.
+
 ### 15.1 — Asset pipeline
 
 3. **Sources in-repo** (`art/**/*.aseprite`), exports committed under `apps/client/public/assets/`
-   (Aseprite sheet + JSON hash, which Pixi v8 reads natively, with animation tags → `animations`).
-   Exports are committed rather than generated in CI (Aseprite isn't in CI).
+   (Aseprite sheet + JSON hash; **Pixi 8.20.1 does not read `frameTags`, so a build step converts
+   them to the `animations` table**, see Status). Exports are committed rather than generated in CI
+   (Aseprite isn't in CI).
 4. **Loader:** Pixi `Assets` bundles per scope (`core`, `knight`, `ui`, one per arena, lazy), a real
    **loading screen with progress** (deferred since Phase 6). Global `scaleMode: "nearest"`. Atlases
    are same-origin, so the CSP (F14) needs no change; pixel fonts as `BitmapFont` in-canvas.
@@ -522,7 +542,7 @@ plan.
 
 | ID | Decision | Recommendation | Needed by |
 |----|----------|----------------|-----------|
-| **D1** | **Art source and budget** — commission a pixel artist; buy/license packs; AI-assisted + human cleanup; or hybrid | **Hybrid:** a coherent licensed pack for environments/UI to unblock (log each license), **commission the knights** — cosmetics need layered tint masks and per-weapon animations that packs almost never provide, and the knight is the game's identity. Start sourcing now (Track A). | Start now; hard block at 15.0 |
+| **D1** | **Art source and budget** — commission a pixel artist; buy/license packs; AI-assisted + human cleanup; or hybrid | **Decided 2026-09-20: free Creative Commons packs, no budget** (plan's recommendation was:) **Hybrid:** a coherent licensed pack for environments/UI to unblock (log each license), **commission the knights** — cosmetics need layered tint masks and per-weapon animations that packs almost never provide, and the knight is the game's identity. Start sourcing now (Track A). | Start now; hard block at 15.0 |
 | D2 | How Supabase auth config (Google) is applied | Management-API script owned by Terraform, scoped to the keys we own | P12 |
 | D3 | Public leaderboard / guests on it (v1 Appendix B #3) | Public read; guests excluded until they link an account | P11 |
 | D4 | Bot backfill in public quick play | Offer explicitly ("play a bot while you wait"), never silently; bots never touch persistence | P14 |

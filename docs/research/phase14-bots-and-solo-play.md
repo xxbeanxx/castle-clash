@@ -67,3 +67,34 @@ list says what only a human can settle.
   watch each arena once.
 - Per-tick server cost with several bot rooms. The tick histogram exists (`tickDurationSeconds`); the
   load test has not been re-run with bots.
+
+## Found while building (2026-09-20), after the sections above
+
+- **Pit was uncrossable.** `pitDrop` (a kill zone) spanned y:200-720 and overlapped the bridge
+  planks, so stepping onto the bridge eliminated you. Fixed in #64 (zone now starts at y:640).
+- **The first bot only won at one spawn pairing.** Loaded in a real browser, it idled for a minute
+  against a still human. A sweep of every arena x spawn pair x tier (318 cases) found: standing
+  inside the target (a left-facing hitbox is mirrored about the body's origin, leaving a 28 px dead
+  zone), ignoring level differences, and no way up to a target more than one jump high. Fixed in #69;
+  15 of 318 still stall (a target parked on woodenHall's upper stairs).
+- **Open combat bug, not touched:** that hitbox mirroring. `hitboxWorldBox` puts a left-facing box at
+  `[x - 28 - reach, x - 28]`; mirrored about the body's centre it would be `[x - reach, x]`. Human play
+  is affected too, and the `ttk.test.ts` bands move if it is fixed.
+- **A tapped jump is a short hop** (variable jump height cuts the rise when Jump is released); a
+  platform 120 px up needs Jump held. The tutorial's copy says so.
+- **The testbed cannot host the tutorial:** its platform is 180 px above the floor; a jump rises about
+  153. `TUTORIAL_ARENA` (120 px) does. It is reached through `findArena`, never `ARENAS`.
+- **Rate limit:** a connection may send 120 messages a second; a test that sends an input per tick as
+  fast as ticks can be stepped exhausts it and is silently ignored thereafter.
+- **`GameCanvas` hides the room id from the router** (`history.replaceState`), so navigating between
+  two `/play/new?...` URLs changes no route param. The play route is now keyed by `location.key`.
+- **Landing LCP:** on this machine `main` itself sits at the 2500 ms budget's edge (runs bimodal at
+  about 2445 and 2555 ms); a three-way A/B (six alternating runs each: main, hero button only, hero
+  button and CSS) had equal medians (2556, 2557, 2555). CI's `web-quality` is the real check.
+
+### Still not verified (adds to the list above)
+
+- Any of the new UI on a real phone; the coach panel is compacted under 480 px of height but nobody
+  has looked at it over a real stick.
+- Human-versus-bot feel at any tier; the nightly balance report per tier (not built).
+- What the four Appendix A choices feel like to a person (8 s, 1-3 bots, ramp constants).

@@ -45,7 +45,13 @@ browser with the code.
 13. **Performance.** Smooth at 60 fps through a busy fight (Safari Web Inspector / Chrome
     `chrome://inspect` frame timeline, or the `frameStats()` numbers in an E2E build). Note any
     device that drops frames: the lever is `MAX_DPR` in `game/render/surface.ts`.
-14. **The gate.** Play a whole match against the desktop player. Was it playable, not just
+14. **Phase 14 screens (added after the list above was written).** The tutorial coach (top-left in
+    landscape, compacted under 480 px of height) does not sit on the stick or hide the fight; its
+    prompts read as touch instructions; a *tapped* Jump is only a short hop, so the drop-through
+    lesson needs Jump held (does it feel discoverable?). The backfill offer ("Nobody else is here
+    yet") is readable and tappable with the touch controls up. The results screen's Play again and
+    Back to lobby are reachable; the lobby's Practice panel is usable at this height.
+15. **The gate.** Play a whole match against the desktop player. Was it playable, not just
     functional? What was the first thing that annoyed you?
 
 ## Results (fill in; one row per device and mode)

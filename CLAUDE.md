@@ -14,8 +14,9 @@ leaderboard), and a production deploy (live since 2026-09-19, currently `v1.1.0`
 next is `docs/IMPLEMENTATION_PLAN_V2.md`, Phases 11–17** (landing page and UI kit, Google login,
 mobile controls, bots, pixel art, audio, hardening); its section 0 lists verified findings about
 today's tree, and its Appendix A lists decisions still open. Everything a _player_ sees is still
-placeholder: knights are tinted rects, there is no art, audio, or touch input, and a lone visitor
-cannot start a match (`MIN_PLAYERS = 2`, no bots). `docs/adr/` records specific decisions;
+placeholder: knights are tinted rects and there is no art or audio. (Touch input landed in Phase 13
+and bots, practice, backfill and a tutorial in Phase 14, so a lone visitor can play; neither phase's
+real-device or feel gate has been passed by a person.) `docs/adr/` records specific decisions;
 `docs/research/` records version/API facts verified against live docs and every scope deviation
 from a plan — check it before trusting a version number stated in a plan's prose, since several
 were wrong when written (pnpm "10" vs the actual 12, Colyseus's server bootstrap API, etc.).
@@ -377,6 +378,33 @@ and what was not; `docs/research/phase13-real-device-checklist.md` is the manual
   `window.__CC_DEBUG__` (E2E builds) also exposes `surface()`, `frameStats()`, `dropConnection()`.
 - An inline `<canvas>` adds a baseline gap below itself (10 px of page scroll on a phone);
   `.cc-game__canvas canvas` is `display: block` for that reason.
+
+### Solo play: bots, practice, backfill, tutorial (Phase 14)
+
+`docs/adr/0003-server-side-bots.md` is the decision and `docs/research/phase14-bots-and-solo-play.md`
+the facts (including what was found broken and what is unverified). In short:
+
+- **A bot is a seat, not a client.** `packages/shared/src/bots/` holds `BotBrain` (pure, seeded by
+  `(seed, tick)`, difficulty is only `BOT_TIERS`); `MatchRoom` pushes each brain's frame into the same
+  `InputQueue` a human's go through. `isBot` is on `PlayerState` and the UI always says so. Bots count
+  toward `MIN_PLAYERS`. Difficulty is a *measured* property (`bots/brain.test.ts`: tier win rates,
+  time-to-kill, a sweep of every arena and spawn pair); re-run it if you touch `brain.ts`,
+  `terrain.ts` or the combat frame data.
+- **Room modes** (`MATCH_MODES`): `quick`, `private`, `practice` (1-3 bots, private, one client) and
+  `tutorial` (a dummy, `TUTORIAL_ARENA`, no rounds). **A room a bot played in records nothing**
+  (`#recordsThisMatch`): bots have no user id. Colyseus's `maxClients` counts clients only and a room
+  disposes when its last client leaves, so bots never keep one alive.
+- **Backfill is offered, never automatic** (decision D4): after `BACKFILL_OFFER_TICKS` alone in a
+  public room the server sets `MatchState.backfillOfferable`; only a `bot:backfill` message adds one,
+  and a human joining during `Waiting`/`Countdown` sends it away.
+- **Sudden death** = a damage multiplier through `resolveCombat` plus a bleed, both inside `step()`
+  from `SimState.suddenDeathTicks` (set by `MatchDirector`).
+- **Tutorial:** the coach (`ui/TutorialGuide.tsx`, pure logic in `game/tutorial.ts`) reads the player's
+  own synced state; the server tracks no lesson progress. Shown once via `localStorage`
+  (`ui/tutorialSeen.ts`); unreadable storage counts as seen.
+- Gotchas: a connection is limited to 120 messages/s, so a test must not send an input per stepped
+  tick; `/play/new?...` to another `/play/new?...` needs the play route's `location.key` to remount;
+  a tapped jump is a short hop (the tutorial says to hold it).
 
 ### Workspace layout and package boundaries
 

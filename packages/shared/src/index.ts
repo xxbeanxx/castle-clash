@@ -23,3 +23,4 @@ export * from "./profile/displayName.js";
 export * from "./net/Reconciler.js";
 export * from "./net/Interpolator.js";
 export * from "./db/index.js";
+export * from "./bots/index.js";

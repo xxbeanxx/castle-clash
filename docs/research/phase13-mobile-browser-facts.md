@@ -13,6 +13,8 @@ JSON: `api/Element.json`, `api/Document.json`, `api/ScreenOrientation.json`,
 | Manifest `display: "standalone"`: iOS Safari since 11.3 (home-screen launch without browser chrome); `fullscreen` and `minimal-ui`: not supported by Safari, and the spec falls back `fullscreen` -> `standalone` -> `minimal-ui` -> `browser`.    | The manifest asks for `standalone`, the biggest practical iOS win.                                                                                              |
 | Manifest `orientation`: **not supported by Safari or iOS Safari**; Firefox Android 79+, Chrome Android supported.                                                                                                                                  | The manifest declares `landscape` (Android honors it); iOS ignores it, so the CSS rotate prompt in portrait is the only iOS guarantee.                          |
 
+The manifest `<link>` is added by JS after `load`, not in the static head: a head link measured +~105 ms landing LCP (2560 vs 2455 ms, same build, alternating Lighthouse 12.8.2 runs), over the 2500 ms budget. Chrome and iOS read the DOM link when they need it; unverified on a real device (checklist item 10).
+
 Also checked by hand against the built image: nginx's stock `mime.types` has no `webmanifest`, so
 `/manifest.webmanifest` was served as `application/octet-stream`. `docker/nginx.conf` now serves it as
 `application/manifest+json` (a `default_type` in its own location; a `types {}` block would replace

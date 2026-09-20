@@ -36,8 +36,11 @@ test("a desktop window never sees the rotate prompt", async ({ page }) => {
 
 test("the web app manifest is served and linked", async ({ page, request }) => {
   await page.goto("/");
-  const href = await page.locator('link[rel="manifest"]').getAttribute("href");
-  expect(href).toBe("/manifest.webmanifest");
+  // Linked after load (see `DeferredManifestLink`: a head link costs the landing page ~100 ms LCP).
+  await expect(page.locator('link[rel="manifest"]')).toHaveAttribute(
+    "href",
+    "/manifest.webmanifest",
+  );
 
   const response = await request.get("/manifest.webmanifest");
   expect(response.ok()).toBe(true);

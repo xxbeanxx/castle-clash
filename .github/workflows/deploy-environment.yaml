@@ -1,4 +1,4 @@
-name: deploy-environment
+name: Deploy Environment - Migrate, Deploy & Smoke Test (reusable)
 
 # One environment's rollout, called by deploy.yaml for `staging` and then
 # `production`. The GitHub environment named by `environment` supplies that

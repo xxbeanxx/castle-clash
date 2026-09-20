@@ -1,4 +1,4 @@
-name: changes
+name: Detect Changed Paths (reusable)
 
 # Reusable: reports which parts of the repo a pull request touches, per
 # .github/paths-filter.yaml, so callers (ci.yaml, containers.yaml) can skip jobs

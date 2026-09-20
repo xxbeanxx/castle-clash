@@ -1,4 +1,4 @@
-name: release
+name: Release - Version, Build Images & Deploy
 
 # Every push to main runs release-please, which keeps a "release PR" open
 # (version bump + CHANGELOG from Conventional Commits). Merging that PR makes it

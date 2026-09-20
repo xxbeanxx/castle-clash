@@ -14,6 +14,7 @@ import type { InputFrame } from "../input/bitmask.js";
 import { overlaps } from "../math/aabb.js";
 import { BASE_STATS, computeStats, deriveWeapon } from "../powerups/computeStats.js";
 import type { DerivedStats } from "../powerups/types.js";
+import { suddenDeathDrain, suddenDeathMultiplier } from "../match/suddenDeath.js";
 import type { PlayerId } from "../types/ids.js";
 import { applyGravity, sweep } from "./physics.js";
 import {
@@ -38,7 +39,7 @@ export type EliminatedEvent = {
   type: "eliminated";
   victim: PlayerId;
   by?: PlayerId;
-  cause: "ko" | "killZone" | "disconnect" | "hazard";
+  cause: "ko" | "killZone" | "disconnect" | "hazard" | "suddenDeath";
 };
 
 export type SimEvent =
@@ -80,7 +81,10 @@ function clampStamina(value: number, max: number): number {
  *  to reposition a player a `ringOutArmor` charge just saved from a kill-zone
  *  elimination, so they land back on solid ground near where they fell
  *  rather than at a fixed, possibly-far-away spawn. */
-function nearestSpawn(pos: SimPlayer["pos"], spawns: SimState["arena"]["spawns"]): SimPlayer["pos"] {
+function nearestSpawn(
+  pos: SimPlayer["pos"],
+  spawns: SimState["arena"]["spawns"],
+): SimPlayer["pos"] {
   let best = spawns[0]!;
   let bestDist = Infinity;
   for (const spawn of spawns) {
@@ -174,7 +178,12 @@ export function step(
         jumpBufferTicks = attempt.jumpBufferTicks;
         if (attempt.jumped) {
           events.push({ type: "jump", playerId: id });
-        } else if (stats.effects.doubleJump && !wasGrounded && jumpBufferTicks > 0 && airJumpsUsed < 1) {
+        } else if (
+          stats.effects.doubleJump &&
+          !wasGrounded &&
+          jumpBufferTicks > 0 &&
+          airJumpsUsed < 1
+        ) {
           // `doubleJump` (plan Phase 7): one extra mid-air jump, self-limited
           // by `airJumpsUsed` rather than edge-detecting the JUMP press —
           // holding the button can't spend a second one since this branch
@@ -239,7 +248,13 @@ export function step(
   }
 
   const nextTick = state.tick + 1;
-  const combat = resolveCombat(postPhysics, weaponsById, modifiersById);
+  const suddenDeathTicks = state.suddenDeathTicks ?? 0;
+  const combat = resolveCombat(
+    postPhysics,
+    weaponsById,
+    modifiersById,
+    suddenDeathMultiplier(suddenDeathTicks),
+  );
   events.push(...combat.events);
 
   let players: Record<PlayerId, SimPlayer> = { ...combat.players };
@@ -251,7 +266,11 @@ export function step(
   for (const event of combat.events) {
     if (event.type === "hit" || event.type === "blocked" || event.type === "guardBreak") {
       const defenderId = event.defender!;
-      players[defenderId] = { ...players[defenderId]!, lastHitBy: event.attacker, lastHitTick: nextTick };
+      players[defenderId] = {
+        ...players[defenderId]!,
+        lastHitBy: event.attacker,
+        lastHitTick: nextTick,
+      };
     }
     if (event.type === "ko") {
       events.push({ type: "eliminated", victim: event.defender!, by: event.attacker, cause: "ko" });
@@ -279,6 +298,25 @@ export function step(
   for (const id of Object.keys(players) as PlayerId[]) {
     if (beforeHazards[id]!.action !== "Dead" && players[id]!.action === "Dead") {
       events.push({ type: "eliminated", victim: id, cause: "hazard" });
+    }
+  }
+
+  // Sudden death's bleed (Phase 14): everyone alive loses HP every tick, so a stalemate has an end.
+  // Inside `step()` rather than applied after the fact, so it can eliminate in the same tick it
+  // lands (a KO `resolveCombat` already resolved as "merely hurt" could not be undone from outside).
+  const drain = suddenDeathDrain(suddenDeathTicks);
+  if (drain > 0) {
+    for (const id of Object.keys(players) as PlayerId[]) {
+      const player = players[id]!;
+      if (player.action === "Dead") {
+        continue;
+      }
+      const hp = Math.max(0, player.hp - drain);
+      players[id] =
+        hp > 0 ? { ...player, hp } : { ...player, hp: 0, action: "Dead", hitstunTicks: 0 };
+      if (hp <= 0) {
+        events.push({ type: "eliminated", victim: id, cause: "suddenDeath" });
+      }
     }
   }
 
@@ -327,6 +365,7 @@ export function step(
       arena: state.arena,
       rngSeed: state.rngSeed,
       hazards: hazardResult.state,
+      suddenDeathTicks: state.suddenDeathTicks,
     },
     events,
   };

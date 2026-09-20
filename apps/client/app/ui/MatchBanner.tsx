@@ -32,9 +32,12 @@ export function MatchBanner({ client }: { client: GameClient }) {
   const seconds = flow.ticksRemaining !== null ? Math.ceil(flow.ticksRemaining / TICK_RATE) : null;
 
   return (
-    <div data-testid="match-banner" className="cc-banner">
+    <div
+      data-testid="match-banner"
+      className={flow.suddenDeath ? "cc-banner cc-banner--sudden-death" : "cc-banner"}
+    >
       <div className="cc-banner__phase">
-        {PHASE_LABEL[flow.phase] ?? flow.phase}
+        {flow.suddenDeath ? "Sudden death" : (PHASE_LABEL[flow.phase] ?? flow.phase)}
         {flow.round > 0 ? ` · Round ${flow.round}` : ""}
         {seconds !== null ? ` · ${seconds}s` : ""}
       </div>

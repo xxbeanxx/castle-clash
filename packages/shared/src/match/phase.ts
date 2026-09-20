@@ -8,7 +8,13 @@ import {
 } from "../config/game.js";
 import type { PlayerId } from "../types/ids.js";
 
-export type MatchPhase = "Waiting" | "Countdown" | "RoundActive" | "RoundOver" | "Draft" | "MatchOver";
+export type MatchPhase =
+  | "Waiting"
+  | "Countdown"
+  | "RoundActive"
+  | "RoundOver"
+  | "Draft"
+  | "MatchOver";
 
 export interface MatchPhaseState {
   phase: MatchPhase;
@@ -20,6 +26,10 @@ export interface MatchPhaseState {
   /** Set once a `RoundActive` phase runs past `ROUND_TIME_LIMIT`; cleared on
    *  the next round. */
   suddenDeath: boolean;
+  /** Ticks since sudden death began this round (1 on the tick it starts, then +1 per tick); 0 when
+   *  it has not begun or the round is over. `sim/GameSimulation.step` reads it (via `SimState`)
+   *  for the damage ramp and the bleed. */
+  suddenDeathTicks: number;
   /** Absolute tick the current phase is scheduled to end at, for a countdown
    *  or results banner — `null` when the phase has no fixed end (`Waiting`,
    *  `RoundActive` outside a time limit's reach, `MatchOver`). */
@@ -72,6 +82,7 @@ export function createMatchPhaseState(): MatchPhaseState {
     ticksInPhase: 0,
     roundsWon: {},
     suddenDeath: false,
+    suddenDeathTicks: 0,
     phaseEndsAtTick: null,
     winner: null,
   };
@@ -92,14 +103,20 @@ function withPhase(
  * `Waiting -> Countdown -> RoundActive -> RoundOver -> Draft -> Countdown …`
  * until a player reaches `ROUNDS_TO_WIN`, at which point the match ends.
  */
-export function advanceMatchPhase(state: MatchPhaseState, input: MatchPhaseInput): MatchPhaseResult {
+export function advanceMatchPhase(
+  state: MatchPhaseState,
+  input: MatchPhaseInput,
+): MatchPhaseResult {
   const events: MatchPhaseEvent[] = [];
 
   switch (state.phase) {
     case "Waiting": {
       if (input.playerCount >= MIN_PLAYERS) {
         return {
-          state: withPhase(state, { phase: "Countdown", phaseEndsAtTick: input.tick + COUNTDOWN_TICKS }),
+          state: withPhase(state, {
+            phase: "Countdown",
+            phaseEndsAtTick: input.tick + COUNTDOWN_TICKS,
+          }),
           events,
         };
       }
@@ -114,10 +131,22 @@ export function advanceMatchPhase(state: MatchPhaseState, input: MatchPhaseInput
       if (ticksInPhase >= COUNTDOWN_TICKS) {
         const round = state.round + 1;
         events.push({ type: "roundStart", round });
-        return { state: withPhase(state, { phase: "RoundActive", round, suddenDeath: false }), events };
+        return {
+          state: withPhase(state, {
+            phase: "RoundActive",
+            round,
+            suddenDeath: false,
+            suddenDeathTicks: 0,
+          }),
+          events,
+        };
       }
       return {
-        state: { ...state, ticksInPhase, phaseEndsAtTick: input.tick + (COUNTDOWN_TICKS - ticksInPhase) },
+        state: {
+          ...state,
+          ticksInPhase,
+          phaseEndsAtTick: input.tick + (COUNTDOWN_TICKS - ticksInPhase),
+        },
         events,
       };
     }
@@ -129,6 +158,7 @@ export function advanceMatchPhase(state: MatchPhaseState, input: MatchPhaseInput
         suddenDeath = true;
         events.push({ type: "suddenDeath" });
       }
+      const suddenDeathTicks = suddenDeath ? state.suddenDeathTicks + 1 : 0;
 
       if (input.aliveIds.length <= 1) {
         const winner = input.aliveIds[0] ?? null;
@@ -140,19 +170,28 @@ export function advanceMatchPhase(state: MatchPhaseState, input: MatchPhaseInput
         const matchWinner = winner && (roundsWon[winner] ?? 0) >= ROUNDS_TO_WIN ? winner : null;
         if (matchWinner) {
           events.push({ type: "matchOver", winner: matchWinner });
-          return { state: withPhase(state, { phase: "MatchOver", roundsWon, winner: matchWinner }), events };
+          return {
+            state: withPhase(state, {
+              phase: "MatchOver",
+              roundsWon,
+              winner: matchWinner,
+              suddenDeathTicks: 0,
+            }),
+            events,
+          };
         }
         return {
           state: withPhase(state, {
             phase: "RoundOver",
             roundsWon,
+            suddenDeathTicks: 0,
             phaseEndsAtTick: input.tick + ROUND_OVER_TICKS,
           }),
           events,
         };
       }
 
-      return { state: { ...state, ticksInPhase, suddenDeath }, events };
+      return { state: { ...state, ticksInPhase, suddenDeath, suddenDeathTicks }, events };
     }
 
     case "RoundOver": {
@@ -162,7 +201,11 @@ export function advanceMatchPhase(state: MatchPhaseState, input: MatchPhaseInput
         return { state: withPhase(state, { phase: "Draft" }), events };
       }
       return {
-        state: { ...state, ticksInPhase, phaseEndsAtTick: input.tick + (ROUND_OVER_TICKS - ticksInPhase) },
+        state: {
+          ...state,
+          ticksInPhase,
+          phaseEndsAtTick: input.tick + (ROUND_OVER_TICKS - ticksInPhase),
+        },
         events,
       };
     }
@@ -174,12 +217,19 @@ export function advanceMatchPhase(state: MatchPhaseState, input: MatchPhaseInput
       const ticksInPhase = state.ticksInPhase + 1;
       if (input.draftComplete || ticksInPhase >= DRAFT_TICKS) {
         return {
-          state: withPhase(state, { phase: "Countdown", phaseEndsAtTick: input.tick + COUNTDOWN_TICKS }),
+          state: withPhase(state, {
+            phase: "Countdown",
+            phaseEndsAtTick: input.tick + COUNTDOWN_TICKS,
+          }),
           events,
         };
       }
       return {
-        state: { ...state, ticksInPhase, phaseEndsAtTick: input.tick + (DRAFT_TICKS - ticksInPhase) },
+        state: {
+          ...state,
+          ticksInPhase,
+          phaseEndsAtTick: input.tick + (DRAFT_TICKS - ticksInPhase),
+        },
         events,
       };
     }

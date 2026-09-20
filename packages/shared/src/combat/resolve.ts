@@ -122,7 +122,13 @@ function gatherPendingHits(
       );
       if (connects) {
         landedAny = true;
-        hits.push({ kind: "attack", attackerId, defenderId, attack, attackerFacing: attacker.facing });
+        hits.push({
+          kind: "attack",
+          attackerId,
+          defenderId,
+          attack,
+          attackerFacing: attacker.facing,
+        });
       }
     }
     if (!landedAny) {
@@ -137,7 +143,10 @@ function gatherPendingHits(
  *  facing never enters into it (plan: "knockback direction follows attacker
  *  facing"). */
 function knockbackVel(attack: AttackDef, attackerFacing: 1 | -1): Vec {
-  return { x: attackerFacing === 1 ? attack.knockback.x : -attack.knockback.x, y: attack.knockback.y };
+  return {
+    x: attackerFacing === 1 ? attack.knockback.x : -attack.knockback.x,
+    y: attack.knockback.y,
+  };
 }
 
 /** The parts of a defender's outcome that differ between a full hit and a
@@ -185,6 +194,8 @@ export function resolveCombat(
   players: Readonly<Record<PlayerId, SimPlayer>>,
   weapons: Readonly<Partial<Record<PlayerId, WeaponDef>>> = {},
   modifiers: Readonly<Partial<Record<PlayerId, CombatModifiers>>> = {},
+  /** Scales every attack's `damage` (sudden death's ramp, Phase 14); stamina damage is unchanged. */
+  damageMultiplier = 1,
 ): ResolveResult {
   const pending = gatherPendingHits(players, weapons);
   const next: Record<PlayerId, SimPlayer> = { ...players };
@@ -214,13 +225,18 @@ export function resolveCombat(
     const vel = { x: rawVel.x * (1 - resist), y: rawVel.y * (1 - resist) };
 
     if (blocked) {
-      const stamina = current.stamina - attack.staminaDamage * defenderMods.blockStaminaCostMultiplier;
+      const stamina =
+        current.stamina - attack.staminaDamage * defenderMods.blockStaminaCostMultiplier;
       const guardBroken = stamina <= 0;
 
       next[defenderId] = applyHitOutcome(current, {
         action: guardBroken ? "GuardBroken" : "BlockStun",
         hitstunTicks: guardBroken ? GUARD_BROKEN_TICKS : BLOCK_STUN_TICKS,
-        hp: clamp(current.hp - attack.damage * BLOCK_DAMAGE_FRACTION, 0, defenderMods.maxHp),
+        hp: clamp(
+          current.hp - attack.damage * damageMultiplier * BLOCK_DAMAGE_FRACTION,
+          0,
+          defenderMods.maxHp,
+        ),
         stamina: clamp(stamina, 0, defenderMods.staminaMax),
         vel,
       });
@@ -232,7 +248,7 @@ export function resolveCombat(
       continue;
     }
 
-    const hp = clamp(current.hp - attack.damage, 0, defenderMods.maxHp);
+    const hp = clamp(current.hp - attack.damage * damageMultiplier, 0, defenderMods.maxHp);
     const damageDealt = current.hp - hp;
     const dead = hp <= 0;
 
@@ -259,7 +275,11 @@ export function resolveCombat(
     // wiring this phase doesn't add.
     if (attackerMods.lifestealPct > 0) {
       const healed = next[attackerId]!;
-      const healedHp = clamp(healed.hp + damageDealt * attackerMods.lifestealPct, 0, attackerMods.maxHp);
+      const healedHp = clamp(
+        healed.hp + damageDealt * attackerMods.lifestealPct,
+        0,
+        attackerMods.maxHp,
+      );
       next[attackerId] = { ...healed, hp: healedHp };
     }
     if (defenderMods.thornsPct > 0) {

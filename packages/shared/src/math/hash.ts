@@ -17,7 +17,9 @@ export function hashState(state: SimState): number {
     const p = state.players[id as keyof typeof state.players]!;
     const powerups = p.powerups ?? {};
     const powerupIds = (Object.keys(powerups) as (keyof typeof powerups)[]).sort();
-    const powerupStacks = powerupIds.map((powerupId) => `${powerupId}:${powerups[powerupId]}`).join("|");
+    const powerupStacks = powerupIds
+      .map((powerupId) => `${powerupId}:${powerups[powerupId]}`)
+      .join("|");
     return [
       id,
       p.pos.x,
@@ -54,5 +56,7 @@ export function hashState(state: SimState): number {
     return [id, h.kind, h.active ? 1 : 0, h.hp, h.phase, h.timer].join(",");
   });
 
-  return fnv1a([state.tick, state.rngSeed, ...players, ...hazards].join(";"));
+  // Only when set, so a state that never entered sudden death hashes exactly as it always did.
+  const suddenDeath = state.suddenDeathTicks ? [`sd:${state.suddenDeathTicks}`] : [];
+  return fnv1a([state.tick, state.rngSeed, ...players, ...hazards, ...suddenDeath].join(";"));
 }

@@ -95,6 +95,11 @@ export interface SimState {
    *  editing each one to add an empty `hazards: {}`. New code should still
    *  populate it explicitly via `createHazardState(arena.hazards)`. */
   hazards?: Readonly<Record<string, HazardRuntimeState>>;
+  /** Ticks since sudden death began this round; `undefined` and `0` both mean "not in it". Set by
+   *  `MatchDirector` from `MatchPhaseState.suddenDeathTicks` and only read by `step()`, which
+   *  applies the damage ramp and the bleed from it (Phase 14 step 7). Optional for the same reason
+   *  `hazards` is: every literal written before this existed stays valid. */
+  suddenDeathTicks?: number;
 }
 
 export function createSimPlayer(pos: Vec, weapon: WeaponId = DEFAULT_WEAPON): SimPlayer {

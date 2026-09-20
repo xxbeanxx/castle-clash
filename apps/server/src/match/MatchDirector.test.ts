@@ -6,6 +6,7 @@ import {
   MAX_HP,
   playerId,
   ROUND_OVER_TICKS,
+  ROUND_TIME_LIMIT,
   ROUNDS_TO_WIN,
   step,
   TESTBED_ARENA,
@@ -59,7 +60,10 @@ function killByFalling(director: MatchDirector, sim: SimState, victim: PlayerId)
     players: { ...sim.players, [victim]: { ...sim.players[victim]!, pos: { x: 0, y: 1000 } } },
   };
   const result = step(dropped, {});
-  return { tickResult: director.tick(dropped, result.state, result.events, CONNECTED), nextSim: result.state };
+  return {
+    tickResult: director.tick(dropped, result.state, result.events, CONNECTED),
+    nextSim: result.state,
+  };
 }
 
 /** RoundOver -> Draft -> Countdown -> RoundActive for the next round. */
@@ -75,7 +79,10 @@ describe("MatchDirector", () => {
     for (let round = 1; round <= ROUNDS_TO_WIN; round++) {
       sim = {
         ...sim,
-        players: { ...sim.players, [B]: { ...sim.players[B]!, lastHitBy: A, lastHitTick: sim.tick } },
+        players: {
+          ...sim.players,
+          [B]: { ...sim.players[B]!, lastHitBy: A, lastHitTick: sim.tick },
+        },
       };
       const { tickResult, nextSim } = killByFalling(director, sim, B);
       sim = tickResult.state;
@@ -177,7 +184,10 @@ describe("MatchDirector", () => {
     // that broken state across a round boundary.
     sim = {
       ...sim,
-      hazards: { ...sim.hazards, balconyBreakA: { ...sim.hazards!["balconyBreakA"]!, hp: 0, active: false, phase: "broken" } },
+      hazards: {
+        ...sim.hazards,
+        balconyBreakA: { ...sim.hazards!["balconyBreakA"]!, hp: 0, active: false, phase: "broken" },
+      },
     };
     expect(sim.hazards!["balconyBreakA"]!.active).toBe(false);
 
@@ -196,5 +206,28 @@ describe("MatchDirector", () => {
     expect(sim.hazards!["balconyBreakA"]!.active).toBe(true);
     expect(sim.hazards!["balconyBreakA"]!.hp).toBe(16);
     expect(sim.hazards!["balconyBreakA"]!.phase).toBe("solid");
+  });
+});
+
+describe("MatchDirector — sudden death (Phase 14)", () => {
+  it("hands the sim a running sudden-death clock once the round passes its time limit, and takes it away when the round ends", () => {
+    const director = new MatchDirector();
+    let sim = startMatch(director);
+    expect(sim.suddenDeathTicks ?? 0).toBe(0);
+
+    sim = runTicks(director, sim, ROUND_TIME_LIMIT + 10);
+    expect(director.phase.suddenDeath).toBe(true);
+    expect(sim.suddenDeathTicks).toBe(director.phase.suddenDeathTicks);
+    expect(sim.suddenDeathTicks).toBeGreaterThan(0);
+
+    // Two knights who never swing still end the round: the bleed kills them.
+    let ticks = 0;
+    while (director.phase.phase === "RoundActive" && ticks < 60 * 30) {
+      sim = runTicks(director, sim, 1);
+      ticks += 1;
+    }
+    expect(director.phase.phase).toBe("RoundOver");
+    expect(ticks).toBeLessThan(60 * 20);
+    expect(sim.suddenDeathTicks ?? 0).toBe(0);
   });
 });

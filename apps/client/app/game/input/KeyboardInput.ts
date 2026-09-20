@@ -1,4 +1,6 @@
 import { INPUT_BITS, type InputBitName } from "@castle-clash/shared";
+import { HeldBits } from "./HeldBits.js";
+import type { InputSource } from "./InputSource.js";
 
 const KEY_TO_BIT: Readonly<Record<string, InputBitName>> = {
   ArrowLeft: "LEFT",
@@ -21,10 +23,11 @@ const KEY_TO_BIT: Readonly<Record<string, InputBitName>> = {
  * Tracks held-key state and encodes it to the shared input bitmask.
  * Sampled once per fixed sim tick by `GameClient` — never per render frame,
  * so held input isn't lost or double-counted at a render rate that doesn't
- * match `TICK_RATE`.
+ * match `TICK_RATE`. A key tapped between two samples still registers once
+ * (`HeldBits`' latch).
  */
-export class KeyboardInput {
-  readonly #pressed = new Set<InputBitName>();
+export class KeyboardInput implements InputSource {
+  readonly #state = new HeldBits();
   readonly #target: EventTarget;
 
   constructor(target: EventTarget = globalThis.window) {
@@ -39,27 +42,23 @@ export class KeyboardInput {
   detach(): void {
     this.#target.removeEventListener("keydown", this.#onKeyDown as EventListener);
     this.#target.removeEventListener("keyup", this.#onKeyUp as EventListener);
+    this.#state.clear();
   }
 
   sample(): number {
-    let bits = 0;
-    for (const name of this.#pressed) {
-      bits |= INPUT_BITS[name];
-    }
-    return bits;
+    return this.#state.sample();
   }
 
   #onKeyDown = (event: KeyboardEvent): void => {
     const bit = KEY_TO_BIT[event.code];
     if (bit) {
-      this.#pressed.add(bit);
+      this.#state.press(event.code, INPUT_BITS[bit]);
     }
   };
 
   #onKeyUp = (event: KeyboardEvent): void => {
-    const bit = KEY_TO_BIT[event.code];
-    if (bit) {
-      this.#pressed.delete(bit);
+    if (KEY_TO_BIT[event.code]) {
+      this.#state.release(event.code);
     }
   };
 }

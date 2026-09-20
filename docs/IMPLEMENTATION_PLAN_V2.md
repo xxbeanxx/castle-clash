@@ -384,7 +384,8 @@ plan.
 
 - **D1 decided 2026-09-20: free Creative Commons packs**, no commission and no budget (the plan's
   hybrid recommendation was not taken). Packs have no tint masks or per-weapon clips, so D6 and the
-  weapon layers are harder than planned. Facts and candidates (LuizMelo's CC0 warrior, rgsdev's
+  weapon layers are harder than planned. **Knight chosen 2026-09-20: aamatniekss's Fantasy Knight**,
+  which is not Creative Commons (custom licence; owner accepted committing it to the public repo). Facts and candidates (LuizMelo's CC0 warrior, rgsdev's
   CC-BY-SA knights, Kenney's CC0 tiles), plus what is unverified, are in
   `docs/research/phase15-art-sources-and-pipeline.md`. No pack has been downloaded or chosen.
 - **Built (draft PR):** `docs/art/BIBLE.md` (draft; palette, outline and tint rules still open),

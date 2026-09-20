@@ -41,6 +41,12 @@ actual pack is a look decision and needs a person (see "Human gates").
    would not be fed to any image generator. Whether that is enough is the owner's call; the author
    could be asked to confirm in writing.
 
+**Decision (owner, 2026-09-20): use Fantasy Knight, and commit the files to this public repository.**
+The owner was told the repository is public and that the licence forbids redistribution "on their
+own", and chose to commit anyway, accepting that risk; the AI-clause was not separately confirmed
+with the author. Neither concern is resolved, only accepted. Asking the author for written
+permission would still close both.
+
 Other CC0 sources worth a look for arenas/UI (not opened): Kenney's other packs. Prefer CC0: CC-BY
 means a credits screen, CC-BY-SA means a legal read.
 

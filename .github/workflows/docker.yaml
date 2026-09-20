@@ -1,4 +1,4 @@
-name: docker
+name: Release Images - Build, Scan & Promote
 
 # Plan Phase 10's release image build: with provenance and an SBOM, gated by a
 # Trivy scan, publishing immutable digests. linux/amd64 only: the deploy target

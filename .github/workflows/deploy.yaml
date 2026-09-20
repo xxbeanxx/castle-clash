@@ -1,4 +1,4 @@
-name: deploy
+name: Deploy - Roll Out or Roll Back a Release
 
 # Rolls a release out to production once its required reviewer approves.
 # Chained from release.yaml after the images are built, or run by hand for any

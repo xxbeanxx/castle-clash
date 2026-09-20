@@ -26,6 +26,7 @@ import { GamepadInput } from "./input/GamepadInput.js";
 import { KeyboardInput } from "./input/KeyboardInput.js";
 import { FrameStats, type FrameSummary } from "./FrameStats.js";
 import { planSteps } from "./fixedStep.js";
+import { matchStateToRoomInfo, type RoomInfoSnapshot } from "./roomInfo.js";
 import { matchStateToPhaseBanner, type MatchFlowSnapshot } from "./matchFlow.js";
 import { Interpolator } from "./net/Interpolator.js";
 import { Reconciler } from "./net/Reconciler.js";
@@ -56,6 +57,8 @@ export type JoinIntent =
   | { kind: "quick" }
   | { kind: "createPrivate"; arenaId?: string }
   | { kind: "joinPrivate"; code: string }
+  /** Practice (Phase 14): a private room with 1 to 3 bots of one tier; nobody waits. */
+  | { kind: "practice"; botCount: number; tier: string; arenaId?: string }
   | { kind: "joinById"; roomId: string }
   | { kind: "reconnect"; token: string };
 
@@ -167,7 +170,11 @@ export class GameClient {
   readonly #hud = new Emitter<HudPlayerSnapshot[]>();
   readonly #matchFlow = new Emitter<MatchFlowSnapshot>();
   readonly #matchCode = new Emitter<string>();
-  readonly #matchResult = new Emitter<MatchResult>();
+  /** `null` once a rematch has left `MatchOver`, so the results screen goes away by itself. */
+  readonly #matchResult = new Emitter<MatchResult | null>();
+  #resultShown = false;
+  readonly #roomInfo = new Emitter<RoomInfoSnapshot>();
+  readonly #botDropped = new Emitter<string>();
   readonly #draftOffer = new Emitter<DraftOfferSnapshot | null>();
   readonly #profileUnlocks = new Emitter<readonly string[]>();
 
@@ -208,8 +215,35 @@ export class GameClient {
 
   /** Subscribes to the `MatchResult` broadcast once, the tick the match
    *  ends. */
-  subscribeMatchResult(listener: (result: MatchResult) => void): () => void {
+  subscribeMatchResult(listener: (result: MatchResult | null) => void): () => void {
     return this.#matchResult.subscribe(listener);
+  }
+
+  /** Subscribes to the room's solo-play facts: its mode, whether a bot is on offer, whether this
+   *  player has asked for a rematch, and who the bots are. Pushed once per server patch. */
+  subscribeRoomInfo(listener: (info: RoomInfoSnapshot) => void): () => void {
+    return this.#roomInfo.subscribe(listener);
+  }
+
+  /** Fires with the bot's name when a human joined and the player's backfill bot stepped aside. */
+  subscribeBotDropped(listener: (name: string) => void): () => void {
+    return this.#botDropped.subscribe(listener);
+  }
+
+  /** Asks the server for a bot (only honored while `RoomInfoSnapshot.backfillOfferable` stands). */
+  requestBackfillBot(tier: string): void {
+    const phase = this.#getPhase();
+    if (phase.tag === "connected" || phase.tag === "predicting") {
+      phase.resources.room.send(MESSAGE_TYPES.BOT_BACKFILL, { tier });
+    }
+  }
+
+  /** "Play again" on the results screen: the room restarts once every human still seated asked. */
+  requestRematch(): void {
+    const phase = this.#getPhase();
+    if (phase.tag === "connected" || phase.tag === "predicting") {
+      phase.resources.room.send(MESSAGE_TYPES.REMATCH);
+    }
   }
 
   /** Subscribes to this client's own private draft offer (plan Phase 7) —
@@ -376,8 +410,12 @@ export class GameClient {
     room.onReconnect(() => this.#setConnection("connected"));
     room.onLeave(() => this.#setConnection("lost"));
     room.onMessage(MESSAGE_TYPES.MATCH_CODE, (code: string) => this.#matchCode.emit(code));
-    room.onMessage(MESSAGE_TYPES.MATCH_RESULT, (result: MatchResult) =>
-      this.#matchResult.emit(result),
+    room.onMessage(MESSAGE_TYPES.MATCH_RESULT, (result: MatchResult) => {
+      this.#resultShown = true;
+      this.#matchResult.emit(result);
+    });
+    room.onMessage(MESSAGE_TYPES.BOT_DROPPED, (payload: { name: string }) =>
+      this.#botDropped.emit(payload.name),
     );
     room.onMessage(MESSAGE_TYPES.PROFILE_UNLOCKS, (itemIds: string[]) =>
       this.#profileUnlocks.emit(itemIds),
@@ -460,6 +498,14 @@ export class GameClient {
       }
       if (this.#matchFlow.hasListeners) {
         this.#matchFlow.emit(matchStateToPhaseBanner(state));
+      }
+      if (this.#roomInfo.hasListeners) {
+        this.#roomInfo.emit(matchStateToRoomInfo(state, room.sessionId));
+      }
+      // A rematch moved the room on from `MatchOver`: take the results screen down.
+      if (this.#resultShown && state.phase !== "MatchOver") {
+        this.#resultShown = false;
+        this.#matchResult.emit(null);
       }
       // The round's Draft phase ended (picked, auto-picked, or timed out) —
       // clear the overlay's offer regardless of which of those it was, all
@@ -673,6 +719,17 @@ function joinRoom(client: Client, intent: JoinIntent): Promise<Room<unknown, Mat
       return client.create<MatchState>(
         MATCH_ROOM_NAME,
         { mode: "private", arenaId: intent.arenaId },
+        MatchState,
+      );
+    case "practice":
+      return client.create<MatchState>(
+        MATCH_ROOM_NAME,
+        {
+          mode: "practice",
+          botCount: intent.botCount,
+          botTier: intent.tier,
+          arenaId: intent.arenaId,
+        },
         MatchState,
       );
     case "joinPrivate":

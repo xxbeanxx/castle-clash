@@ -33,7 +33,10 @@ export function CombatHud({ client }: { client: GameClient }) {
   // player needs its own label, so fall back to a short id suffix.
   const labelFor = (player: HudPlayerSnapshot): string => {
     if (player.name) {
-      return player.isLocal ? `${player.name} (you)` : player.name;
+      if (player.isLocal) {
+        return `${player.name} (you)`;
+      }
+      return player.isBot ? `${player.name} (bot)` : player.name;
     }
     if (player.isLocal) {
       return "You";

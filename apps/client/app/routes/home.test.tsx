@@ -156,3 +156,14 @@ describe("Play now", () => {
     );
   });
 });
+
+describe("Practice vs a bot", () => {
+  it("signs in as a guest, then starts a practice match, with nobody else online", async () => {
+    const router = renderHome();
+    fireEvent.click(screen.getByRole("button", { name: "Practice vs a bot" }));
+
+    await waitFor(() => expect(router.state.location.pathname).toBe("/play/new"));
+    expect(router.state.location.search).toBe("?mode=practice&bots=1&tier=normal");
+    expect(signInAsGuestMock).toHaveBeenCalledTimes(1);
+  });
+});

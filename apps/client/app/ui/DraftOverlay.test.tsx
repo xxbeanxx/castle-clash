@@ -65,13 +65,18 @@ function draftFlow(overrides: Partial<MatchFlowSnapshot> = {}): MatchFlowSnapsho
   return { phase: "Draft", round: 1, ticksRemaining: 600, suddenDeath: false, ...overrides };
 }
 
-const OFFER: DraftOfferSnapshot = { offers: ["sharpEdge", "vampiricEdge", "aerialistBoots"], endsAtTick: 900, picked: null };
+const OFFER: DraftOfferSnapshot = {
+  offers: ["sharpEdge", "vampiricEdge", "aerialistBoots"],
+  endsAtTick: 900,
+  picked: null,
+};
 
 function opponent(overrides: Partial<HudPlayerSnapshot> = {}): HudPlayerSnapshot {
   return {
     id: "opponent-1",
     name: "Opponent",
     isLocal: false,
+    isBot: false,
     hp: 100,
     stamina: 100,
     weapon: "sword",
@@ -178,6 +183,7 @@ describe("DraftOverlay", () => {
         id: "me",
         name: "Me",
         isLocal: true,
+        isBot: false,
         hp: 100,
         stamina: 100,
         weapon: "sword",

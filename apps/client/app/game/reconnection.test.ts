@@ -51,3 +51,33 @@ describe("resolveJoinIntent", () => {
     });
   });
 });
+
+describe("resolveJoinIntent — practice", () => {
+  it("resolves mode=practice to a practice intent carrying bots, tier and arena", () => {
+    expect(
+      resolveJoinIntent("new", new URLSearchParams("mode=practice&bots=2&tier=hard&arena=pit")),
+    ).toEqual({ kind: "practice", botCount: 2, tier: "hard", arenaId: "pit" });
+  });
+
+  it("defaults to one normal bot on a random arena", () => {
+    expect(resolveJoinIntent("new", new URLSearchParams("mode=practice"))).toEqual({
+      kind: "practice",
+      botCount: 1,
+      tier: "normal",
+      arenaId: undefined,
+    });
+  });
+
+  it.each([
+    ["0", 1],
+    ["-3", 1],
+    ["9", 3],
+    ["two", 1],
+  ])(
+    "clamps bots=%s to %i (the server clamps again; this keeps the URL honest)",
+    (bots, expected) => {
+      const intent = resolveJoinIntent("new", new URLSearchParams(`mode=practice&bots=${bots}`));
+      expect(intent).toMatchObject({ kind: "practice", botCount: expected });
+    },
+  );
+});

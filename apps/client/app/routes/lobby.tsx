@@ -7,6 +7,12 @@ import { privatePageMeta } from "../meta.js";
 import { Button, Field, Input, Panel, Select } from "../ui/kit/index.js";
 
 const ARENA_OPTIONS = Object.values(ARENA_IDS) as ArenaId[];
+const BOT_COUNTS = [1, 2, 3] as const;
+const TIERS = [
+  { id: "easy", label: "Easy" },
+  { id: "normal", label: "Normal" },
+  { id: "hard", label: "Hard" },
+] as const;
 /** Matches `MatchRoomOptions.arenaId`'s own "random" behavior — an empty
  *  selection means "let the server pick," not a seventh named arena. */
 const RANDOM_ARENA = "";
@@ -39,6 +45,9 @@ export default function Lobby() {
   const navigate = useNavigate();
   const [code, setCode] = useState("");
   const [arena, setArena] = useState<string>(RANDOM_ARENA);
+  const [practiceArena, setPracticeArena] = useState<string>(RANDOM_ARENA);
+  const [botCount, setBotCount] = useState<number>(1);
+  const [tier, setTier] = useState<string>("normal");
 
   return (
     <div className="cc-page cc-page--hub">
@@ -50,6 +59,67 @@ export default function Lobby() {
           <div>
             <Button variant="primary" size="lg" onClick={() => navigate("/play/new")}>
               Quick play
+            </Button>
+          </div>
+        </Panel>
+
+        <Panel title="Practice">
+          <p className="cc-muted">Fight bots. Nobody to wait for, and nothing is recorded.</p>
+          <div className="cc-row">
+            <Field label="Bots">
+              {(props) => (
+                <Select
+                  {...props}
+                  value={botCount}
+                  onChange={(event) => setBotCount(Number(event.target.value))}
+                >
+                  {BOT_COUNTS.map((count) => (
+                    <option key={count} value={count}>
+                      {count}
+                    </option>
+                  ))}
+                </Select>
+              )}
+            </Field>
+            <Field label="Difficulty">
+              {(props) => (
+                <Select {...props} value={tier} onChange={(event) => setTier(event.target.value)}>
+                  {TIERS.map(({ id, label }) => (
+                    <option key={id} value={id}>
+                      {label}
+                    </option>
+                  ))}
+                </Select>
+              )}
+            </Field>
+          </div>
+          <Field label="Arena">
+            {(props) => (
+              <Select
+                {...props}
+                value={practiceArena}
+                onChange={(event) => setPracticeArena(event.target.value)}
+              >
+                <option value={RANDOM_ARENA}>Random</option>
+                {ARENA_OPTIONS.map((id) => (
+                  <option key={id} value={id}>
+                    {ARENA_LABELS[id]}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </Field>
+          <div>
+            <Button
+              onClick={() => {
+                const arenaParam =
+                  practiceArena === RANDOM_ARENA
+                    ? ""
+                    : `&arena=${encodeURIComponent(practiceArena)}`;
+                navigate(`/play/new?mode=practice&bots=${botCount}&tier=${tier}${arenaParam}`);
+              }}
+            >
+              Start practice
             </Button>
           </div>
         </Panel>

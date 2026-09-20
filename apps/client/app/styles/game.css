@@ -62,6 +62,41 @@
 .cc-banner--sudden-death .cc-banner__phase {
   color: var(--crimson-400);
 }
+/* The offer of a bot (decision D4). Under the phase banner, out of the way of the touch controls. */
+.cc-backfill {
+  position: absolute;
+  top: 4.25rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: var(--z-toast);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: min(26rem, calc(100% - 2 * var(--gutter)));
+  padding: var(--space-3) var(--space-4);
+  background: var(--stone-850);
+  border: 1px solid var(--gold-600);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-raised);
+  color: var(--ink);
+  text-align: center;
+}
+.cc-backfill p {
+  margin: 0;
+}
+.cc-backfill .cc-row {
+  justify-content: center;
+}
+.cc-backfill__title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--gold-300);
+}
+.cc-results__unlocks {
+  margin: 0;
+  color: var(--gold-300);
+}
 .cc-banner__code {
   margin-top: var(--space-1);
   font-size: var(--text-sm);

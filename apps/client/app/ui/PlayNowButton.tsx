@@ -12,10 +12,13 @@ export function PlayNowButton({
   size = "lg",
   variant = "primary",
   children = "Play now",
+  to = "/play/new",
 }: {
   size?: ButtonSize;
   variant?: ButtonVariant;
   children?: string;
+  /** Where to go once there is a session: quick play by default, or e.g. a practice match. */
+  to?: string;
 }) {
   const navigate = useNavigate();
   const [pending, setPending] = useState(false);
@@ -31,7 +34,7 @@ export function PlayNowButton({
       if (!session) {
         await signInAsGuest();
       }
-      navigate("/play/new");
+      navigate(to);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not start a guest session.");
       setPending(false);

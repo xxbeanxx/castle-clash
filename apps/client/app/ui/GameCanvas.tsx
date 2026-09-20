@@ -6,6 +6,7 @@ import { installE2eDebugHook } from "../game/debug.js";
 import { GameClient } from "../game/GameClient.js";
 import { TouchInput } from "../game/input/TouchInput.js";
 import { resolveJoinIntent, storeReconnectionToken } from "../game/reconnection.js";
+import { BackfillPrompt, BotDroppedNotice } from "./BackfillPrompt.js";
 import { CombatHud } from "./CombatHud.js";
 import { ConnectionOverlay } from "./ConnectionOverlay.js";
 import { DraftOverlay } from "./DraftOverlay.js";
@@ -77,6 +78,8 @@ export function GameCanvas({ roomId }: { roomId: string }) {
       <div ref={containerRef} data-testid="game-canvas" className="cc-game__canvas" />
       {client && <CombatHud client={client} />}
       {client && <MatchBanner client={client} />}
+      {client && <BackfillPrompt client={client} />}
+      {client && <BotDroppedNotice client={client} />}
       {client && <DraftOverlay client={client} />}
       {client && <ResultsOverlay client={client} />}
       {client && <UnlockToast client={client} />}

@@ -64,7 +64,9 @@ describe("Lobby route", () => {
     const { router } = renderLobby();
     render(<RouterProvider router={router} />);
 
-    fireEvent.change(screen.getByLabelText("Arena"), { target: { value: "pit" } });
+    fireEvent.change(screen.getAllByLabelText("Arena")[1] as HTMLElement, {
+      target: { value: "pit" },
+    });
     fireEvent.click(screen.getByText("Create private room"));
 
     expect(router.state.location.pathname + router.state.location.search).toBe(
@@ -91,5 +93,38 @@ describe("Lobby route", () => {
     fireEvent.click(screen.getByText("Join"));
 
     expect(router.state.location.pathname).toBe("/lobby");
+  });
+});
+
+describe("Lobby practice", () => {
+  afterEach(() => {
+    cleanup();
+  });
+
+  it("starts one normal bot on a random arena by default", () => {
+    const { router } = renderLobby();
+    render(<RouterProvider router={router} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Start practice" }));
+
+    expect(router.state.location.pathname + router.state.location.search).toBe(
+      "/play/new?mode=practice&bots=1&tier=normal",
+    );
+  });
+
+  it("carries the chosen bot count, difficulty and arena", () => {
+    const { router } = renderLobby();
+    render(<RouterProvider router={router} />);
+
+    fireEvent.change(screen.getByLabelText("Bots"), { target: { value: "3" } });
+    fireEvent.change(screen.getByLabelText("Difficulty"), { target: { value: "hard" } });
+    fireEvent.change(screen.getAllByLabelText("Arena")[0] as HTMLElement, {
+      target: { value: "pit" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Start practice" }));
+
+    expect(router.state.location.pathname + router.state.location.search).toBe(
+      "/play/new?mode=practice&bots=3&tier=hard&arena=pit",
+    );
   });
 });

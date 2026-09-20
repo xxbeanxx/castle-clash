@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from "react";
 import type { TouchButton, TouchInput } from "../game/input/TouchInput.js";
+import { canFullscreen, isFullscreen, toggleFullscreen } from "./fullscreen.js";
 import {
   loadTouchSettings,
   OPACITY_RANGE,
@@ -39,6 +40,17 @@ function useTouchMode(): boolean {
   return touch;
 }
 
+/** Tracks fullscreen so the button can say what it will do; `false` until the API reports a change. */
+function useFullscreenState(): boolean {
+  const [fullscreen, setFullscreen] = useState(false);
+  useEffect(() => {
+    const onChange = () => setFullscreen(isFullscreen());
+    document.addEventListener("fullscreenchange", onChange);
+    return () => document.removeEventListener("fullscreenchange", onChange);
+  }, []);
+  return fullscreen;
+}
+
 function buttonUnder(x: number, y: number): TouchButton | null {
   const element = document.elementFromPoint(x, y)?.closest<HTMLElement>("[data-touch-button]");
   return (element?.dataset.touchButton as TouchButton | undefined) ?? null;
@@ -55,6 +67,9 @@ export function TouchControls({ input }: { input: TouchInput }) {
   const visible = useTouchMode();
   const [settings, setSettings] = useState<TouchSettings>(loadTouchSettings);
   const [panelOpen, setPanelOpen] = useState(false);
+  const fullscreen = useFullscreenState();
+  // iPhone Safari has no Fullscreen API: hide rather than show a button that does nothing.
+  const fullscreenAvailable = canFullscreen();
   const rootRef = useRef<HTMLDivElement>(null);
   const zoneRef = useRef<HTMLDivElement>(null);
   const baseRef = useRef<HTMLDivElement>(null);
@@ -190,6 +205,17 @@ export function TouchControls({ input }: { input: TouchInput }) {
         ))}
       </div>
 
+      {fullscreenAvailable && (
+        <button
+          type="button"
+          className="cc-touch__fullscreen"
+          aria-label={fullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+          aria-pressed={fullscreen}
+          onClick={() => void toggleFullscreen()}
+        >
+          ⛶
+        </button>
+      )}
       <button
         type="button"
         className="cc-touch__gear"

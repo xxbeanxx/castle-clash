@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import {
   isRouteErrorResponse,
   Links,
@@ -13,6 +14,34 @@ import { pageMeta } from "./meta.js";
 import { Brand } from "./ui/Brand.js";
 import { Button, ButtonLink } from "./ui/kit/index.js";
 
+/**
+ * Links the web app manifest after the page has loaded, not in the static `<head>`. A manifest
+ * `<link>` in the head costs the landing page ~100 ms of simulated-throttling LCP (measured: 2560 ms
+ * with it, 2455 ms without, same build, alternating Lighthouse runs), which is over the 2500 ms
+ * budget. Chrome's installability check and iOS's "Add to Home Screen" both read the DOM's manifest
+ * link when they need it, so adding it late still works.
+ */
+function DeferredManifestLink() {
+  useEffect(() => {
+    const add = () => {
+      if (document.querySelector('link[rel="manifest"]')) {
+        return;
+      }
+      const link = document.createElement("link");
+      link.rel = "manifest";
+      link.href = "/manifest.webmanifest";
+      document.head.appendChild(link);
+    };
+    if (document.readyState === "complete") {
+      add();
+      return;
+    }
+    window.addEventListener("load", add, { once: true });
+    return () => window.removeEventListener("load", add);
+  }, []);
+  return null;
+}
+
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
@@ -20,6 +49,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="theme-color" content="#16130f" />
+        {/* "Add to Home Screen" launches without browser chrome. iOS ignores the manifest's
+            `orientation`, so the rotate prompt on /play still matters there. */}
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-title" content="Castle Clash" />
         <Meta />
         <Links />
         {/*
@@ -35,6 +69,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       </head>
       <body>
         {children}
+        <DeferredManifestLink />
         <ScrollRestoration />
         <Scripts />
       </body>

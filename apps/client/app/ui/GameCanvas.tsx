@@ -10,6 +10,7 @@ import { CombatHud } from "./CombatHud.js";
 import { DraftOverlay } from "./DraftOverlay.js";
 import { MatchBanner } from "./MatchBanner.js";
 import { ResultsOverlay } from "./ResultsOverlay.js";
+import { RotatePrompt } from "./RotatePrompt.js";
 import { TouchControls } from "./TouchControls.js";
 import { UnlockToast } from "./UnlockToast.js";
 
@@ -79,6 +80,7 @@ export function GameCanvas({ roomId }: { roomId: string }) {
       {client && <ResultsOverlay client={client} />}
       {client && <UnlockToast client={client} />}
       <TouchControls input={touch} />
+      <RotatePrompt />
     </div>
   );
 }

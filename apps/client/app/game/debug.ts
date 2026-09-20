@@ -9,6 +9,8 @@ export interface CastleClashDebugHook {
   dropConnection(): void;
   /** Phase 13 step 12: rolling frame-time summary (mean/p95/max, slow-frame count). */
   frameStats(): GameClient["frameSummary"];
+  /** Phase 13: the render surface's layout and applied stage transform (ADR 0002). */
+  surface(): GameClient["surfaceState"];
 }
 
 declare global {
@@ -33,5 +35,6 @@ export function installE2eDebugHook(client: GameClient): void {
     allCosmetics: () => client.allCosmetics,
     dropConnection: () => client.simulateDrop(),
     frameStats: () => client.frameSummary,
+    surface: () => client.surfaceState,
   };
 }

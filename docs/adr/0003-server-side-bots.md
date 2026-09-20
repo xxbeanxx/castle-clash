@@ -9,7 +9,7 @@ input per player and cannot tell which came from a socket.
 The brain reads only the previous tick's `SimState` (never anything a human player could not see),
 decides with a seeded RNG (`hashSeed(roomSeed, botId, tick)`, so there is no RNG state to carry and
 a replay gives the same frames), and keeps whatever memory it needs (a short history that models
-reaction delay) in a plain object that the caller threads through. It never reads a clock and never
+reaction delay) inside the brain object itself. It never reads a clock and never
 imports Node or DOM APIs, so it lives on the isomorphic side and the balance harness, the tests and
 the server all run the same code.
 

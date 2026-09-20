@@ -317,6 +317,33 @@ than merely functional") and the 60 fps budget on a mid-range phone. Facts check
 8. **Spectating** a full or in-progress room (schema already carries `spectator`), as a low-cost
    companion: watch, then join the next round.
 
+### Status (built as PRs #63-#65 merged, #68-#71 draft; gate not yet passed by a person)
+
+Steps 1-4, 6 and 7 are implemented; **steps 5 (waiting room, ready state, host controls, D5) and 8
+(spectating a full room) were deliberately left out** (asked of the user 2026-09-20). Decisions taken
+with the user: practice is **1-3 bots with a player-chosen tier** (the recommendation was 1), backfill
+is an **explicit offer after 8 s alone** (D4), sudden death is a **damage ramp**. Deviations, all
+recorded with reasons in `docs/research/phase14-bots-and-solo-play.md`:
+
+- Bots are seats driven by a pure `BotBrain` in `packages/shared` and pushed through `InputQueue`
+  (ADR 0003). A match any bot played in is **never recorded** at all, instead of `record_match_result`
+  gaining `mode = 'practice'`: no migration.
+- Sudden death adds a **passive bleed** to the multiplier, because a multiplier alone does nothing to
+  two players who never swing.
+- The tutorial is a **server room** with a dummy bot, in its own `TUTORIAL_ARENA` (the testbed's
+  platform is unreachable by a jump), with the client coach reading the player's synced state.
+- "Play again" is a **server rematch** (`match:rematch`), waiting for every human still seated.
+- Not done: bots as the load-test generator, and `nightly.yaml`'s bot-vs-bot report per tier (the
+  balance harness now drives the real `BotBrain`, at `normal`).
+
+Found on the way, and fixed: Pit's kill zone overlapped its bridge (crossing was instant death), bots
+stalling for a whole minute against an idle player (three geometry causes, PR #69). **Found, not
+fixed:** `hitboxWorldBox` mirrors a left-facing hitbox about the body's origin, so a left-facing
+swing cannot hit within 28 px of the attacker; it changes `combat/ttk.test.ts`'s bands and wants its
+own PR. **Not done, and only a person can:** play each tier against a person (do they feel like easy,
+normal and hard?), watch every arena once for a bot doing something silly, and put the new panels
+and coach on a phone (`phase13-real-device-checklist.md`).
+
 ### Testing strategy (gate to Phase 15)
 
 - Bot determinism: seeded bot vs bot runs are reproducible (`SimHarness`); TTK bands from

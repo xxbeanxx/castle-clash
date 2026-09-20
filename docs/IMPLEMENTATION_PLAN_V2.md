@@ -253,6 +253,16 @@ the render-scaling model that Phase 15's art depends on.
 12. **Perf budget:** 60 fps on a mid-range Android (Pixel 6a-class) and iPhone 12-class; cap DPR at 2
     if fill-rate bound. Report frame time in the E2E debug hook.
 
+### Status (built as draft PRs, gate not yet passed)
+
+Steps 1-12 are implemented; deviations: Pixi runs at `resolution: 1` with a self-sized backing store
+instead of `resolution` + `autoDensity` (ADR 0002); the camera no longer zooms or follows, so step 1's
+"discrete zoom step" is deferred; step 10 reuses the SDK's own reconnect rather than a second
+`reconnection.ts` flow. **Not done, and only a person can:** `docs/research/phase13-real-device-checklist.md`
+on iOS Safari, an iOS home-screen web app, and Android Chrome, including the gate ("playable rather
+than merely functional") and the 60 fps budget on a mid-range phone. Facts checked and not checked:
+`docs/research/phase13-mobile-browser-facts.md`.
+
 ### Testing strategy (gate to Phase 14)
 
 - `TouchInput` unit tests: two simultaneous pointers, pointer leaves control, cancel releases,

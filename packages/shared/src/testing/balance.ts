@@ -1,10 +1,12 @@
 import { ALL_ARENAS } from "../arenas/registry.js";
 import { computeStats, BASE_STATS } from "../powerups/computeStats.js";
 import { getWeapon } from "../combat/weapons.js";
-import { encode, type InputBitName, type InputFrame } from "../input/bitmask.js";
+import { BotBrain } from "../bots/brain.js";
+import type { BotTier } from "../bots/tiers.js";
+import type { InputFrame } from "../input/bitmask.js";
 import { createHazardState, resetHazardState } from "../hazards/step.js";
 import { advanceMatchPhase, createMatchPhaseState, type MatchPhaseState } from "../match/phase.js";
-import { hashSeed, mulberry32, type Rng } from "../math/rng.js";
+import { hashSeed, mulberry32 } from "../math/rng.js";
 import { generateOffers } from "../powerups/offers.js";
 import type { PowerUpId } from "../powerups/types.js";
 import { step } from "../sim/GameSimulation.js";
@@ -20,31 +22,6 @@ const B: PlayerId = playerId("botB");
  *  isn't pathfinding-aware) shouldn't spin the simulation forever. A match
  *  that hits this is simply excluded from the tally, not counted as a draw. */
 const MAX_TICKS_PER_MATCH = 60_000;
-
-/** A deliberately dumb heuristic, not real AI — plan step "CI/CD
- *  integration" only needs matches that actually finish and draft randomly,
- *  not skilled play; a smarter bot is future tuning work, not this phase's
- *  job. Closes distance, attacks in range, blocks/jumps at low random rates
- *  to avoid completely deterministic exchanges. */
-function botFrame(seq: number, self: SimPlayer, opponent: SimPlayer, rng: Rng): InputFrame {
-  if (self.action === "Dead") {
-    return { seq, bits: 0 };
-  }
-  const dx = opponent.pos.x - self.pos.x;
-  const dist = Math.abs(dx);
-  const names: InputBitName[] = [];
-  if (dist > 70) {
-    names.push(dx >= 0 ? "RIGHT" : "LEFT");
-    if (rng() < 0.03) {
-      names.push("JUMP");
-    }
-  } else if (rng() < 0.7) {
-    names.push(rng() < 0.85 ? "LIGHT" : "HEAVY");
-  } else if (rng() < 0.3) {
-    names.push("BLOCK");
-  }
-  return { seq, bits: encode(names) };
-}
 
 /** Respawns both bots at full (power-up-derived) hp/stamina at their
  *  original spawns — a trimmed, script-local stand-in for
@@ -84,6 +61,7 @@ export function runBalanceMatch(
   matchSeed: number,
   weaponA: WeaponId,
   weaponB: WeaponId,
+  tier: BotTier = "normal",
 ): BalanceMatchResult | null {
   const rng = mulberry32(matchSeed);
   const arena = ALL_ARENAS[Math.floor(rng() * ALL_ARENAS.length) % ALL_ARENAS.length]!;
@@ -100,13 +78,13 @@ export function runBalanceMatch(
   };
   let phase: MatchPhaseState = createMatchPhaseState();
   let lastRoundWinner: PlayerId | null = null;
-  let seqA = 0;
-  let seqB = 0;
+  const brainA = new BotBrain(A, tier, hashSeed(matchSeed, "botA"));
+  const brainB = new BotBrain(B, tier, hashSeed(matchSeed, "botB"));
 
   for (let i = 0; i < MAX_TICKS_PER_MATCH; i++) {
     const inputs: Record<PlayerId, InputFrame> = {
-      [A]: botFrame(++seqA, sim.players[A]!, sim.players[B]!, rng),
-      [B]: botFrame(++seqB, sim.players[B]!, sim.players[A]!, rng),
+      [A]: brainA.decide(sim),
+      [B]: brainB.decide(sim),
     };
     const stepResult = step(sim, inputs);
     sim = stepResult.state;

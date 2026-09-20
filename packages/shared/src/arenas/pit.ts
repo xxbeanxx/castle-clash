@@ -6,6 +6,8 @@ import type { ArenaDefinition } from "./types.js";
  * bridge is the only way across, and it's rigged to fall once someone
  * commits to crossing it. Falling into the gap hits the hazard-authored
  * `pitDrop` KillZone well before reaching the arena's boundary blast zone.
+ * The zone starts below the bridge's underside (y:620), not above it: it once spanned
+ * y:200-720, which overlapped anyone standing on the bridge and made crossing instant death.
  */
 export const PIT_ARENA: ArenaDefinition = {
   id: "pit",
@@ -25,7 +27,7 @@ export const PIT_ARENA: ArenaDefinition = {
   ],
   killZones: [{ x: -2000, y: 900, w: 5280, h: 400 }],
   hazards: [
-    { id: "pitDrop", kind: "killZone", box: { x: 500, y: 200, w: 280, h: 520 } },
+    { id: "pitDrop", kind: "killZone", box: { x: 500, y: 640, w: 280, h: 80 } },
     {
       id: "bridgeA",
       kind: "collapsingPlatform",

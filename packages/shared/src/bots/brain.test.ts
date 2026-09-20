@@ -28,6 +28,35 @@ function twoPlayers(mePos: { x: number; y: number }, foePos: { x: number; y: num
   };
 }
 
+/** Ticks for a bot at `botSpawn` to kill an idle player at `targetSpawn`, or `null` if it never does. */
+function idleTargetDuel(
+  tier: "easy" | "normal" | "hard",
+  arena: (typeof ALL_ARENAS)[number],
+  targetSpawn: number,
+  botSpawn: number,
+): number | null {
+  const target = playerId("target");
+  const bot = playerId("bot");
+  const brain = new BotBrain(bot, tier, 7);
+  let sim: SimState = {
+    tick: 0,
+    players: {
+      [target]: createSimPlayer(arena.spawns[targetSpawn]!),
+      [bot]: createSimPlayer(arena.spawns[botSpawn]!),
+    },
+    arena,
+    rngSeed: 1,
+    hazards: createHazardState(arena.hazards),
+  };
+  for (let i = 0; i < 900; i++) {
+    sim = step(sim, { [bot]: brain.decide(sim), [target]: { seq: i + 1, bits: 0 } }).state;
+    if (sim.players[target]!.action === "Dead") {
+      return i;
+    }
+  }
+  return null;
+}
+
 describe("BotBrain", () => {
   it("numbers its frames 1, 2, 3, ... whatever it decides", () => {
     const brain = new BotBrain(ME, "normal", 1);
@@ -152,6 +181,38 @@ describe("every arena", () => {
       expect(finished.length).toBeGreaterThanOrEqual(4);
     },
   );
+
+  it.each(ALL_ARENAS.map((arena) => [arena.id, arena] as const))(
+    "%s: a lone player at the first spawn is reached and beaten from every other spawn, at every tier",
+    (_id, arena) => {
+      // The scenario the game creates: the human takes seat 0, bots the seats after it.
+      for (const tier of ["easy", "normal", "hard"] as const) {
+        for (let botSpawn = 1; botSpawn < arena.spawns.length; botSpawn++) {
+          const result = idleTargetDuel(tier, arena, 0, botSpawn);
+          expect(result, `${tier} bot at spawn ${botSpawn}`).not.toBeNull();
+        }
+      }
+    },
+  );
+
+  it("across every pair of spawns a normal bot reaches a standing target nearly always", () => {
+    let total = 0;
+    let reached = 0;
+    for (const arena of ALL_ARENAS) {
+      for (let target = 0; target < arena.spawns.length; target++) {
+        for (let botSpawn = 0; botSpawn < arena.spawns.length; botSpawn++) {
+          if (target === botSpawn) {
+            continue;
+          }
+          total += 1;
+          reached += idleTargetDuel("normal", arena, target, botSpawn) === null ? 0 : 1;
+        }
+      }
+    }
+    // The rest are a target parked on woodenHall's upper stairs: no pathfinder, and sudden death
+    // ends those rounds. 90% is the floor this test defends, not the ceiling.
+    expect(reached / total).toBeGreaterThan(0.9);
+  });
 
   it("Pit: a bot crosses the bridge (its kill zone must not overlap the planks)", () => {
     // The bot on the left ledge must get to a dummy on the right one.

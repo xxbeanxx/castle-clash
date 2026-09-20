@@ -6,7 +6,7 @@ import { hashSeed, mulberry32, type Rng } from "../math/rng.js";
 import type { SimPlayer, SimState } from "../sim/types.js";
 import type { PlayerId } from "../types/ids.js";
 import { BOT_TIERS, type BotKind, type BotParams } from "./tiers.js";
-import { footingAhead, standingOnPlatform } from "./terrain.js";
+import { footingAhead, MAX_HOP_RISE, nextStepStone, standingOnPlatform } from "./terrain.js";
 
 /** What a bot remembers of another player: enough to react to their swing a beat late. */
 interface Observation {
@@ -44,6 +44,16 @@ const HOP_TICKS = 45;
 const DROP_RANGE = 220;
 /** Extra reach the bot allows itself when deciding it is close enough to swing. */
 const SWING_SLACK = 6;
+/**
+ * Closer than this (centre to centre) a swing cannot land: a right-facing hitbox starts at the
+ * attacker's leading edge but a left-facing one is mirrored about the body's origin, leaving a
+ * dead zone beside it, so a bot standing inside a target hits nothing. It backs off first.
+ */
+const MIN_STAND = 40;
+/** A hop over a target with no room behind us: just far enough to land on its far side. */
+const RETREAT_HOP_TICKS = 14;
+/** Once backing off, keep going until this far (a little hysteresis, so it does not shuffle). */
+const RETREAT_UNTIL = 52;
 
 /** The bot's own face at the target: a bot cannot turn and swing in the same tick (locomotion locks
  *  the moment an attack starts), so it turns first. */
@@ -85,10 +95,14 @@ export class BotBrain {
   #history: Record<string, Observation>[] = [];
   /** The swing (start tick) the current plan was rolled for, so one swing is decided once. */
   #answeredSwing: string | null = null;
+  /** Backing away from a target it is standing inside (see `MIN_STAND`). */
+  #retreating = false;
   /** Whether the last frame asked to run: with no speed to show for it, the bot is against a wall. */
   #pushedLastTick = false;
   /** While a purposeful jump is in the air (until this tick), keep holding JUMP for full height. */
   #hopUntilTick = 0;
+  /** Which way that jump leans (toward the target, or toward the stepping stone it is aiming at). */
+  #hopDir: -1 | 1 = 1;
 
   constructor(id: PlayerId, kind: BotKind, seed: number) {
     this.id = id;
@@ -173,10 +187,11 @@ export class BotBrain {
     const dx = target.player.pos.x - self.pos.x;
     const dy = target.player.pos.y - self.pos.y;
     const dir = directionTo(self, target.player);
-    const gap = Math.abs(dx) - PLAYER_WIDTH;
+    const dist = Math.abs(dx);
     const sameLevel = Math.abs(dy) <= LEVEL_TOLERANCE;
-    const swingRange = weapon.reach - SWING_SLACK;
-    const inSwingRange = gap <= swingRange && Math.abs(dy) <= PLAYER_HEIGHT;
+    const swingMax = weapon.reach + PLAYER_WIDTH - SWING_SLACK;
+    const abreast = Math.abs(dy) <= PLAYER_HEIGHT;
+    const inSwingRange = dist >= MIN_STAND && dist <= swingMax && abreast;
     const names: InputBitName[] = [];
 
     // A plan already in force is followed to its end (a guard that flickered every tick is no guard).
@@ -185,7 +200,7 @@ export class BotBrain {
     }
 
     // Notice a swing that is coming at us, once, after the reaction delay.
-    if (isThreatening(seen) && gap <= weapon.reach + 60 && sameLevel) {
+    if (isThreatening(seen) && dist <= weapon.reach + PLAYER_WIDTH + 60 && sameLevel) {
       const swing = `${target.id}:${tick - seen.actionTick}`;
       if (this.#answeredSwing !== swing && !this.#plan) {
         this.#answeredSwing = swing;
@@ -205,6 +220,26 @@ export class BotBrain {
 
     const facing = self.facing;
     const free = FREE.has(self.action);
+
+    // Standing inside the target: no swing can land from here, so back off (or hop past if a ledge
+    // is behind us) before doing anything else.
+    if (dist < MIN_STAND && abreast) {
+      this.#retreating = true;
+    } else if (dist >= RETREAT_UNTIL || !abreast) {
+      this.#retreating = false;
+    }
+    if (this.#retreating && free && self.grounded) {
+      const away: -1 | 1 = dir === 1 ? -1 : 1;
+      const walledIn = this.#pushedLastTick && Math.abs(self.vel.x) < WALL_SPEED;
+      if (walledIn || footingAhead(sim, self.pos, away).blocked) {
+        // No room behind us (a wall, a ledge): hop over them and turn round on the far side.
+        this.#hop(tick, dir, RETREAT_HOP_TICKS);
+        names.push("JUMP", dir === 1 ? "RIGHT" : "LEFT");
+      } else {
+        names.push(away === 1 ? "RIGHT" : "LEFT");
+      }
+      return names;
+    }
 
     // Turn to face the target before anything else: a swing thrown the wrong way is a wasted one.
     if (inSwingRange && facing !== dir && free) {
@@ -232,8 +267,14 @@ export class BotBrain {
     }
 
     // Movement: the vertical problem first (a target on another level), then plain closing.
-    this.#move(sim, self, target.player, dir, gap, dy, swingRange, params, rng, names);
+    this.#move(sim, self, target.player, dir, dist, dy, swingMax, rng, names);
     return names;
+  }
+
+  /** Starts a purposeful jump: JUMP stays held (and the lean kept) until it is done. */
+  #hop(tick: number, lean: -1 | 1, ticks = HOP_TICKS): void {
+    this.#hopUntilTick = tick + ticks;
+    this.#hopDir = lean;
   }
 
   /** Decides how to answer one noticed swing. */
@@ -278,10 +319,9 @@ export class BotBrain {
     self: SimPlayer,
     target: SimPlayer,
     dir: -1 | 1,
-    gap: number,
+    dist: number,
     dy: number,
-    swingRange: number,
-    params: BotParams,
+    swingMax: number,
     rng: Rng,
     names: InputBitName[],
   ): void {
@@ -290,7 +330,7 @@ export class BotBrain {
     }
     if (!self.grounded && sim.tick < this.#hopUntilTick) {
       // Mid-way through a jump we chose: JUMP must stay held while rising or the hop is cut short.
-      names.push(dir === 1 ? "RIGHT" : "LEFT");
+      names.push(this.#hopDir === 1 ? "RIGHT" : "LEFT");
       if (self.vel.y < 0) {
         names.push("JUMP");
       }
@@ -310,16 +350,37 @@ export class BotBrain {
       return;
     }
 
-    const wantsToClose = gap > swingRange - 14;
+    // On another level "close enough to swing" is beside the point: get under or over them first.
+    const wantsToClose = below || above ? dist > UNDER_RANGE / 2 : dist > swingMax - 14;
     if (above && self.grounded) {
       // They are higher up. Either we are under them (a one-way platform passes a jump from below) or
       // pressed against the riser they stand on: hop, leaning toward them to land on top.
       const under = Math.abs(target.pos.x - self.pos.x) < UNDER_RANGE;
       const againstWall = this.#pushedLastTick && Math.abs(self.vel.x) < WALL_SPEED;
-      if (under || againstWall) {
-        this.#hopUntilTick = sim.tick + HOP_TICKS;
-        names.push("JUMP", dir === 1 ? "RIGHT" : "LEFT");
-        return;
+      if (-dy <= MAX_HOP_RISE) {
+        if (under || againstWall) {
+          this.#hop(sim.tick, dir);
+          names.push("JUMP", dir === 1 ? "RIGHT" : "LEFT");
+          return;
+        }
+      } else {
+        // Too high for one jump: work up through whatever stands between (a stair, a ledge).
+        const stone = nextStepStone(sim, self.pos, target.pos.y + PLAYER_HEIGHT);
+        if (stone) {
+          const toward: -1 | 1 = stone.aimX >= self.pos.x ? 1 : -1;
+          // One-way platform: anywhere under it will do. Solid: hop off its wall, leaning into it.
+          const beneath =
+            stone.oneWay && self.pos.x >= stone.left - 6 && self.pos.x <= stone.right + 6;
+          const atWall = !stone.oneWay && Math.abs(self.pos.x - stone.aimX) < 14;
+          if (beneath || atWall || againstWall) {
+            const lean: -1 | 1 = stone.oneWay ? toward : stone.aimX <= stone.left ? 1 : -1;
+            this.#hop(sim.tick, beneath ? toward : lean);
+            names.push("JUMP", this.#hopDir === 1 ? "RIGHT" : "LEFT");
+          } else {
+            names.push(toward === 1 ? "RIGHT" : "LEFT");
+          }
+          return;
+        }
       }
     }
 
@@ -328,7 +389,7 @@ export class BotBrain {
         const footing = footingAhead(sim, self.pos, dir);
         if (footing.blocked) {
           if (footing.canLeap) {
-            this.#hopUntilTick = sim.tick + HOP_TICKS;
+            this.#hop(sim.tick, dir);
             names.push("JUMP", dir === 1 ? "RIGHT" : "LEFT");
           }
           // otherwise wait at the edge: stepping off is worse than standing still
@@ -340,9 +401,6 @@ export class BotBrain {
       if (self.grounded && rng() < 0.01) {
         names.push("JUMP");
       }
-    } else if (gap < 8 && rng() < 0.05) {
-      // Crowded: give a step back.
-      names.push(dir === 1 ? "LEFT" : "RIGHT");
     }
   }
 }

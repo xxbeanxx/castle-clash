@@ -25,7 +25,21 @@ actual pack is a look decision and needs a person (see "Human gates").
 | --- | --- | --- | --- |
 | LuizMelo, [Medieval Warrior Pack 3](https://luizmelo.itch.io/medieval-warrior-pack-3) | **CC0 1.0**; credit not required. Page also says "No generative AI was used". | 26x38 px character. Idle 10, Run 6, Jump 2, Fall 2, Attack1/2/3 4/4/5, Take Hit 3, Death 9 frames. | Best licence. **No block, dodge, guard-broken or per-weapon clips.** Attack frames are a different size from idle (a comment on the page says so). |
 | rgsdev, [Animated Knight Character Pack v2.0](https://opengameart.org/content/animated-knight-character-pack-v20) | **CC-BY-SA 4.0**; asks for a link to the page in credits. A commenter notes the zip's own text says "don't resell or redistribute", which conflicts with the licence shown. | 16x16 px character in a 64x64 canvas; 4 knights, 4 weapons, shield. Idle, Run, Jump, Fall, Attack, Hit, Dead, Block. | Has block. **Share-alike** may reach our adapted sprites; needs a licence decision before use. Too small for a 14x24 hitbox. |
+| aamatniekss, [Fantasy Knight](https://aamatniekss.itch.io/fantasy-knight-free-pixelart-animated-character) (**the user's preference, 2026-09-20**) | **Custom licence, not Creative Commons.** Free and commercial use, modification allowed, credit optional. "You may not redistribute or resell the assets on their own" (including image-only or compilations). "The assets can't be used in AI creations." Page also says "No generative AI was used". | Character about 38x20 px in an 80x120 canvas; 2 colour styles, each with or without outline. Idle 10, Run 10, Turn 3, Crouch, Crouch walk 8, Crouch attack 4, Slide 2, Wall hang/climb/slide, Attack 1 (4), Attack 2 (6), Jump 3+2, Fall 3+2, Hit 1, Death 10, Roll 12, Dash 2. | Best-looking animation set of the three and has two attacks, hit, death and a roll for dodge. **No block, block-stun, guard-broken, heavy attack or per-weapon clips**; about 1.6x the hitbox height. See the licence concerns below. |
 | Kenney, [Tiny Dungeon](https://kenney.nl/assets/tiny-dungeon) | **CC0** | 16x16 tiles, 130 files, 2022 | Tileset and props for arenas; not animated knights. |
+
+**Fantasy Knight licence concerns (need a person's decision, not a lawyer's reading from me):**
+
+1. **It is not CC**, so it departs from D1 as recorded ("free Creative Commons"). The terms are
+   permissive for a game but bespoke.
+2. **"May not redistribute ... on their own."** Shipping the sprites inside the game is the intended
+   use. Committing the raw PNGs to this repository is a separate question if the repository is or
+   becomes public, since a public repo lets anyone download them on their own. Unresolved.
+3. **"Can't be used in AI creations."** This project's code is largely written with Claude Code. A
+   comment on the itch.io page from a user in the same position got a one-line "That's alright" from
+   the author (checked 2026-09-20). That is a comment, not a change to the licence text, and the art
+   would not be fed to any image generator. Whether that is enough is the owner's call; the author
+   could be asked to confirm in writing.
 
 Other CC0 sources worth a look for arenas/UI (not opened): Kenney's other packs. Prefer CC0: CC-BY
 means a credits screen, CC-BY-SA means a legal read.

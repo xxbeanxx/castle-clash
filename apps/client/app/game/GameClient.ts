@@ -1,7 +1,6 @@
 import {
-  getArena,
+  findArena,
   hashSeed,
-  isArenaId,
   MATCH_ROOM_NAME,
   MatchState,
   MESSAGE_TYPES,
@@ -59,6 +58,8 @@ export type JoinIntent =
   | { kind: "joinPrivate"; code: string }
   /** Practice (Phase 14): a private room with 1 to 3 bots of one tier; nobody waits. */
   | { kind: "practice"; botCount: number; tier: string; arenaId?: string }
+  /** The first-run tutorial (Phase 14): a room with a training dummy on the testbed. */
+  | { kind: "tutorial" }
   | { kind: "joinById"; roomId: string }
   | { kind: "reconnect"; token: string };
 
@@ -589,7 +590,7 @@ export class GameClient {
    *  `onCreate`'s own set has arrived), so prediction never crashes on a
    *  missing arena — it just predicts against the wrong one for a tick. */
   #resolveArena(state: MatchState): ArenaDefinition {
-    return isArenaId(state.arenaId) ? getArena(state.arenaId) : TESTBED_ARENA;
+    return findArena(state.arenaId) ?? TESTBED_ARENA;
   }
 
   /** Seeds `#resolvedArena`/`#camera`/`ArenaView` the first tick
@@ -597,14 +598,14 @@ export class GameClient {
    *  to call from both right after join and every `onStateChange` until it
    *  sticks (mirrors `#ensureReconciler`'s own race-tolerant seeding). */
   #ensureArena(state: MatchState): void {
-    if (this.#resolvedArena || !isArenaId(state.arenaId)) {
+    const arena = findArena(state.arenaId);
+    if (this.#resolvedArena || !arena) {
       return;
     }
     const phase = this.#getPhase();
     if (phase.tag !== "connected" && phase.tag !== "predicting") {
       return;
     }
-    const arena = getArena(state.arenaId);
     this.#resolvedArena = arena;
     this.#camera = new Camera(arena.bounds);
     phase.resources.arenaView.setArena(arena);
@@ -721,6 +722,8 @@ function joinRoom(client: Client, intent: JoinIntent): Promise<Room<unknown, Mat
         { mode: "private", arenaId: intent.arenaId },
         MatchState,
       );
+    case "tutorial":
+      return client.create<MatchState>(MATCH_ROOM_NAME, { mode: "tutorial" }, MatchState);
     case "practice":
       return client.create<MatchState>(
         MATCH_ROOM_NAME,

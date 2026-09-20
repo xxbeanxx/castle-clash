@@ -81,3 +81,11 @@ describe("resolveJoinIntent — practice", () => {
     },
   );
 });
+
+describe("resolveJoinIntent — tutorial", () => {
+  it("resolves mode=tutorial to the tutorial room", () => {
+    expect(resolveJoinIntent("new", new URLSearchParams("mode=tutorial&next=%2Flobby"))).toEqual({
+      kind: "tutorial",
+    });
+  });
+});

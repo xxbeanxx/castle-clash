@@ -4,7 +4,8 @@ import { expect, test } from "@playwright/test";
  * v2 plan Phase 11's gate: from a cold browser (no session, no storage), the
  * landing page gets a stranger into a room in two clicks and no typing. The
  * first click is the visit itself, the second is Play now: guest sign-in and
- * quick play happen behind that one button.
+ * quick play happen behind that one button. (Phase 14: a first visit lands in the
+ * tutorial room on the way; either way it is a room with the local player's HUD.)
  */
 test("a cold visitor reaches a room with one click and no typing", async ({ page }) => {
   await page.goto("/");

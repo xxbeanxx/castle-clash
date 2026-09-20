@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { Button, type ButtonSize, type ButtonVariant } from "./kit/index.js";
+import { tutorialSeen, tutorialUrl } from "./tutorialSeen.js";
 
 /**
  * One click from a cold visit into a match: reuse the current session, or start
@@ -34,7 +35,8 @@ export function PlayNowButton({
       if (!session) {
         await signInAsGuest();
       }
-      navigate(to);
+      // A first visit meets the training dummy before anyone else; `to` is where it leads after.
+      navigate(tutorialSeen() ? to : tutorialUrl(to));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not start a guest session.");
       setPending(false);

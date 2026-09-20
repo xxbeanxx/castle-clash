@@ -5,9 +5,10 @@ export const ROUNDS_TO_WIN = 3;
 export const MATCH_ROOM_NAME = "match";
 
 /** How a `match` room was made. `quick` and `private` are between humans; `practice` is one human
- *  and 1 to `MAX_PRACTICE_BOTS` bots. A practice room, and any match a bot played in, is never
- *  recorded (ADR 0003). */
-export const MATCH_MODES = ["quick", "private", "practice"] as const;
+ *  and 1 to `MAX_PRACTICE_BOTS` bots; `tutorial` is one human and a dummy that never fights back, in
+ *  its own small arena, with no rounds and no end. A practice or tutorial room, and any match a bot played
+ *  in, is never recorded (ADR 0003). */
+export const MATCH_MODES = ["quick", "private", "practice", "tutorial"] as const;
 export type MatchMode = (typeof MATCH_MODES)[number];
 
 export function isMatchMode(value: unknown): value is MatchMode {

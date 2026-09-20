@@ -24,7 +24,8 @@ export default function HowToPlay() {
     <ProsePage title="How to play">
       <p>
         Castle Clash is a duel of nerve and timing. {MIN_PLAYERS} to {MAX_PLAYERS} knights share one
-        arena. Knock the others out, win {ROUNDS_TO_WIN} rounds, and the match is yours.
+        arena, or you can practice against bots. Knock the others out, win {ROUNDS_TO_WIN} rounds,
+        and the match is yours.
       </p>
 
       <h2>Controls</h2>
@@ -41,8 +42,10 @@ export default function HowToPlay() {
         ))}
       </dl>
       <p>
-        The arrow keys move and jump as well. Touch controls are not in yet, so for now play on a
-        keyboard.
+        The arrow keys move and jump as well. On a phone or tablet the touch controls appear on
+        their own: turn it to landscape. New here? Try the{" "}
+        <Link to="/play/new?mode=tutorial&next=%2Fhow-to-play">tutorial</Link>, a training dummy and
+        a short list of things to try.
       </p>
 
       <h2>Fighting</h2>
@@ -74,6 +77,22 @@ export default function HowToPlay() {
         floors that break, platforms that fall away once you stand on them, and traps that telegraph
         before they strike. Quick play picks an arena at random. See them all on the{" "}
         <Link to="/">home page</Link>.
+      </p>
+
+      <h2>Playing alone</h2>
+      <p>
+        You never have to wait for anyone. Choose <strong>Practice</strong> in the lobby to fight 1
+        to 3 bots at a difficulty you pick, on any arena. If you are alone in quick play, the game
+        offers you a bot after a few seconds, and only if you say yes; when another player shows up
+        they take its place. Nothing you do against bots is recorded: no stats, no leaderboard, no
+        unlocks.
+      </p>
+
+      <h2>Sudden death</h2>
+      <p>
+        A round that runs past a minute goes to sudden death: every hit lands harder and harder, and
+        everyone slowly bleeds, so a stand-off always ends. The knight with more health left
+        outlasts the other.
       </p>
 
       <h2>Playing with friends</h2>

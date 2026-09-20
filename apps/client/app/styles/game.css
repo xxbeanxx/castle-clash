@@ -62,6 +62,70 @@
 .cc-banner--sudden-death .cc-banner__phase {
   color: var(--crimson-400);
 }
+/* The first-run coach: top-left, under the HUD bars, out of the way of the fight and of the touch controls. */
+.cc-tutorial {
+  position: absolute;
+  top: 5rem;
+  left: var(--space-3);
+  z-index: var(--z-toast);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  max-width: min(20rem, calc(100% - 2 * var(--space-3)));
+  padding: var(--space-3) var(--space-4);
+  background: var(--stone-850);
+  border: 1px solid var(--gold-600);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-raised);
+  color: var(--ink);
+}
+.cc-tutorial p {
+  margin: 0;
+}
+.cc-tutorial__count {
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+.cc-tutorial__prompt {
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--gold-300);
+}
+.cc-tutorial__steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+.cc-tutorial__steps li[aria-current="step"] {
+  color: var(--ink);
+  text-decoration: underline;
+}
+.cc-tutorial__step--done {
+  color: var(--moss-400);
+  text-decoration: line-through;
+}
+/* A phone in landscape is ~360 px tall with a stick and buttons over the corners: keep the coach
+   to its current instruction, small, and out of the stick's way. */
+@media (max-height: 480px) {
+  .cc-tutorial {
+    top: 3.5rem;
+    max-width: 14rem;
+    padding: var(--space-2) var(--space-3);
+    gap: var(--space-1);
+  }
+  .cc-tutorial__steps {
+    display: none;
+  }
+  .cc-tutorial__prompt {
+    font-size: var(--text-sm);
+  }
+}
 /* The offer of a bot (decision D4). Under the phase banner, out of the way of the touch controls. */
 .cc-backfill {
   position: absolute;

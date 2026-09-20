@@ -14,6 +14,7 @@ import { MatchBanner } from "./MatchBanner.js";
 import { ResultsOverlay } from "./ResultsOverlay.js";
 import { RotatePrompt } from "./RotatePrompt.js";
 import { TouchControls } from "./TouchControls.js";
+import { TutorialGuide } from "./TutorialGuide.js";
 import { UnlockToast } from "./UnlockToast.js";
 
 /** `roomId` is `"new"` for a not-yet-created room (quick play, or a private
@@ -79,6 +80,7 @@ export function GameCanvas({ roomId }: { roomId: string }) {
       {client && <CombatHud client={client} />}
       {client && <MatchBanner client={client} />}
       {client && <BackfillPrompt client={client} />}
+      {client && <TutorialGuide client={client} />}
       {client && <BotDroppedNotice client={client} />}
       {client && <DraftOverlay client={client} />}
       {client && <ResultsOverlay client={client} />}

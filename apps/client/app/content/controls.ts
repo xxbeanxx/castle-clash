@@ -6,7 +6,7 @@
 export const CONTROLS: ReadonlyArray<{ keys: readonly string[]; action: string }> = [
   { keys: ["A", "D"], action: "Move" },
   { keys: ["W", "Space"], action: "Jump" },
-  { keys: ["S"], action: "Drop through a platform" },
+  { keys: ["S", "Space"], action: "Drop through a platform (together)" },
   { keys: ["J"], action: "Light attack" },
   { keys: ["K"], action: "Heavy attack" },
   { keys: ["L"], action: "Block" },

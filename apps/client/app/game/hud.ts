@@ -11,6 +11,12 @@ export interface HudPlayerSnapshot {
   stamina: number;
   weapon: string;
   action: string;
+  /** Which attack is in flight ("light", "heavy", "airLight"), "" otherwise. */
+  attackKind: string;
+  /** Ticks left of a drop-through (DOWN+JUMP); 0 when not dropping. */
+  dropThroughTicks: number;
+  grounded: boolean;
+  y: number;
   /** Owned power-up ids, one entry per stack (plan Phase 7) — public on the
    *  wire (`PlayerState.powerups`), so opponents' builds show here too. */
   powerups: string[];
@@ -35,6 +41,10 @@ export function matchStateToHud(state: MatchState, localId: string | null): HudP
       stamina: player.stamina,
       weapon: player.weapon,
       action: player.action,
+      attackKind: player.attackKind,
+      dropThroughTicks: player.dropThroughTicks,
+      grounded: player.grounded,
+      y: player.y,
       powerups: player.powerups.toArray(),
     });
   });

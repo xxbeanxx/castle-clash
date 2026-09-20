@@ -33,6 +33,9 @@ export function resolveJoinIntent(roomId: string, searchParams: URLSearchParams)
   if (roomId === "new") {
     const mode = searchParams.get("mode");
     const code = searchParams.get("code");
+    if (mode === "tutorial") {
+      return { kind: "tutorial" };
+    }
     if (mode === "practice") {
       const bots = Math.floor(Number(searchParams.get("bots")));
       return {

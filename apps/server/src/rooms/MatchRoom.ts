@@ -28,12 +28,15 @@ import {
   resolveCosmeticSelection,
   step as simulationStep,
   TICK_RATE,
+  TUTORIAL_ARENA,
   WEAPON_IDS,
   type ArenaId,
+  type BotKind,
   type BotTier,
   type InputFrame,
   type MatchMode,
   type PlayerId,
+  type SimEvent,
   type SimState,
   type WeaponId,
 } from "@castle-clash/shared";
@@ -117,6 +120,9 @@ const RECONNECTION_WINDOW_SECONDS = 20;
 type MatchDirectorEvents = ReturnType<MatchDirector["tick"]>["events"];
 
 export type { MatchMode };
+
+/** How long a knocked-out tutorial player or dummy lies there before standing up again. */
+const TUTORIAL_RESPAWN_TICKS = 90;
 
 /** Tints bots wear, in seat order: distinct from each other and from the default loadout. */
 const BOT_TINTS: readonly [number, number][] = [
@@ -226,6 +232,9 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
   #aloneTicks = 0;
   /** Bumped on each rematch, so a new match reseeds its bots and draft. */
   #matchNumber = 0;
+  /** Tutorial only: ticks each knocked-out seat has been down, and which spawn each seat stands at. */
+  readonly #downTicks = new Map<PlayerId, number>();
+  readonly #seatSpawn = new Map<PlayerId, number>();
   /** Session ids that joined mid-`RoundActive` and are watching, not
    *  playing, until the next round starts (plan step 3: "late joiners wait
    *  or spectate"). Never in `#sim.players`. */
@@ -295,7 +304,7 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
     this.#mode = mode;
     // A practice room seats one human and any number of bots, and Colyseus's `maxClients` counts
     // clients only (a bot has none), so one is the whole capacity.
-    this.maxClients = mode === "practice" ? 1 : MAX_PLAYERS;
+    this.maxClients = mode === "practice" || mode === "tutorial" ? 1 : MAX_PLAYERS;
     this.setState(new MatchState());
     this.state.mode = mode;
     this.setPatchRate(1000 / PATCH_RATE);
@@ -312,7 +321,8 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
 
     const arenaId: ArenaId =
       options.arenaId && isArenaId(options.arenaId) ? options.arenaId : randomArenaId();
-    const arena = getArena(arenaId);
+    // The tutorial is always on its own small arena: a floor and a platform to drop through.
+    const arena = mode === "tutorial" ? TUTORIAL_ARENA : getArena(arenaId);
     this.state.arenaId = arena.id;
     // Seed one empty HazardState entry per hazard def — id/kind only.
     // `projectToSchema()` below fills in the dynamic fields (active/hp/
@@ -339,6 +349,9 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
     // only exists in one place.
     projectToSchema(this.#sim, this.state, {});
 
+    if (mode === "tutorial") {
+      await this.setPrivate(true);
+    }
     if (mode === "practice") {
       const requested = Math.floor(Number(options.botCount));
       this.#practiceBots = {
@@ -457,12 +470,16 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
         players: { ...this.#sim.players, [id]: createSimPlayer(spawn, loadout.weapon) },
       };
       this.#director.addPlayer(id);
+      this.#seatSpawn.set(id, spawnIndex);
     }
 
     if (this.metadata.mode === "private" && this.metadata.code) {
       client.send(MESSAGE_TYPES.MATCH_CODE, this.metadata.code);
     }
 
+    if (this.#mode === "tutorial" && this.#brains.size === 0) {
+      this.#addBot("dummy", "Training dummy");
+    }
     if (this.#practiceBots && this.#brains.size === 0 && !spectating) {
       for (let i = 0; i < this.#practiceBots.count; i++) {
         this.#addBot(this.#practiceBots.tier);
@@ -624,6 +641,10 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
 
     const prevSim = this.#sim;
     const stepResult = simulationStep(prevSim, inputs);
+    if (this.#mode === "tutorial") {
+      this.#tutorialAfterStep(stepResult.state, stepResult.events, lastProcessedSeq);
+      return;
+    }
     // Auto-pick timeouts against THIS tick's absolute tick (`stepResult.
     // state.tick`, i.e. `nextTick`) — the same tick value `match/phase.ts`'s
     // own `DRAFT_TICKS` hard fallback compares `ticksInPhase` against below
@@ -843,16 +864,21 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
 
   /** Seats a bot: a `PlayerState` and a `SimPlayer`, but no `Client`, session or user id. Only ever
    *  called outside `RoundActive` (a practice room's first join, a backfill request in `Waiting`). */
-  #addBot(tier: BotTier): PlayerId {
+  #addBot(kind: BotKind, fixedName?: string): PlayerId {
     const serial = this.#botSerial++;
     const id = playerId(`bot-${serial}`);
-    const name = BOT_NAMES[serial % BOT_NAMES.length]!;
+    const name = fixedName ?? BOT_NAMES[serial % BOT_NAMES.length]!;
     const weapons = Object.values(WEAPON_IDS);
+    // The dummy always carries the default sword: a tutorial teaches against one known weapon.
     const weapon =
-      weapons[
-        Math.floor(mulberry32(hashSeed(this.#sim.rngSeed, id, "weapon"))() * weapons.length)
-      ]!;
-    const spawn = this.#sim.arena.spawns[this.state.players.size % this.#sim.arena.spawns.length]!;
+      kind === "dummy"
+        ? WEAPON_IDS.SWORD
+        : weapons[
+            Math.floor(mulberry32(hashSeed(this.#sim.rngSeed, id, "weapon"))() * weapons.length)
+          ]!;
+    const spawnIndex = this.state.players.size % this.#sim.arena.spawns.length;
+    const spawn = this.#sim.arena.spawns[spawnIndex]!;
+    this.#seatSpawn.set(id, spawnIndex);
     const [tintPrimary, tintSecondary] = BOT_TINTS[serial % BOT_TINTS.length]!;
 
     const player = new PlayerState();
@@ -880,7 +906,7 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
     this.#director.addPlayer(id);
     this.#brains.set(
       id,
-      new BotBrain(id, tier, hashSeed(this.#sim.rngSeed, id, this.#matchNumber)),
+      new BotBrain(id, kind, hashSeed(this.#sim.rngSeed, id, this.#matchNumber)),
     );
     this.#botIds.add(id);
     this.#nameByPlayerId.set(id, name);
@@ -1003,6 +1029,49 @@ export class MatchRoom extends Room<{ state: MatchState; metadata: MatchRoomMeta
         id,
         new BotBrain(id, brain.kind, hashSeed(this.#sim.rngSeed, id, this.#matchNumber)),
       );
+    }
+  }
+
+  /**
+   * The tutorial's whole match flow: none. There is no countdown, no rounds, no draft and no end:
+   * the room stays in `RoundActive`, and anyone knocked out (the player, or the dummy) stands
+   * back up at their own spawn a moment later. What the player has done is read off their own
+   * state by the client, so the server tracks no lesson progress.
+   */
+  #tutorialAfterStep(
+    state: SimState,
+    events: readonly SimEvent[],
+    lastProcessedSeq: Record<string, number>,
+  ): void {
+    let players = state.players;
+    for (const id of Object.keys(players) as PlayerId[]) {
+      const player = players[id]!;
+      if (player.action !== "Dead") {
+        this.#downTicks.delete(id);
+        continue;
+      }
+      const down = (this.#downTicks.get(id) ?? 0) + 1;
+      if (down < TUTORIAL_RESPAWN_TICKS) {
+        this.#downTicks.set(id, down);
+        continue;
+      }
+      this.#downTicks.delete(id);
+      const spawns = state.arena.spawns;
+      const spawn = spawns[(this.#seatSpawn.get(id) ?? 0) % spawns.length]!;
+      players = { ...players, [id]: createSimPlayer(spawn, player.weapon) };
+    }
+    this.#sim = { ...state, players };
+
+    projectToSchema(this.#sim, this.state, lastProcessedSeq);
+    this.state.phase = "RoundActive";
+    this.state.round = 1;
+    this.state.phaseEndsAtTick = -1;
+    this.state.players.forEach((schemaPlayer) => {
+      schemaPlayer.spectator = false;
+      schemaPlayer.alive = schemaPlayer.action !== "Dead";
+    });
+    if (events.length > 0) {
+      this.broadcast(MESSAGE_TYPES.FX, events);
     }
   }
 

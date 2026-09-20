@@ -17,6 +17,14 @@ declare global {
         capeId: string;
         weaponStyleId: string;
       }>;
+      dropConnection(): void;
+      frameStats(): {
+        frames: number;
+        meanMs: number;
+        p95Ms: number;
+        maxMs: number;
+        slowFrames: number;
+      } | null;
       surface(): {
         layout: {
           physW: number;

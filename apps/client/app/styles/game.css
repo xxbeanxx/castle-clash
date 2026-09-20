@@ -192,3 +192,23 @@
   width: 100%;
   height: 100%;
 }
+
+/* Over the touch controls, under modals: the game is paused, so the controls are moot. */
+.cc-connection {
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-overlay);
+  display: grid;
+  place-content: center;
+  gap: var(--space-3);
+  text-align: center;
+  background: oklch(0.14 0.012 60 / 0.72);
+  color: var(--ink);
+  font-size: var(--text-lg);
+}
+.cc-connection__link {
+  color: var(--gold-500);
+  min-height: 48px;
+  display: inline-grid;
+  place-items: center;
+}

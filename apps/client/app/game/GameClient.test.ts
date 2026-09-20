@@ -47,6 +47,9 @@ const { mockApp, mockRoom, joinOrCreate, playersMap } = vi.hoisted(() => {
     leave: vi.fn().mockResolvedValue(undefined),
     onStateChange: vi.fn(),
     onMessage: vi.fn(),
+    onDrop: vi.fn(),
+    onReconnect: vi.fn(),
+    onLeave: vi.fn(),
   };
   const joinOrCreate = vi.fn().mockResolvedValue(mockRoom);
   return { mockApp, mockRoom, joinOrCreate, playersMap };

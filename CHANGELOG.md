@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.3.0](https://github.com/xxbeanxx/castle-clash/compare/v1.2.0...v1.3.0) (2026-09-20)
+
+
+### Features
+
+* **client:** catch-up clamp, reconnect overlay, gamepad, frame stats (Phase 13 steps 10-12) ([#59](https://github.com/xxbeanxx/castle-clash/issues/59)) ([667d058](https://github.com/xxbeanxx/castle-clash/commit/667d05821fe658a4f2bab7682b383ba6c9c6c3e9))
+* **client:** InputSource/CompositeInput and the lost-tap latch (Phase 13 steps 4-5) ([#55](https://github.com/xxbeanxx/castle-clash/issues/55)) ([4c65c8a](https://github.com/xxbeanxx/castle-clash/commit/4c65c8af0af9fa0ba3c2959feb04310d6032294a))
+* **client:** landscape-phone UI fixes, device Playwright projects, checklist (Phase 13 step 9) ([#60](https://github.com/xxbeanxx/castle-clash/issues/60)) ([0380f61](https://github.com/xxbeanxx/castle-clash/commit/0380f618beec7dbe3d1a8b185e1e7cce7cea35d3))
+* **client:** rotate prompt, fullscreen button, PWA manifest (Phase 13 step 8) ([#58](https://github.com/xxbeanxx/castle-clash/issues/58)) ([e08349b](https://github.com/xxbeanxx/castle-clash/commit/e08349bcb403e3e856d1dc3e495c526adfe9b714))
+* **client:** TouchInput and TouchControls overlay (Phase 13 steps 6-7) ([#57](https://github.com/xxbeanxx/castle-clash/issues/57)) ([c0a53eb](https://github.com/xxbeanxx/castle-clash/commit/c0a53ebff4ba96cf0709d12944efdc2afbbd655b))
+
 ## [1.2.0](https://github.com/xxbeanxx/castle-clash/compare/v1.1.0...v1.2.0) (2026-09-19)
 
 

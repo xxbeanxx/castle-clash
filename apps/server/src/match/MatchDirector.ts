@@ -131,7 +131,9 @@ export class MatchDirector {
     }
     const player = sim.players[id];
     const creditedTo =
-      player?.lastHitBy && tick - player.lastHitTick <= RING_OUT_CREDIT_TICKS ? player.lastHitBy : undefined;
+      player?.lastHitBy && tick - player.lastHitTick <= RING_OUT_CREDIT_TICKS
+        ? player.lastHitBy
+        : undefined;
     this.#markEliminated(id, creditedTo);
     return { type: "eliminated", victim: id, by: creditedTo, cause: "disconnect" };
   }
@@ -199,6 +201,13 @@ export class MatchDirector {
       }
     }
 
+    // Hand the sim its sudden-death clock for the NEXT tick's `step` (Phase 14 step 7). Only while a
+    // round is live: the flag on `phase` lingers through RoundOver/Draft, the pressure must not.
+    const suddenDeathTicks = phase.phase === "RoundActive" ? phase.suddenDeathTicks : 0;
+    if ((state.suddenDeathTicks ?? 0) !== suddenDeathTicks) {
+      state = { ...state, suddenDeathTicks };
+    }
+
     return { state, phase, events: phaseEvents, result };
   }
 
@@ -209,7 +218,10 @@ export class MatchDirector {
     ]);
     const stats: Record<PlayerId, MatchStatsEntry> = {};
     for (const id of ids) {
-      stats[id] = { ...(this.#stats[id] ?? zeroStats()), roundsWon: this.#phase.roundsWon[id] ?? 0 };
+      stats[id] = {
+        ...(this.#stats[id] ?? zeroStats()),
+        roundsWon: this.#phase.roundsWon[id] ?? 0,
+      };
     }
     return { winner, rounds: this.#phase.round, stats };
   }

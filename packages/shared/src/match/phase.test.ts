@@ -227,3 +227,52 @@ describe("advanceMatchPhase", () => {
     expect(result.events).toEqual([]);
   });
 });
+
+describe("sudden death clock", () => {
+  function startRound1(): MatchPhaseState {
+    let state = tick(createMatchPhaseState(), { playerCount: 2 }).state;
+    for (let i = 0; i < COUNTDOWN_TICKS; i++) {
+      state = tick(state).state;
+    }
+    return state;
+  }
+
+  function intoSuddenDeath(): MatchPhaseState {
+    let state = startRound1();
+    for (let i = 0; i < ROUND_TIME_LIMIT; i++) {
+      state = tick(state).state;
+    }
+    return state;
+  }
+
+  it("starts at 1 on the tick sudden death begins and counts up from there", () => {
+    let state = startRound1();
+    expect(state.suddenDeathTicks).toBe(0);
+    for (let i = 0; i < ROUND_TIME_LIMIT - 1; i++) {
+      state = tick(state).state;
+    }
+    expect(state.suddenDeathTicks).toBe(0);
+    state = tick(state).state;
+    expect(state.suddenDeathTicks).toBe(1);
+    state = tick(state).state;
+    state = tick(state).state;
+    expect(state.suddenDeathTicks).toBe(3);
+  });
+
+  it("stops when the round ends, and starts fresh in the next round", () => {
+    let state = intoSuddenDeath();
+    state = tick(state, { aliveIds: [A] }).state;
+    expect(state.phase).toBe("RoundOver");
+    expect(state.suddenDeathTicks).toBe(0);
+
+    for (let i = 0; i < ROUND_OVER_TICKS + 1; i++) {
+      state = tick(state).state;
+    }
+    for (let i = 0; i < COUNTDOWN_TICKS + 1; i++) {
+      state = tick(state).state;
+    }
+    expect(state.phase).toBe("RoundActive");
+    expect(state.round).toBe(2);
+    expect(state.suddenDeathTicks).toBe(0);
+  });
+});

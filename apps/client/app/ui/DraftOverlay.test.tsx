@@ -62,7 +62,7 @@ class FakeGameClient {
 }
 
 function draftFlow(overrides: Partial<MatchFlowSnapshot> = {}): MatchFlowSnapshot {
-  return { phase: "Draft", round: 1, ticksRemaining: 600, ...overrides };
+  return { phase: "Draft", round: 1, ticksRemaining: 600, suddenDeath: false, ...overrides };
 }
 
 const OFFER: DraftOfferSnapshot = { offers: ["sharpEdge", "vampiricEdge", "aerialistBoots"], endsAtTick: 900, picked: null };

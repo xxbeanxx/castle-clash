@@ -6,6 +6,8 @@ export interface MatchFlowSnapshot {
   /** Ticks left until `phaseEndsAtTick`, or `null` when the current phase
    *  has no scheduled end (`MatchState.phaseEndsAtTick`'s `-1` sentinel). */
   ticksRemaining: number | null;
+  /** Sudden death is on: every hit lands harder and everyone bleeds (Phase 14). */
+  suddenDeath: boolean;
 }
 
 /**
@@ -17,6 +19,8 @@ export function matchStateToPhaseBanner(state: MatchState): MatchFlowSnapshot {
   return {
     phase: state.phase,
     round: state.round,
-    ticksRemaining: state.phaseEndsAtTick >= 0 ? Math.max(0, state.phaseEndsAtTick - state.tick) : null,
+    ticksRemaining:
+      state.phaseEndsAtTick >= 0 ? Math.max(0, state.phaseEndsAtTick - state.tick) : null,
+    suddenDeath: state.phase === "RoundActive" && state.suddenDeathTicks > 0,
   };
 }

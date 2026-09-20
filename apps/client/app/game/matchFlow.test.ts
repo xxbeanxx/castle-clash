@@ -13,6 +13,7 @@ describe("matchStateToPhaseBanner", () => {
       phase: "RoundActive",
       round: 2,
       ticksRemaining: null,
+      suddenDeath: false,
     });
   });
 
@@ -31,5 +32,17 @@ describe("matchStateToPhaseBanner", () => {
     state.phaseEndsAtTick = 280;
 
     expect(matchStateToPhaseBanner(state).ticksRemaining).toBe(0);
+  });
+});
+
+describe("matchStateToPhaseBanner — sudden death", () => {
+  it("is on only while a round is live and the server's clock is running", () => {
+    const state = new MatchState();
+    state.phase = "RoundActive";
+    expect(matchStateToPhaseBanner(state).suddenDeath).toBe(false);
+    state.suddenDeathTicks = 3;
+    expect(matchStateToPhaseBanner(state).suddenDeath).toBe(true);
+    state.phase = "RoundOver";
+    expect(matchStateToPhaseBanner(state).suddenDeath).toBe(false);
   });
 });

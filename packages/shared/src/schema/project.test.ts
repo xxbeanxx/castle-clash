@@ -87,7 +87,18 @@ describe("projectToSchema — hazards", () => {
     match.hazards.set("floor", schemaHazard);
 
     projectToSchema(
-      simState({ hazards: { floor: { id: "floor", kind: "breakableFloor", active: false, hp: 0, phase: "broken", timer: 0 } } }),
+      simState({
+        hazards: {
+          floor: {
+            id: "floor",
+            kind: "breakableFloor",
+            active: false,
+            hp: 0,
+            phase: "broken",
+            timer: 0,
+          },
+        },
+      }),
       match,
       {},
     );
@@ -101,7 +112,18 @@ describe("projectToSchema — hazards", () => {
   it("does not create schema hazard entries — MatchRoom owns that lifecycle", () => {
     const match = new MatchState();
     projectToSchema(
-      simState({ hazards: { floor: { id: "floor", kind: "breakableFloor", active: true, hp: 16, phase: "solid", timer: 0 } } }),
+      simState({
+        hazards: {
+          floor: {
+            id: "floor",
+            kind: "breakableFloor",
+            active: true,
+            hp: 16,
+            phase: "solid",
+            timer: 0,
+          },
+        },
+      }),
       match,
       {},
     );
@@ -170,5 +192,15 @@ describe("schemaToSimPlayer", () => {
     projectToSchema(simState({ players: { [P1]: player } }), match, { [P1]: 9 });
 
     expect(schemaToSimPlayer(match.players.get(P1)!)).toEqual(player);
+  });
+});
+
+describe("projectToSchema — sudden death", () => {
+  it("copies the sudden-death clock, and 0 when the sim has none", () => {
+    const match = new MatchState();
+    projectToSchema(simState({ suddenDeathTicks: 42 }), match, {});
+    expect(match.suddenDeathTicks).toBe(42);
+    projectToSchema(simState(), match, {});
+    expect(match.suddenDeathTicks).toBe(0);
   });
 });

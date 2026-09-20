@@ -8,7 +8,9 @@ import type { MatchState, PlayerState } from "./state.js";
 /** Flattens `powerups` stack counts into one array entry per stack (the same
  *  shape `PlayerState.powerups` syncs, sorted by id for a stable diff) — a
  *  power-up owned at 3 stacks appears 3 times. */
-function flattenPowerups(powerups: Readonly<Partial<Record<PowerUpId, number>>> | undefined): PowerUpId[] {
+function flattenPowerups(
+  powerups: Readonly<Partial<Record<PowerUpId, number>>> | undefined,
+): PowerUpId[] {
   const flat: PowerUpId[] = [];
   for (const id of (Object.keys(powerups ?? {}) as PowerUpId[]).sort()) {
     const count = powerups?.[id] ?? 0;
@@ -37,6 +39,7 @@ export function projectToSchema(
   lastProcessedSeq: Readonly<Partial<Record<PlayerId, number>>>,
 ): void {
   match.tick = sim.tick;
+  match.suddenDeathTicks = sim.suddenDeathTicks ?? 0;
 
   // Hazard state (Phase 6) — same "never create/remove, only update"
   // contract as players: `MatchRoom` seeds `match.hazards` once from the

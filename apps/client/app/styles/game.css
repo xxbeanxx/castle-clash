@@ -58,6 +58,10 @@
   font-size: var(--text-lg);
   white-space: nowrap;
 }
+/* Crimson is the theme's "danger" colour: sudden death is the one banner that should feel like it. */
+.cc-banner--sudden-death .cc-banner__phase {
+  color: var(--crimson-400);
+}
 .cc-banner__code {
   margin-top: var(--space-1);
   font-size: var(--text-sm);

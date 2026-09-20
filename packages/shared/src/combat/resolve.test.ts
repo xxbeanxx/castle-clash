@@ -153,3 +153,40 @@ describe("resolveCombat — KO", () => {
     expect(result.players[B]!.hp).toBe(0);
   });
 });
+
+describe("resolveCombat — damage multiplier (sudden death)", () => {
+  it("scales a clean hit's damage", () => {
+    const attacker = attackerAt(0, { weapon: "sword", facing: 1 });
+    const defender = player(50, { facing: -1 });
+
+    const normal = resolveCombat({ [A]: attacker, [B]: defender });
+    const doubled = resolveCombat({ [A]: attacker, [B]: defender }, {}, {}, 2);
+
+    expect(MAX_HP - normal.players[B]!.hp).toBe(WEAPONS.sword.light.damage);
+    expect(MAX_HP - doubled.players[B]!.hp).toBe(WEAPONS.sword.light.damage * 2);
+  });
+
+  it("scales a blocked hit's chip damage but not its stamina cost", () => {
+    const attacker = attackerAt(0, { weapon: "sword", facing: 1 });
+    const defender = player(50, { action: "Block", facing: -1 });
+
+    const doubled = resolveCombat({ [A]: attacker, [B]: defender }, {}, {}, 2);
+
+    expect(MAX_HP - doubled.players[B]!.hp).toBe(
+      WEAPONS.sword.light.damage * 2 * BLOCK_DAMAGE_FRACTION,
+    );
+    expect(MAX_STAMINA - doubled.players[B]!.stamina).toBe(WEAPONS.sword.light.staminaDamage);
+  });
+
+  it("makes a hit lethal that would not have been", () => {
+    const attacker = attackerAt(0, { weapon: "sword", facing: 1 });
+    const defender = player(50, { facing: -1, hp: WEAPONS.sword.light.damage + 1 });
+
+    const normal = resolveCombat({ [A]: attacker, [B]: defender });
+    const doubled = resolveCombat({ [A]: attacker, [B]: defender }, {}, {}, 2);
+
+    expect(normal.events.some((event) => event.type === "ko")).toBe(false);
+    expect(doubled.events).toContainEqual({ type: "ko", attacker: A, defender: B });
+    expect(doubled.players[B]!.action).toBe("Dead");
+  });
+});

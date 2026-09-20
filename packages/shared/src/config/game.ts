@@ -55,20 +55,19 @@ export const ROUND_TIME_LIMIT = 3600; // 60s
 /** A ring-out (kill-zone elimination) still credits the last player who hit
  *  the victim, as long as the hit landed within this many ticks of the fall. */
 export const RING_OUT_CREDIT_TICKS = 180; // 3s
-/**
- * `match/phase.ts`'s `advanceMatchPhase` sets `MatchPhaseState.suddenDeath`
- * once a round runs past `ROUND_TIME_LIMIT` and emits a `suddenDeath` event
- * — that flag is as far as this phase implements the plan's "sudden death
- * shrinks the arena or ramps up damage" line. Neither effect is wired up:
- * arena shrinking needs real per-match arena geometry (Phase 6's job, not
- * this static testbed arena's), and a damage ramp applied after the fact by
- * `MatchDirector` (rather than inside `combat/resolve.ts`, to avoid Phase
- * 4's combat tests needing to know sudden death exists) can't retroactively
- * KO a player `GameSimulation.step` already resolved as merely hurt this
- * same tick — a half-correct elimination path is worse than none. A later
- * phase picking this up should thread it through `resolveCombat` itself
- * (e.g. a damage multiplier parameter) rather than bolt it on from outside.
- */
+
+// Sudden death (Phase 14 step 7) — once a round runs past `ROUND_TIME_LIMIT`,
+// `match/phase.ts` counts `suddenDeathTicks` and `sim/GameSimulation.step`
+// applies two pressures from it: every hit lands harder (a multiplier that
+// ramps from 1 to `SUDDEN_DEATH_MAX_MULTIPLIER` over `SUDDEN_DEATH_RAMP_TICKS`,
+// threaded through `resolveCombat`) and everyone alive bleeds. The multiplier
+// alone would do nothing to two players who never swing, and a stalemate is
+// exactly what F13 was about, so the bleed is the part that guarantees an end:
+// `SUDDEN_DEATH_BASE_DRAIN_PER_SECOND` HP/s, scaled by the same multiplier, kills
+// a full-health knight in roughly 14 s (`match/suddenDeath.test.ts` pins it).
+export const SUDDEN_DEATH_RAMP_TICKS = 900; // 15s to full strength
+export const SUDDEN_DEATH_MAX_MULTIPLIER = 4;
+export const SUDDEN_DEATH_BASE_DRAIN_PER_SECOND = 3;
 
 // Arenas and hazards (Phase 6) — ticks at 60 Hz unless noted.
 /** FireZone's per-tick outward nudge while a player stands in it — small on

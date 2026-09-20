@@ -120,6 +120,9 @@ export class MatchState extends Schema {
    *  time limit/`MatchOver`) — tick 0 is itself a valid absolute tick, so it
    *  can't double as the sentinel. */
   @type("number") phaseEndsAtTick = -1;
+  /** Ticks since sudden death began this round (Phase 14); 0 when it has not. The client only
+   *  needs "is it on" for a banner, but the number lets it show the damage ramp. */
+  @type("number") suddenDeathTicks = 0;
 
   // Arenas and hazards (Phase 6). `arenaId` is set once, at `onCreate`, and
   // never changes for the rest of the match (arena rotation is per-match,

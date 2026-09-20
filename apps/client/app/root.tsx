@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import {
   isRouteErrorResponse,
   Links,
@@ -12,6 +13,34 @@ import "./app.css";
 import { pageMeta } from "./meta.js";
 import { Brand } from "./ui/Brand.js";
 import { Button, ButtonLink } from "./ui/kit/index.js";
+
+/**
+ * Links the web app manifest after the page has loaded, not in the static `<head>`. A manifest
+ * `<link>` in the head costs the landing page ~100 ms of simulated-throttling LCP (measured: 2560 ms
+ * with it, 2455 ms without, same build, alternating Lighthouse runs), which is over the 2500 ms
+ * budget. Chrome's installability check and iOS's "Add to Home Screen" both read the DOM's manifest
+ * link when they need it, so adding it late still works.
+ */
+function DeferredManifestLink() {
+  useEffect(() => {
+    const add = () => {
+      if (document.querySelector('link[rel="manifest"]')) {
+        return;
+      }
+      const link = document.createElement("link");
+      link.rel = "manifest";
+      link.href = "/manifest.webmanifest";
+      document.head.appendChild(link);
+    };
+    if (document.readyState === "complete") {
+      add();
+      return;
+    }
+    window.addEventListener("load", add, { once: true });
+    return () => window.removeEventListener("load", add);
+  }, []);
+  return null;
+}
 
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
@@ -40,6 +69,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       </head>
       <body>
         {children}
+        <DeferredManifestLink />
         <ScrollRestoration />
         <Scripts />
       </body>
@@ -55,7 +85,6 @@ export const links = () => [
   { rel: "icon", href: "/favicon.ico", sizes: "48x48" },
   { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
   { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
-  { rel: "manifest", href: "/manifest.webmanifest" },
   {
     rel: "preload",
     href: "/fonts/pixelify-sans-latin-700-normal.woff2",

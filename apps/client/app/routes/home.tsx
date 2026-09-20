@@ -56,6 +56,13 @@ export default function Home() {
           </p>
           <div className="cc-hero__actions">
             <PlayNowButton />
+            <PlayNowButton
+              to="/play/new?mode=practice&bots=1&tier=normal"
+              variant="secondary"
+              size="lg"
+            >
+              Practice vs a bot
+            </PlayNowButton>
             <ButtonLink to="/login" size="lg" variant="ghost">
               Sign in
             </ButtonLink>

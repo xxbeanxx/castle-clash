@@ -5,7 +5,9 @@ import { matchStateToHud } from "./hud.js";
 function addPlayer(
   state: MatchState,
   id: string,
-  overrides: Partial<Pick<PlayerState, "hp" | "stamina" | "weapon" | "action" | "name">> = {},
+  overrides: Partial<
+    Pick<PlayerState, "hp" | "stamina" | "weapon" | "action" | "name" | "isBot">
+  > = {},
 ): void {
   const player = new PlayerState();
   player.id = id;
@@ -33,6 +35,7 @@ describe("matchStateToHud", () => {
         id: "p1",
         name: "Sir_Kay",
         isLocal: true,
+        isBot: false,
         hp: 80,
         stamina: 50,
         weapon: "sword",
@@ -63,5 +66,18 @@ describe("matchStateToHud", () => {
     addPlayer(state, "me");
 
     expect(matchStateToHud(state, "me").map((s) => s.id)).toEqual(["me", "opponent"]);
+  });
+});
+
+describe("matchStateToHud — bots", () => {
+  it("flags a bot seat so the HUD can name it as one", () => {
+    const state = new MatchState();
+    addPlayer(state, "me");
+    addPlayer(state, "bot-0", { isBot: true, name: "Sir Aldric" });
+
+    const [me, bot] = matchStateToHud(state, "me");
+
+    expect(me!.isBot).toBe(false);
+    expect(bot).toMatchObject({ id: "bot-0", isBot: true, name: "Sir Aldric" });
   });
 });

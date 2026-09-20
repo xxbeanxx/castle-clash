@@ -9,6 +9,7 @@ function snapshot(overrides: Partial<HudPlayerSnapshot>): HudPlayerSnapshot {
     id: "p",
     name: "",
     isLocal: false,
+    isBot: false,
     hp: 100,
     stamina: 100,
     weapon: "sword",
@@ -46,5 +47,19 @@ describe("CombatHud labels", () => {
 
     expect(screen.getByText(/^You ·/)).toBeDefined();
     expect(screen.getByText(/^Opponent ·/)).toBeDefined();
+  });
+});
+
+describe("CombatHud — bots", () => {
+  afterEach(cleanup);
+
+  it("labels a bot as a bot and a person by name alone", () => {
+    renderHud([
+      snapshot({ id: "me", name: "Sir_Kay", isLocal: true }),
+      snapshot({ id: "bot-0", name: "Sir Aldric", isBot: true }),
+    ]);
+
+    expect(screen.getByText(/Sir_Kay \(you\)/)).toBeDefined();
+    expect(screen.getByText(/Sir Aldric \(bot\)/)).toBeDefined();
   });
 });

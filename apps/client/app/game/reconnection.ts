@@ -33,6 +33,15 @@ export function resolveJoinIntent(roomId: string, searchParams: URLSearchParams)
   if (roomId === "new") {
     const mode = searchParams.get("mode");
     const code = searchParams.get("code");
+    if (mode === "practice") {
+      const bots = Math.floor(Number(searchParams.get("bots")));
+      return {
+        kind: "practice",
+        botCount: Number.isFinite(bots) ? Math.min(3, Math.max(1, bots)) : 1,
+        tier: searchParams.get("tier") ?? "normal",
+        arenaId: searchParams.get("arena") ?? undefined,
+      };
+    }
     if (mode === "private") {
       // `arena` only matters for creating a room — joining an existing one
       // by code inherits whatever arena its host already picked.

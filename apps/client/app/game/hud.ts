@@ -5,6 +5,8 @@ export interface HudPlayerSnapshot {
   /** Display name from the server; empty only when talking to an older server. */
   name: string;
   isLocal: boolean;
+  /** A server-driven seat: always labelled as one in the UI. */
+  isBot: boolean;
   hp: number;
   stamina: number;
   weapon: string;
@@ -28,6 +30,7 @@ export function matchStateToHud(state: MatchState, localId: string | null): HudP
       id: player.id,
       name: player.name,
       isLocal: player.id === localId,
+      isBot: player.isBot,
       hp: player.hp,
       stamina: player.stamina,
       weapon: player.weapon,

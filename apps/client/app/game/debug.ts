@@ -5,6 +5,8 @@ export interface CastleClashDebugHook {
   /** Plan Phase 9's e2e gate — every connected player's synced cosmetics,
    *  so a test can assert a saved loadout propagated to another browser. */
   allCosmetics(): PlayerCosmetics[];
+  /** Phase 13: the render surface's layout and applied stage transform (ADR 0002). */
+  surface(): GameClient["surfaceState"];
 }
 
 declare global {
@@ -27,5 +29,6 @@ export function installE2eDebugHook(client: GameClient): void {
   window.__CC_DEBUG__ = {
     localPosition: () => client.localPosition,
     allCosmetics: () => client.allCosmetics,
+    surface: () => client.surfaceState,
   };
 }

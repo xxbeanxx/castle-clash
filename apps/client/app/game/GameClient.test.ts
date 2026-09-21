@@ -88,6 +88,19 @@ vi.mock("./render/SurfaceController.js", () => ({
   }),
 }));
 
+// Effects and name plates paint canvases (`ImageData`, `Texture.from`), which jsdom lacks; they are
+// covered by `Fx.browser.test.ts`, `PlayerMarkers.browser.test.ts` and the e2e suite.
+vi.mock("./render/Fx.js", () => ({
+  Fx: vi.fn().mockImplementation(function Fx() {
+    return { spawn: vi.fn(), ambient: vi.fn(), update: vi.fn(), destroy: vi.fn(), active: 0 };
+  }),
+}));
+vi.mock("./render/PlayerMarkers.js", () => ({
+  PlayerMarkers: vi.fn().mockImplementation(function PlayerMarkers() {
+    return { sync: vi.fn(), destroy: vi.fn() };
+  }),
+}));
+
 vi.mock("@colyseus/sdk", () => ({
   Client: vi.fn().mockImplementation(function Client() {
     return { joinOrCreate };

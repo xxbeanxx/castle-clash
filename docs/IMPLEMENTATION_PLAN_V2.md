@@ -406,7 +406,11 @@ plan.
   and run dust, roll trail, floor debris, shield flash; pooled) and `render/PlayerMarkers.ts` (ground bar and a
   pixel-font name plate, an arrow over the local player). Deviations: no hitstop, the dodge after-image is a
   particle trail, no ring-out fall effect. `docs/research/phase15-fx-and-markers.md`.
-- **Not built:** UI skin (panels, bar frames, icons, logo), visual-regression baselines, cosmetics as art
+- **Built (UI skin, part 1):** the draft cards show a pixel icon, a name, the rarity and a description generated
+  from the power-up's modifiers (`content/powerups.ts`, `art/ui/build_icons.py`), and the HP/stamina bars have
+  pixel frames. `docs/research/phase15-ui-skin.md`.
+- **Not built:** the rest of the UI skin (9-slice panels and buttons, weapon icons, cosmetic thumbnails, logo,
+  landing hero), visual-regression baselines, cosmetics as art
   layers (the Phase 9 indicator squares still draw over the art; needs the `player_loadouts` migration),
   weapon art for mace and spear (they reuse the sword swings), and block/guard-broken frames (stand-ins).
 - **Found and fixed on the way:** waiting for the atlas together with `joinRoom` made the room's

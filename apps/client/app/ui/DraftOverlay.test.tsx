@@ -120,10 +120,32 @@ describe("DraftOverlay", () => {
 
     const cards = screen.getAllByTestId("draft-card");
     expect(cards).toHaveLength(3);
-    expect(screen.getByText("sharpEdge")).toBeDefined();
-    expect(screen.getByText("vampiricEdge")).toBeDefined();
-    expect(screen.getByText("aerialistBoots")).toBeDefined();
+    expect(screen.getByText("Sharp Edge")).toBeDefined();
+    expect(screen.getByText("Vampiric Edge")).toBeDefined();
+    expect(screen.getByText("Aerialist Boots")).toBeDefined();
     expect(screen.getByText(/10s/)).toBeDefined(); // 600 ticks / 60Hz = 10s
+  });
+
+  it("shows what each card does: its rarity, what it changes, and how far it stacks", () => {
+    const client = new FakeGameClient();
+    render(<DraftOverlay client={client as unknown as GameClient} />);
+
+    client.emitOffer(OFFER);
+    client.emitFlow(draftFlow());
+
+    const [sharp, vampiric, aerialist] = screen.getAllByTestId("draft-card");
+    expect(sharp!.textContent).toContain("+2 light attack damage");
+    expect(sharp!.textContent).toContain("Stacks up to \u00d75");
+    expect(sharp!.getAttribute("data-rarity")).toBe("common");
+    expect(vampiric!.textContent).toContain("Heal 10% of the damage you deal");
+    expect(vampiric!.getAttribute("data-rarity")).toBe("rare");
+    expect(aerialist!.textContent).toContain("Jump once more in mid-air");
+    expect(aerialist!.textContent).toContain("One per match");
+    expect(aerialist!.getAttribute("data-rarity")).toBe("epic");
+    // Each card has its icon, hidden from screen readers (the name says it).
+    for (const card of [sharp!, vampiric!, aerialist!]) {
+      expect(card.querySelector(".cc-icon")?.getAttribute("aria-hidden")).toBe("true");
+    }
   });
 
   it("clicking a card sends the pick and disables the others", () => {
@@ -133,7 +155,7 @@ describe("DraftOverlay", () => {
     client.emitOffer(OFFER);
     client.emitFlow(draftFlow());
 
-    fireEvent.click(screen.getByText("sharpEdge"));
+    fireEvent.click(screen.getByText("Sharp Edge"));
     expect(client.pickPowerUp).toHaveBeenCalledWith("sharpEdge");
 
     // GameClient echoes the local pick back through subscribeDraftOffer
@@ -152,7 +174,7 @@ describe("DraftOverlay", () => {
     client.emitOffer({ ...OFFER, picked: "sharpEdge" });
     client.emitFlow(draftFlow());
 
-    fireEvent.click(screen.getByText("vampiricEdge"));
+    fireEvent.click(screen.getByText("Vampiric Edge"));
     expect(client.pickPowerUp).not.toHaveBeenCalled();
   });
 
@@ -201,6 +223,6 @@ describe("DraftOverlay", () => {
       opponent({ powerups: ["stoneSkin", "stoneSkin"] }),
     ]);
 
-    expect(screen.getByText(/stoneSkin, stoneSkin/)).toBeDefined();
+    expect(screen.getByText(/Stone Skin, Stone Skin/)).toBeDefined();
   });
 });

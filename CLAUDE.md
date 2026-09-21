@@ -38,7 +38,15 @@ pnpm dev                                    # apps/server + apps/client together
 pnpm lint / typecheck / test / build         # across the whole workspace
 pnpm format / format:check                   # oxfmt across the whole workspace (not wired into verify/CI yet)
 pnpm verify                                  # lint + typecheck + test + build, in that order
+pnpm preflight                               # BEFORE opening a PR: CI's verify/browser/landing checks from a clean clone of HEAD
 ```
+
+`pnpm preflight` (`scripts/preflight.sh`) clones the committed HEAD into a scratch directory and runs the
+required CI jobs there, so it sees what a runner sees: no `packages/shared/dist`, no untracked `.env*`,
+no old build output. Those are the things a working tree hides and that have failed PRs. It refuses a
+dirty tree (only HEAD is tested), and `--lighthouse` adds CI's three Lighthouse runs (needs podman).
+It does not run the e2e suite, the container build or smoke path, or a Lighthouse A/B; do those by hand
+when the change touches what they cover. Keep it in step with `.github/workflows/ci.yaml`.
 
 Linting is `oxlint` (`oxlint.config.ts` at the repo root — a `.ts` config, not `.oxlintrc.json`;
 each package's `lint` script is just `oxlint .`, and oxlint walks up from a package's own directory

@@ -449,6 +449,9 @@ questions. In short:
   `<canvas>` behind the (transparent) Pixi canvas, moved with the stage transform (`render/Backdrop.ts`,
   `.cc-game__canvas` is its positioned host). Found when two multi-browser e2e specs timed out; measure
   `window.__CC_DEBUG__.frameStats()` (`VITE_E2E` build) on a built client when a change adds large drawn area.
+- **`assets:check`** (`app/assetsCheck.test.ts`, also part of `pnpm test`) fails on art that is not logged in
+  `art/LICENSES.md`, a bundle over 200 KB (3 MB overall), or an atlas that disagrees with its PNG. Credits are
+  on the About page (`routes/about.tsx`); add a line there for each new third-party source.
 - Pixi 8.20.1 does not read Aseprite `frameTags`, and the plan's claim that it does is wrong.
 
 ### Workspace layout and package boundaries

@@ -87,6 +87,10 @@ jobs:
         run: pnpm --filter @castle-clash/client exec playwright install --with-deps chromium
       - if: steps.playwright-cache.outputs.cache-hit == 'true'
         run: pnpm --filter @castle-clash/client exec playwright install-deps chromium
+      # `@castle-clash/shared` resolves to its built `dist`, which `pnpm install` does not produce
+      # (turbo builds it locally as a dependency). Browser tests that import it, such as
+      # `KnightView`, fail to load on a clean runner without this.
+      - run: pnpm --filter @castle-clash/shared run build
       - run: pnpm --filter @castle-clash/client run test:browser
 
   # v2 plan Phase 11: the public landing page has a budget. The built client is

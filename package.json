@@ -10,7 +10,8 @@
     "test": "turbo run test",
     "format": "oxfmt .",
     "format:check": "oxfmt --check .",
-    "verify": "turbo run lint typecheck test build"
+    "verify": "turbo run lint typecheck test build",
+    "preflight": "bash scripts/preflight.sh"
   },
   "devDependencies": {
     "oxfmt": "^0.68",

@@ -18,6 +18,7 @@ declare global {
         weaponStyleId: string;
       }>;
       dropConnection(): void;
+      fxActive(): number;
       frameStats(): {
         frames: number;
         meanMs: number;

@@ -11,6 +11,8 @@ export interface CastleClashDebugHook {
   frameStats(): GameClient["frameSummary"];
   /** Phase 13: the render surface's layout and applied stage transform (ADR 0002). */
   surface(): GameClient["surfaceState"];
+  /** Phase 15: how many effect particles (sparks, dust) are alive right now. */
+  fxActive(): number;
 }
 
 declare global {
@@ -36,5 +38,6 @@ export function installE2eDebugHook(client: GameClient): void {
     dropConnection: () => client.simulateDrop(),
     frameStats: () => client.frameSummary,
     surface: () => client.surfaceState,
+    fxActive: () => client.fxActive,
   };
 }

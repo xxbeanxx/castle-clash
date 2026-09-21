@@ -149,6 +149,24 @@ describe("playersToRects", () => {
     expect(other).toMatchObject({ action: "Idle", actionTick: 0, attackKind: "", facing: 1 });
   });
 
+  it("carries the name for the plate, and marks only the predicted player as local", () => {
+    const state = new MatchState();
+    addPlayer(state, "me", 10, 20, 0xff0000);
+    addPlayer(state, "them", 50, 20, 0x00ff00);
+    state.players.get("me")!.name = "Guest-1";
+    state.players.get("them")!.name = "Sir Aldric";
+    const own = createSimPlayer({ x: 10, y: 20 });
+
+    const rects = playersToRects(state, {}, { id: "me", player: own });
+    expect(rects.find((r) => r.id === "me")).toMatchObject({ name: "Guest-1", isLocal: true });
+    expect(rects.find((r) => r.id === "them")).toMatchObject({
+      name: "Sir Aldric",
+      isLocal: false,
+    });
+    // Before prediction is seeded nobody is known to be local.
+    expect(playersToRects(state).every((r) => !r.isLocal)).toBe(true);
+  });
+
   it("omits players who are no longer in state", () => {
     const state = new MatchState();
     addPlayer(state, "p1", 0, 0, 1);

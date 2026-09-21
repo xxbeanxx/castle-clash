@@ -14,8 +14,8 @@ leaderboard), and a production deploy (live since 2026-09-19, currently `v1.1.0`
 next is `docs/IMPLEMENTATION_PLAN_V2.md`, Phases 11–17** (landing page and UI kit, Google login,
 mobile controls, bots, pixel art, audio, hardening); its section 0 lists verified findings about
 today's tree, and its Appendix A lists decisions still open. Everything a _player_ sees is still
-placeholder except the knight, the arenas and the hazards (Phase 15 in progress): FX and UI are still
-rects, and there is no audio. (Touch input landed in Phase 13
+placeholder except the knight, the arenas, the hazards, the effects and the name plates (Phase 15 in
+progress): the UI is still unskinned, and there is no audio. (Touch input landed in Phase 13
 and bots, practice, backfill and a tutorial in Phase 14, so a lone visitor can play; neither phase's
 real-device or feel gate has been passed by a person.) `docs/adr/` records specific decisions;
 `docs/research/` records version/API facts verified against live docs and every scope deviation
@@ -449,6 +449,13 @@ questions. In short:
   `<canvas>` behind the (transparent) Pixi canvas, moved with the stage transform (`render/Backdrop.ts`,
   `.cc-game__canvas` is its positioned host). Found when two multi-browser e2e specs timed out; measure
   `window.__CC_DEBUG__.frameStats()` (`VITE_E2E` build) on a built client when a change adds large drawn area.
+- **Effects and name plates.** `viewmodel/fx.ts` (pure: event to particles) and `render/Fx.ts` (a fixed pool of
+  tinted sprites) draw sparks, dust and bursts. The server's `fx` broadcast carries ids but no positions, so
+  `GameClient.#fxWorld` aims each event at where the knights were drawn on the last frame; run dust and roll
+  trails come from what a knight is doing. `render/PlayerMarkers.ts` draws the ground bar and name plate from a
+  3x5 pixel font (`viewmodel/pixelText.ts`: uppercase, 10 characters at most). Hitstop is not implemented (the
+  sim never pauses). `window.__CC_DEBUG__.fxActive()` is the e2e hook. Facts and open questions:
+  `docs/research/phase15-fx-and-markers.md`.
 - **`assets:check`** (`app/assetsCheck.test.ts`, also part of `pnpm test`) fails on art that is not logged in
   `art/LICENSES.md`, a bundle over 200 KB (3 MB overall), or an atlas that disagrees with its PNG. Credits are
   on the About page (`routes/about.tsx`); add a line there for each new third-party source.

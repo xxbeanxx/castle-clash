@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.4.0](https://github.com/xxbeanxx/castle-clash/compare/v1.3.0...v1.4.0) (2026-09-21)
+
+
+### Features
+
+* **client:** animated Fantasy Knight, recoloured per player (Phase 15.0 slice; the part of [#74](https://github.com/xxbeanxx/castle-clash/issues/74) that missed the merge) ([#76](https://github.com/xxbeanxx/castle-clash/issues/76)) ([5acddfb](https://github.com/xxbeanxx/castle-clash/commit/5acddfbf0278b81f097096f67283311685353269))
+* **client:** Phase 15.0 art bible, licence log, knight animation mapping ([#74](https://github.com/xxbeanxx/castle-clash/issues/74)) ([113806d](https://github.com/xxbeanxx/castle-clash/commit/113806db64c2dd3ba183682b215ee31c20f8f995))
+* **client:** practice, backfill offer, results with Play again (Phase 14, stacked on [#68](https://github.com/xxbeanxx/castle-clash/issues/68)) ([#70](https://github.com/xxbeanxx/castle-clash/issues/70)) ([a9a1768](https://github.com/xxbeanxx/castle-clash/commit/a9a17684eb00141d01ff576ef570ba1b5473e833))
+* first-run tutorial with a training dummy (Phase 14 step 4, stacked on [#70](https://github.com/xxbeanxx/castle-clash/issues/70)) ([#71](https://github.com/xxbeanxx/castle-clash/issues/71)) ([3cc64bd](https://github.com/xxbeanxx/castle-clash/commit/3cc64bd653fabb198b5d9bea7896c97a9cd5d990))
+* **server:** bots in MatchRoom, practice, backfill, rematch (Phase 14 steps 1-3, 6) ([#68](https://github.com/xxbeanxx/castle-clash/issues/68)) ([7e500a8](https://github.com/xxbeanxx/castle-clash/commit/7e500a8a28d889955af4cecc2914f1a8fb88d22e))
+* **shared:** bot brain with three difficulty tiers (Phase 14 step 1) ([#64](https://github.com/xxbeanxx/castle-clash/issues/64)) ([542eb29](https://github.com/xxbeanxx/castle-clash/commit/542eb29e43a76f9cfa3cf8a3219fa2981566c346))
+* sudden death applies a damage ramp and a bleed (Phase 14 step 7) ([#65](https://github.com/xxbeanxx/castle-clash/issues/65)) ([d1951ba](https://github.com/xxbeanxx/castle-clash/commit/d1951ba6fead910d8d0619c5d3e9fa7cc2893f06))
+
+
+### Bug Fixes
+
+* **client:** GameClient.start() no longer runs after destroy() (dev blank canvas) ([#75](https://github.com/xxbeanxx/castle-clash/issues/75)) ([60d1d1b](https://github.com/xxbeanxx/castle-clash/commit/60d1d1b1a6652166e161bbaae6f1e13a20470804))
+* **shared:** bots reach a standing player from any spawn (Phase 14) ([#69](https://github.com/xxbeanxx/castle-clash/issues/69)) ([d1c5d6a](https://github.com/xxbeanxx/castle-clash/commit/d1c5d6ae9a5097e5c50fd04cb20dc6254c8c4c8c))
+
 ## [1.3.0](https://github.com/xxbeanxx/castle-clash/compare/v1.2.0...v1.3.0) (2026-09-20)
 
 

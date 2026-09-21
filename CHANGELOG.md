@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.5.0](https://github.com/xxbeanxx/castle-clash/compare/v1.4.0...v1.5.0) (2026-09-21)
+
+
+### Features
+
+* **client:** arenas and hazards drawn from Kenney CC0 art, painted from their own geometry (Phase 15.3) ([#78](https://github.com/xxbeanxx/castle-clash/issues/78)) ([0b58241](https://github.com/xxbeanxx/castle-clash/commit/0b5824116e4903a23b20774e600a7c997647a144))
+* **client:** assets:check and credits on the About page (Phase 15.1, stacked on [#78](https://github.com/xxbeanxx/castle-clash/issues/78)) ([#79](https://github.com/xxbeanxx/castle-clash/issues/79)) ([2f01c77](https://github.com/xxbeanxx/castle-clash/commit/2f01c7754a81cb5d44d4ee4587685178538a1cd1))
+* **client:** effects and name plates (Phase 15.4 / 15.2) ([#82](https://github.com/xxbeanxx/castle-clash/issues/82)) ([57a7abe](https://github.com/xxbeanxx/castle-clash/commit/57a7abeb676c17d55a81e1bb61e785bd6d393849))
+
 ## [1.4.0](https://github.com/xxbeanxx/castle-clash/compare/v1.3.0...v1.4.0) (2026-09-21)
 
 

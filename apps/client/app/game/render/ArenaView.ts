@@ -1,8 +1,11 @@
 import type { ArenaDefinition } from "@castle-clash/shared";
-import { Container, Graphics, Sprite, type Texture } from "pixi.js";
-import { UNITS_PER_ART_PX, renderBackground, renderTerrain } from "../viewmodel/arenaRaster.js";
+import { Container, Graphics } from "pixi.js";
+import { renderBackground, renderTerrain } from "../viewmodel/arenaRaster.js";
+import { overlay } from "../viewmodel/raster.js";
 import { themeFor } from "../viewmodel/arenaThemes.js";
-import { rasterTexture, type WorldAtlas } from "./WorldAtlas.js";
+import { Backdrop } from "./Backdrop.js";
+import type { StageTransform, SurfaceLayout } from "./surface.js";
+import type { WorldAtlas } from "./WorldAtlas.js";
 
 /** The flat-colour arena drawn before the art arrives, and kept if the art fails to load. */
 const SOLID_COLOR = 0x3a3a3a;
@@ -18,21 +21,29 @@ const KILL_ZONE_COLOR = 0x220000;
  * a fill over the union of the solids and outlines its exposed edges, so the picture is derived from
  * the geometry that collides and cannot disagree with it. The atlas is a promise, never awaited by
  * `GameClient.start()` (its message handlers must be registered the moment the join resolves): flat
- * rects show until it lands, and stay if it rejects.
+ * rects show until it lands, and stay if it rejects. The picture itself is a DOM canvas behind the
+ * Pixi canvas (`Backdrop`), not a Pixi sprite; see there for why.
  */
 export class ArenaView {
   readonly #container: Container;
   readonly #atlas: Promise<WorldAtlas | null>;
+  readonly #host: HTMLElement | null;
   #placeholder: Graphics | null = null;
-  #art: Container | null = null;
-  #textures: Texture[] = [];
+  #backdrop: Backdrop | null = null;
+  #last: { stage: StageTransform; layout: SurfaceLayout } | null = null;
   /** Bumped by every `setArena`/`destroy`, so an atlas that lands late paints only for the arena
    *  that asked for it. */
   #generation = 0;
 
-  constructor(container: Container, atlas: Promise<WorldAtlas | null> = Promise.resolve(null)) {
+  /** `host` is the element holding the Pixi canvas; without one (a test) there is no art. */
+  constructor(
+    container: Container,
+    atlas: Promise<WorldAtlas | null> = Promise.resolve(null),
+    host: HTMLElement | null = null,
+  ) {
     this.#container = container;
     this.#atlas = atlas;
+    this.#host = host;
   }
 
   setArena(arena: ArenaDefinition): void {
@@ -41,39 +52,35 @@ export class ArenaView {
     this.#placeholder = drawPlaceholder(arena);
     this.#container.addChild(this.#placeholder);
     void this.#atlas.then((atlas) => {
-      if (atlas && generation === this.#generation) {
-        this.#drawArt(arena, atlas);
+      if (atlas && this.#host && generation === this.#generation) {
+        this.#drawArt(arena, atlas, this.#host);
       }
     });
   }
 
-  #drawArt(arena: ArenaDefinition, atlas: WorldAtlas): void {
+  /** Follows the stage transform (`GameClient.#updateCamera`), so shake moves the art with the knights. */
+  place(stage: StageTransform, layout: SurfaceLayout): void {
+    this.#last = { stage, layout };
+    this.#backdrop?.place(stage, layout);
+  }
+
+  #drawArt(arena: ArenaDefinition, atlas: WorldAtlas, host: HTMLElement): void {
     const theme = themeFor(arena.id);
-    const background = rasterTexture(renderBackground(arena, theme, atlas.sprite));
-    const terrain = rasterTexture(renderTerrain(arena, theme, atlas.sprite));
-    const art = new Container();
-    for (const texture of [background, terrain]) {
-      const sprite = new Sprite(texture);
-      sprite.position.set(arena.bounds.x, arena.bounds.y);
-      sprite.scale.set(UNITS_PER_ART_PX);
-      art.addChild(sprite);
+    const scene = renderBackground(arena, theme, atlas.sprite);
+    overlay(scene, renderTerrain(arena, theme, atlas.sprite));
+    this.#backdrop = new Backdrop(host, scene, arena.bounds);
+    if (this.#last) {
+      this.#backdrop.place(this.#last.stage, this.#last.layout);
     }
-    this.#textures = [background, terrain];
-    this.#art = art;
     this.#placeholder?.destroy();
     this.#placeholder = null;
-    this.#container.addChild(art);
   }
 
   #clear(): void {
     this.#placeholder?.destroy();
     this.#placeholder = null;
-    this.#art?.destroy({ children: true });
-    this.#art = null;
-    for (const texture of this.#textures) {
-      texture.destroy(true);
-    }
-    this.#textures = [];
+    this.#backdrop?.destroy();
+    this.#backdrop = null;
   }
 
   destroy(): void {

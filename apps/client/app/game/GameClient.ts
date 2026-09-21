@@ -411,7 +411,7 @@ export class GameClient {
     );
     // The world art is a promise for the same reason (one fetch, shared by both views).
     const worldAtlas = WorldAtlas.load().catch(() => null);
-    const arenaView = new ArenaView(arenaLayer, worldAtlas);
+    const arenaView = new ArenaView(arenaLayer, worldAtlas, container);
     const hazardView = new HazardView(hazardLayer, worldAtlas);
     const client = new Client(roomUrl);
     if (accessToken) {
@@ -691,6 +691,7 @@ export class GameClient {
     const transform = camera.transform(layout);
     app.stage.scale.set(transform.scale);
     app.stage.position.set(transform.x, transform.y);
+    phase.resources.arenaView.place(transform, layout);
   }
 
   #setConnection(state: ConnectionState): void {

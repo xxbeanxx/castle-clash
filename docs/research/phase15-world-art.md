@@ -28,12 +28,37 @@ drawn in `art/world/build_atlas.py` in the same palette.
   (`arenaRaster.test.ts` asserts it). The painted terrain covers exactly the pixels of the boxes
   (`arenaRaster.test.ts`, per arena).
 - **Looked at in the built client** (behind the production nginx image and CSP, e2e build): all six arenas
-  at 1280x720, three at 1920x1080 and two at 844x390 landscape. Terrain, props, spikes (active), fire pits
-  (embers and lit), the portcullis, breakable planks and the pit's abyss all draw, with no console errors.
+  at 1280x720, three at 1920x1080 and two at 844x390 landscape, no console errors. Seen in the engine:
+  terrain, props, active spikes, a lit fire pit (castle room), embers (dungeon), the portcullis at rest,
+  intact breakable planks, and the pit's abyss. **Not seen in the engine** (covered only by unit tests): the
+  gate lowering, cracked floor stages, a broken floor, a shaking or fallen platform, and a dungeon fire pit
+  lit after the sparks change.
 - **Loading.** The atlas is fetched alongside the join and never awaited (`GameClient.start()` rule);
   flat rects show until it lands and stay if it fails (`ArenaView`, `HazardView`, browser tests).
+- **Frame time** of the running game with the backdrop: mean 16.7 ms, p95 16.7 ms, 0 slow frames over 240
+  frames (colosseum and dungeon, three runs each), the same as `main` measured the same way.
 - **Size.** `world.png` is about 2.5 KB; nothing near the 1 MB arena budget. The terrain is painted at
   runtime into a 640x360 texture per arena, which costs no download.
+
+## Found by measuring: the arena must not be drawn through Pixi
+
+The first version drew the baked arena as a full-screen Pixi sprite. In headless Chromium (software GL:
+SwiftShader, which is what CI's e2e and a low-end phone are) frames went from **17 ms to 35-60 ms**
+(`FrameStats`, practice match, 1280x720), and two multi-browser e2e specs timed out at 30 s
+(`touch-controls` took 27.9 s alone against 16.0 s on `main`). Measured, not guessed:
+
+- Hiding the scene mesh brought frames back to 16.7 ms with no slow frames, so it was the whole cost.
+- Cost follows the area drawn: scene at 1/4 area 17.7 ms, at 0.56 of the area 24 ms, at 0.98 of it 34 ms.
+- JS was not it (a CPU profile is 97% "(program)"), nor were texture uploads (0 `texImage2D` per second),
+  nor alpha blending (`blendMode: "none"` did not help), nor a sprite versus a `MeshPlane` (60 ms versus
+  about 40 ms).
+- A raw WebGL full-screen quad in the same browser costs about 5 ms, so Pixi's per-pixel cost here is roughly
+  7x the raw rate. **Why is not known**; Pixi's default mesh shader looks trivial.
+
+The fix is `render/Backdrop.ts`: the baked arena is a DOM `<canvas>` behind a transparent Pixi canvas,
+moved with the stage transform (so camera shake still moves art and knights together). A static DOM layer
+measured free in the same browser (three full-size layers, still 16.7 ms), and after the change frames are
+16.7 ms, equal to `main`.
 
 ## Deviations from the plan (15.3)
 
@@ -42,6 +67,7 @@ drawn in `art/world/build_atlas.py` in the same palette.
 - **"Auto-tiled (blob/9-slice)" became a per-pixel rasterizer.** The arena boxes are not multiples of the
   16 px tile (a wall is 10 px wide, a platform 8 px tall), so a tile grid would misalign the art from the
   collision. The rasterizer tiles a fill over the union of the boxes and finds edges per pixel.
+- **The arena picture is a DOM canvas, not a Pixi sprite** (above). Hazards, being small, are Pixi sprites.
 - **Kill zones are drawn in code** (a dark, dithered abyss), not from a tile; a "spikes / void / lava per
   arena" choice was not made, only void.
 - **Collapsing platforms and breakable floors are drawn as plank blocks** (or the theme's material) with
@@ -60,8 +86,13 @@ drawn in `art/world/build_atlas.py` in the same palette.
   the drop starts when the patch arrives).
 - **The other Kenney packs.** Only Tiny Dungeon was downloaded; no other pack's licence was read.
 - **Colour-blind readability** of the warn state (red blink) and of fire versus embers.
-- **Performance on a low-end phone.** Painting is one-off per arena and per hazard state, but nobody has
-  measured the first-frame cost of the 640x360 background and terrain on a slow device.
+- **Performance on a real low-end phone.** Frame time was measured only under headless software GL. The
+  one-off painting of the 640x360 scene (about 230k pixels in JS) was not timed on a slow device.
+- **Backdrop alignment on a fractional device pixel ratio.** It is placed with a CSS transform in the same
+  integer physical-pixel grid as the Pixi canvas, and looked right at DPR 1 and in the e2e phone profiles,
+  but a 1-physical-pixel seam between the art and the knights on, say, DPR 2.625 was not looked for.
+- **Firefox and Safari.** Only Chromium was run (`image-rendering: pixelated` and `will-change` are standard,
+  but nothing was checked).
 
 ## Related open findings (unchanged, still not fixed)
 

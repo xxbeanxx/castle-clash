@@ -34,5 +34,9 @@ image (fire on/off, spikes idle/warn/active, floor cracked stages, platform shak
 `arenaRaster.test.ts` fails if any painted pixel disagrees with the arena's boxes; `hazardRaster.test.ts`
 fails if the code asks for a frame the atlas lacks.
 
+The baked picture (backdrop, props and terrain) is shown as a DOM canvas behind the transparent Pixi canvas
+(`render/Backdrop.ts`), not as a Pixi sprite: a full-screen Pixi quad costs 35-60 ms a frame under software
+GL (`docs/research/phase15-world-art.md`). Only the hazards, which are small, are Pixi sprites.
+
 There is no parallax: the camera does not move (ADR 0002), so background layers would have nothing to
 move against. The plan's "2-4 parallax layers" is one dimmed backdrop plus props.

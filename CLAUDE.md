@@ -435,6 +435,11 @@ and open questions. In short:
   A new arena needs boxes on even unit values and a theme entry; a new hazard state needs a key in
   `hazardVisual`/`paintHazard` (`hazardRaster.test.ts` fails on a frame name the atlas lacks). There is no
   parallax: the camera does not move.
+- **Never draw a full-screen image through Pixi.** Under software GL (headless CI, low-end phones) a
+  full-screen Pixi quad costs 35-60 ms a frame, and the cost follows the area drawn. The arena picture is a DOM
+  `<canvas>` behind the (transparent) Pixi canvas, moved with the stage transform (`render/Backdrop.ts`,
+  `.cc-game__canvas` is its positioned host). Found when two multi-browser e2e specs timed out; measure
+  `window.__CC_DEBUG__.frameStats()` (`VITE_E2E` build) on a built client when a change adds large drawn area.
 - Pixi 8.20.1 does not read Aseprite `frameTags`, and the plan's claim that it does is wrong.
 
 ### Workspace layout and package boundaries

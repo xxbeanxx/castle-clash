@@ -326,6 +326,11 @@
 .cc-game__canvas {
   width: 100%;
   height: 100%;
+  /* The arena's picture is a canvas behind the Pixi one (`game/render/Backdrop.ts`); it needs a
+     positioned host with its own stacking context, and this colour shows as overscan. */
+  position: relative;
+  isolation: isolate;
+  background: #1a1a1a;
   /* An inline canvas sits on a text baseline and adds a line-height gap below itself: 10 px of
      page scroll on a phone (found by mobile-smoke.spec.ts). */
   overflow: hidden;

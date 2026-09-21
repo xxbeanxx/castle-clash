@@ -55,3 +55,13 @@ export function pixelAt(src: Raster, x: number, y: number): [number, number, num
   const i = (y * src.w + x) * 4;
   return [src.data[i] ?? 0, src.data[i + 1] ?? 0, src.data[i + 2] ?? 0, src.data[i + 3] ?? 0];
 }
+
+/** Paints `top` over `base` (same size) in place: wherever `top` is opaque it replaces `base`. Used to
+ *  bake the static scene into one opaque image, so it costs the GPU one un-blended full-screen quad. */
+export function overlay(base: Raster, top: Raster): void {
+  for (let i = 0; i < base.w * base.h; i++) {
+    if ((top.data[i * 4 + 3] ?? 0) === 255) {
+      base.data.set(top.data.subarray(i * 4, i * 4 + 4), i * 4);
+    }
+  }
+}

@@ -14,7 +14,7 @@ leaderboard), and a production deploy (live since 2026-09-19, currently `v1.1.0`
 next is `docs/IMPLEMENTATION_PLAN_V2.md`, Phases 11–17** (landing page and UI kit, Google login,
 mobile controls, bots, pixel art, audio, hardening); its section 0 lists verified findings about
 today's tree, and its Appendix A lists decisions still open. Everything a _player_ sees is still
-placeholder except the knight sprite (Phase 15 in progress): arenas, hazards, FX and UI are still
+placeholder except the knight, the arenas and the hazards (Phase 15 in progress): FX and UI are still
 rects, and there is no audio. (Touch input landed in Phase 13
 and bots, practice, backfill and a tutorial in Phase 14, so a lone visitor can play; neither phase's
 real-device or feel gate has been passed by a person.) `docs/adr/` records specific decisions;
@@ -417,8 +417,9 @@ the facts (including what was found broken and what is unverified). In short:
 
 ### Pixel art (Phase 15, in progress)
 
-`docs/art/BIBLE.md` has the rules and `docs/research/phase15-art-sources-and-pipeline.md` the facts
-and open questions. In short:
+`docs/art/BIBLE.md` has the rules, `docs/adr/0004-art-pipeline-and-render-split.md` the decisions,
+`docs/research/phase15-art-sources-and-pipeline.md` and `phase15-world-art.md` the facts and open
+questions. In short:
 
 - **The knight is a third-party pack** (aamatniekss's Fantasy Knight, a custom licence, not CC).
   `art/LICENSES.md` logs every third-party file and the risks the owner accepted; add a row in the
@@ -433,7 +434,21 @@ and open questions. In short:
 - **`GameClient` must never await the atlas.** The room's message handlers have to be registered the
   moment `joinRoom` resolves (the server sends the match code on join); `PlayerRenderer` takes the atlas as
   a promise and draws nothing until it lands, or falls back to rects if it fails. Awaiting it broke private
-  rooms once, and only the e2e suite noticed.
+  rooms once, and only the e2e suite noticed. `ArenaView` and `HazardView` follow the same rule (world atlas as
+  a promise, flat rects until it lands).
+- **Arenas and hazards are painted from geometry, not laid out.** `viewmodel/arenaRaster.ts` tiles a fill over
+  the union of an arena's `solids` and `platforms` at art-pixel resolution and outlines exposed edges, so the
+  picture cannot disagree with collision (`arenaRaster.test.ts` asserts it per arena); `arenaThemes.ts` picks
+  materials and props per arena id; `hazardRaster.ts` maps a synced hazard's phase to an image. The world atlas
+  (`art/world/build_atlas.py`, Kenney CC0 plus frames drawn in the script) is a separate atlas from the knight's.
+  A new arena needs boxes on even unit values and a theme entry; a new hazard state needs a key in
+  `hazardVisual`/`paintHazard` (`hazardRaster.test.ts` fails on a frame name the atlas lacks). There is no
+  parallax: the camera does not move.
+- **Never draw a full-screen image through Pixi.** Under software GL (headless CI, low-end phones) a
+  full-screen Pixi quad costs 35-60 ms a frame, and the cost follows the area drawn. The arena picture is a DOM
+  `<canvas>` behind the (transparent) Pixi canvas, moved with the stage transform (`render/Backdrop.ts`,
+  `.cc-game__canvas` is its positioned host). Found when two multi-browser e2e specs timed out; measure
+  `window.__CC_DEBUG__.frameStats()` (`VITE_E2E` build) on a built client when a change adds large drawn area.
 - Pixi 8.20.1 does not read Aseprite `frameTags`, and the plan's claim that it does is wrong.
 
 ### Workspace layout and package boundaries

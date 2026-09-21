@@ -12,7 +12,9 @@ export const PIXEL_ART_INIT = {
   antialias: false,
   roundPixels: true,
   powerPreference: "high-performance",
-  backgroundColor: 0x1a1a1a,
+  // Transparent: the arena's picture is a DOM canvas behind this one (`Backdrop`), and the host
+  // element (`.cc-game__canvas`) paints the overscan colour.
+  backgroundAlpha: 0,
 } as const;
 
 /** Textures sample with `nearest`, never blurring an art pixel. Global to Pixi, which is fine:

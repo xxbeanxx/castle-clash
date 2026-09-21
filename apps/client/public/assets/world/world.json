@@ -1,0 +1,204 @@
+{
+ "frames": {
+  "fill/dirt": {
+   "frame": {
+    "x": 0,
+    "y": 0,
+    "w": 16,
+    "h": 16
+   }
+  },
+  "fill/sand": {
+   "frame": {
+    "x": 16,
+    "y": 0,
+    "w": 16,
+    "h": 16
+   }
+  },
+  "fill/brick": {
+   "frame": {
+    "x": 32,
+    "y": 0,
+    "w": 16,
+    "h": 16
+   }
+  },
+  "fill/stone": {
+   "frame": {
+    "x": 48,
+    "y": 0,
+    "w": 16,
+    "h": 16
+   }
+  },
+  "fill/metal": {
+   "frame": {
+    "x": 64,
+    "y": 0,
+    "w": 16,
+    "h": 16
+   }
+  },
+  "fill/plank": {
+   "frame": {
+    "x": 80,
+    "y": 0,
+    "w": 16,
+    "h": 16
+   }
+  },
+  "prop/banner": {
+   "frame": {
+    "x": 96,
+    "y": 0,
+    "w": 16,
+    "h": 16
+   }
+  },
+  "prop/barrel": {
+   "frame": {
+    "x": 112,
+    "y": 0,
+    "w": 16,
+    "h": 16
+   }
+  },
+  "prop/chest": {
+   "frame": {
+    "x": 0,
+    "y": 24,
+    "w": 16,
+    "h": 16
+   }
+  },
+  "prop/shield": {
+   "frame": {
+    "x": 16,
+    "y": 24,
+    "w": 16,
+    "h": 16
+   }
+  },
+  "prop/gargoyle": {
+   "frame": {
+    "x": 32,
+    "y": 24,
+    "w": 16,
+    "h": 16
+   }
+  },
+  "prop/grave": {
+   "frame": {
+    "x": 48,
+    "y": 24,
+    "w": 16,
+    "h": 16
+   }
+  },
+  "prop/shelf": {
+   "frame": {
+    "x": 64,
+    "y": 24,
+    "w": 16,
+    "h": 16
+   }
+  },
+  "prop/crate": {
+   "frame": {
+    "x": 80,
+    "y": 24,
+    "w": 16,
+    "h": 16
+   }
+  },
+  "hazard/flame-0": {
+   "frame": {
+    "x": 96,
+    "y": 24,
+    "w": 16,
+    "h": 24
+   }
+  },
+  "hazard/flame-1": {
+   "frame": {
+    "x": 112,
+    "y": 24,
+    "w": 16,
+    "h": 24
+   }
+  },
+  "hazard/flame-2": {
+   "frame": {
+    "x": 0,
+    "y": 48,
+    "w": 16,
+    "h": 24
+   }
+  },
+  "hazard/flame-3": {
+   "frame": {
+    "x": 16,
+    "y": 48,
+    "w": 16,
+    "h": 24
+   }
+  },
+  "hazard/spikes-idle": {
+   "frame": {
+    "x": 32,
+    "y": 48,
+    "w": 16,
+    "h": 16
+   }
+  },
+  "hazard/spikes-warn": {
+   "frame": {
+    "x": 48,
+    "y": 48,
+    "w": 16,
+    "h": 16
+   }
+  },
+  "hazard/spikes-active": {
+   "frame": {
+    "x": 64,
+    "y": 48,
+    "w": 16,
+    "h": 16
+   }
+  },
+  "hazard/crack-1": {
+   "frame": {
+    "x": 80,
+    "y": 48,
+    "w": 16,
+    "h": 16
+   }
+  },
+  "hazard/crack-2": {
+   "frame": {
+    "x": 96,
+    "y": 48,
+    "w": 16,
+    "h": 16
+   }
+  }
+ },
+ "animations": {
+  "flame": [
+   "hazard/flame-0",
+   "hazard/flame-1",
+   "hazard/flame-2",
+   "hazard/flame-3"
+  ]
+ },
+ "meta": {
+  "image": "world.png",
+  "size": {
+   "w": 128,
+   "h": 72
+  },
+  "source": "Kenney Tiny Dungeon 1.0 (CC0) plus frames drawn by art/world/build_atlas.py"
+ }
+}

@@ -13,6 +13,10 @@ export interface HazardRect {
   h: number;
   active: boolean;
   phase: string;
+  /** Synced hit points, and the def's starting value (0 for a kind with none), so a breakable
+   *  floor can show how damaged it is. */
+  hp: number;
+  maxHp: number;
 }
 
 /**
@@ -24,14 +28,15 @@ export interface HazardRect {
  * contract `playersToRects` follows for players.
  */
 export function hazardsToRects(state: MatchState, defs: readonly HazardDef[]): HazardRect[] {
-  const boxById = new Map(defs.map((def) => [def.id, def.box]));
+  const defById = new Map(defs.map((def) => [def.id, def]));
   const rects: HazardRect[] = [];
 
   state.hazards.forEach((hazard, id) => {
-    const box = boxById.get(id);
-    if (!box) {
+    const def = defById.get(id);
+    if (!def) {
       return;
     }
+    const box = def.box;
     rects.push({
       id,
       kind: hazard.kind,
@@ -41,6 +46,8 @@ export function hazardsToRects(state: MatchState, defs: readonly HazardDef[]): H
       h: box.h,
       active: hazard.active,
       phase: hazard.phase,
+      hp: hazard.hp,
+      maxHp: def.kind === "breakableFloor" ? def.hp : 0,
     });
   });
 

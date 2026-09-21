@@ -22,10 +22,13 @@
   font-size: var(--text-sm);
 }
 .cc-bar {
+  position: relative;
   width: 11.25rem;
-  height: 0.625rem;
-  background: oklch(0 0 0 / 0.55);
-  border-radius: var(--radius-sm);
+  height: 0.75rem;
+  /* A 2 px near-black frame and a dark well, square-cornered like the rest of the pixel art. */
+  background: oklch(0.14 0.02 20);
+  border: 2px solid oklch(0.1 0.02 20);
+  box-sizing: border-box;
   overflow: hidden;
 }
 .cc-bar + .cc-bar {
@@ -34,12 +37,28 @@
 .cc-bar__fill {
   height: 100%;
   transition: width 100ms linear;
+  /* A lit top row, as on the art (light comes from the top-left). */
+  box-shadow: inset 0 2px 0 oklch(1 0 0 / 0.3);
 }
 .cc-bar__fill--hp {
   background: var(--crimson-400);
 }
 .cc-bar__fill--stamina {
   background: var(--gold-500);
+}
+/* Tick marks every quarter, over the fill, so the bar reads as a count. */
+.cc-bar::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    to right,
+    transparent 0,
+    transparent calc(25% - 1px),
+    oklch(0.1 0.02 20 / 0.7) calc(25% - 1px),
+    oklch(0.1 0.02 20 / 0.7) 25%
+  );
+  pointer-events: none;
 }
 
 .cc-banner {
@@ -201,7 +220,13 @@
     gap: var(--space-3);
   }
   .cc-draft-card {
-    min-height: 5rem;
+    width: 9.5rem;
+    min-height: 9rem;
+    padding: var(--space-2);
+  }
+  /* Two classes, so it beats the base `.cc-icon` rule that comes later in the file. */
+  .cc-draft-card .cc-icon {
+    --icon-scale: 3;
   }
   .cc-results th,
   .cc-results td {
@@ -246,23 +271,71 @@
   gap: var(--space-4);
 }
 .cc-draft-card {
-  width: 9rem;
-  min-height: 6.5rem;
+  width: 11rem;
+  min-height: 11.5rem;
   padding: var(--space-3);
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
+  gap: var(--space-1);
   text-align: center;
   background: var(--stone-850);
   border: 2px solid var(--line-strong);
   border-radius: var(--radius-md);
   color: var(--ink);
-  font-family: var(--font-display);
-  font-weight: 500;
+  font-family: var(--font-body);
   cursor: pointer;
   transition:
     border-color var(--duration-fast) var(--ease-out),
     background-color var(--duration-fast) var(--ease-out);
+}
+.cc-draft-card[data-rarity="rare"] {
+  border-color: var(--steel-400);
+}
+.cc-draft-card[data-rarity="epic"] {
+  border-color: var(--gold-500);
+}
+.cc-draft-card__name {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: var(--text-sm);
+  line-height: var(--leading-tight);
+}
+.cc-draft-card__rarity {
+  font-size: var(--text-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+.cc-draft-card[data-rarity="rare"] .cc-draft-card__rarity {
+  color: var(--steel-400);
+}
+.cc-draft-card[data-rarity="epic"] .cc-draft-card__rarity {
+  color: var(--gold-500);
+}
+.cc-draft-card__line {
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+.cc-draft-card__stacks {
+  margin-top: auto;
+  font-size: var(--text-xs);
+  color: var(--ink-muted);
+}
+
+/* A power-up icon: one 16 px tile of the 96x48 sheet, shown at 4x (64 px). The tile is set by
+   --tile-x / --tile-y (data, from PowerUpIcon). Pixelated so an art pixel stays a square. */
+.cc-icon {
+  --icon-scale: 4;
+  flex: none;
+  width: calc(16px * var(--icon-scale));
+  height: calc(16px * var(--icon-scale));
+  background-image: url("/assets/ui/powerups.png");
+  background-repeat: no-repeat;
+  background-size: calc(96px * var(--icon-scale)) calc(48px * var(--icon-scale));
+  background-position: calc(var(--tile-x) * -16px * var(--icon-scale))
+    calc(var(--tile-y) * -16px * var(--icon-scale));
+  image-rendering: pixelated;
 }
 .cc-draft-card:hover:not(:disabled) {
   border-color: var(--gold-500);

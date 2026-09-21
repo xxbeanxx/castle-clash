@@ -599,7 +599,7 @@ export class GameClient {
           : undefined,
       );
       view.sync(rects, ticker.deltaMS);
-      markers.sync(rects);
+      markers.sync(rects, this.#resolvedArena?.bounds);
       this.#lastRects = rects;
       fx.ambient(rects, ticker.deltaMS);
       fx.update(ticker.deltaMS);

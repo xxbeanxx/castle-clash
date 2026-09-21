@@ -1,4 +1,4 @@
-import { PLAYER_HEIGHT, PLAYER_WIDTH } from "@castle-clash/shared";
+import { PLAYER_HEIGHT, PLAYER_WIDTH, type AABB } from "@castle-clash/shared";
 import { Container, Sprite, type Texture } from "pixi.js";
 import { UNITS_PER_ART_PX } from "../viewmodel/arenaRaster.js";
 import { renderGroundMarker, renderNamePlate, renderYouArrow } from "../viewmodel/markers.js";
@@ -42,7 +42,9 @@ export class PlayerMarkers {
     this.#plates = plates;
   }
 
-  sync(rects: readonly KnightRect[]): void {
+  /** `bounds` (the arena's, world units) keeps a plate from hanging off the edge of the screen when a
+   *  knight stands against a wall; the ground bar stays under the feet. */
+  sync(rects: readonly KnightRect[], bounds?: AABB): void {
     const seen = new Set<string>();
     for (const rect of rects) {
       seen.add(rect.id);
@@ -63,8 +65,9 @@ export class PlayerMarkers {
       const plateY = snap(
         rect.y - SPRITE_ABOVE_HITBOX - PLATE_GAP - (rect.isLocal ? LOCAL_PLATE_LIFT : 0),
       );
+      const plateX = bounds ? clampInside(centerX, entry.plate.width / 2, bounds) : centerX;
       entry.plate.visible = visible;
-      entry.plate.position.set(snap(centerX), plateY);
+      entry.plate.position.set(snap(plateX), plateY);
       if (entry.arrow) {
         entry.arrow.visible = visible;
         entry.arrow.position.set(
@@ -123,6 +126,11 @@ export class PlayerMarkers {
     }
     this.#entries.clear();
   }
+}
+
+/** `x` moved, if need be, so a `half`-wide thing centred on it stays inside `bounds` horizontally. */
+function clampInside(x: number, half: number, bounds: AABB): number {
+  return Math.min(bounds.x + bounds.w - half, Math.max(bounds.x + half, x));
 }
 
 /** Nearest even world unit, i.e. a whole art pixel. */

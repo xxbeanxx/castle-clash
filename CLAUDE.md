@@ -14,8 +14,8 @@ leaderboard), and a production deploy (live since 2026-09-19, currently `v1.1.0`
 next is `docs/IMPLEMENTATION_PLAN_V2.md`, Phases 11–17** (landing page and UI kit, Google login,
 mobile controls, bots, pixel art, audio, hardening); its section 0 lists verified findings about
 today's tree, and its Appendix A lists decisions still open. Everything a _player_ sees is still
-placeholder except the knight, the arenas, the hazards, the effects and the name plates (Phase 15 in
-progress): the UI is still unskinned, and there is no audio. (Touch input landed in Phase 13
+placeholder except the knight, the arenas, the hazards, the effects, the name plates and the in-match
+power-up cards and bars (Phase 15 in progress): the rest of the UI is unskinned, and there is no audio. (Touch input landed in Phase 13
 and bots, practice, backfill and a tutorial in Phase 14, so a lone visitor can play; neither phase's
 real-device or feel gate has been passed by a person.) `docs/adr/` records specific decisions;
 `docs/research/` records version/API facts verified against live docs and every scope deviation
@@ -456,6 +456,11 @@ questions. In short:
   3x5 pixel font (`viewmodel/pixelText.ts`: uppercase, 10 characters at most). Hitstop is not implemented (the
   sim never pauses). `window.__CC_DEBUG__.fxActive()` is the e2e hook. Facts and open questions:
   `docs/research/phase15-fx-and-markers.md`.
+- **Power-up cards.** The draft cards show an icon, a display name and a description generated from the power-up's
+  modifiers and effects (`content/powerups.ts`; the shared defs carry only numbers). Icons are drawn in
+  `art/ui/build_icons.py` into `public/assets/ui/powerups.png` and cut out by CSS (`ui/PowerUpIcon.tsx`, `.cc-icon`).
+  A new power-up needs a name, an icon (same position in the script's `ICONS` and `POWERUP_ICON_ORDER`) and nothing
+  else: `content/powerups.test.ts` fails until they agree. Facts and gaps: `docs/research/phase15-ui-skin.md`.
 - **`assets:check`** (`app/assetsCheck.test.ts`, also part of `pnpm test`) fails on art that is not logged in
   `art/LICENSES.md`, a bundle over 200 KB (3 MB overall), or an atlas that disagrees with its PNG. Credits are
   on the About page (`routes/about.tsx`); add a line there for each new third-party source.

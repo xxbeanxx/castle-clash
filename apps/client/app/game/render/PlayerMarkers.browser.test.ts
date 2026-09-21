@@ -65,6 +65,17 @@ describe("PlayerMarkers", () => {
     markers.destroy();
   });
 
+  it("keeps a plate inside the arena when its knight stands against a wall", () => {
+    const markers = new PlayerMarkers(ground, plates);
+    const bounds = { x: 0, y: 0, w: 1280, h: 720 };
+    markers.sync([knight({ x: 22 })], bounds);
+    const [plate] = plates.children as [Sprite];
+    // Centred on the body the plate would hang past x=0; it is pulled in, and the bar is not.
+    expect(plate.position.x - plate.width / 2).toBeGreaterThanOrEqual(0);
+    expect((ground.children[0] as Sprite).position.x).toBe(22 + PLAYER_WIDTH / 2);
+    markers.destroy();
+  });
+
   it("hides a dead knight's markers, and drops the markers of a player who left", () => {
     const markers = new PlayerMarkers(ground, plates);
     markers.sync([knight({ id: "a" }), knight({ id: "b" })]);

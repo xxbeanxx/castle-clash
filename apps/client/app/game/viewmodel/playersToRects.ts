@@ -28,6 +28,11 @@ export interface KnightRect extends PlayerRect {
   weapon: string;
   facing: 1 | -1;
   vy: number;
+  /** What the name plate says (`PlayerState.name`; empty until the server has sent it). */
+  name: string;
+  /** Whether this is the player looking at the screen, which gets the arrow over its plate. Known
+   *  only once prediction is seeded, so it is briefly false for the local knight. */
+  isLocal: boolean;
 }
 
 const RGB_MASK = 0xffffff;
@@ -61,6 +66,8 @@ export function playersToRects(
       weapon: own?.weapon ?? player.weapon,
       facing: own?.facing ?? (player.facing < 0 ? -1 : 1),
       vy: own?.vel.y ?? player.vy,
+      name: player.name,
+      isLocal: own !== undefined,
       helmetTint: getCosmeticTint(player.cosmetics.helmetId),
       capeTint: getCosmeticTint(player.cosmetics.capeId),
     });

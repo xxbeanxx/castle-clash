@@ -402,9 +402,13 @@ plan.
   drawn in code) and the not-verified list are in `docs/research/phase15-world-art.md`.
 - **Also built:** `assets:check` (licence-log coverage, byte budgets, atlas consistency; runs in CI as part of
   the client tests), ADR 0004 (art pipeline, D6, and why the arena is a DOM layer), and credits on `/about`.
-- **Not built:** FX, UI skin, visual-regression baselines, the name plate / ground marker, cosmetics as art
-  layers (the Phase 9 indicator squares still draw over the art), weapon art for mace and spear (they reuse
-  the sword swings), and block/guard-broken frames (stand-ins).
+- **Built (effects and markers):** `render/Fx.ts` (hit and block sparks, guard-break burst, KO poof, jump, land
+  and run dust, roll trail, floor debris, shield flash; pooled) and `render/PlayerMarkers.ts` (ground bar and a
+  pixel-font name plate, an arrow over the local player). Deviations: no hitstop, the dodge after-image is a
+  particle trail, no ring-out fall effect. `docs/research/phase15-fx-and-markers.md`.
+- **Not built:** UI skin (panels, bar frames, icons, logo), visual-regression baselines, cosmetics as art
+  layers (the Phase 9 indicator squares still draw over the art; needs the `player_loadouts` migration),
+  weapon art for mace and spear (they reuse the sword swings), and block/guard-broken frames (stand-ins).
 - **Found and fixed on the way:** waiting for the atlas together with `joinRoom` made the room's
   `MATCH_CODE` message arrive before its handler existed (private rooms showed no code). The renderer now
   takes the atlas as a promise instead of `start()` awaiting it.

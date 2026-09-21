@@ -50,7 +50,8 @@ swap one without redrawing the rest.
   is normalised so its brightest channel is 220, so a near-black `colorSeed` still reads. Only the
   primary colour is applied today; the leather ramp could carry a secondary.
 - Helmet and cape items are extra layers keyed by `textureKey`, not tinted indicator squares.
-- A player is identified by more than colour: name plate and ground marker (plan step 9).
+- A player is identified by more than colour: a ground bar in their colour and a name plate in a 3x5 pixel font
+  (`render/PlayerMarkers.ts`), with an arrow over the local player's plate.
 
 ## Animation
 

@@ -39,10 +39,13 @@ import {
 import type { SurfaceLayout } from "./render/surface.js";
 import { HazardView } from "./render/HazardView.js";
 import { WorldAtlas } from "./render/WorldAtlas.js";
+import { Fx } from "./render/Fx.js";
+import { PlayerMarkers } from "./render/PlayerMarkers.js";
 import { KnightAtlas } from "./render/KnightAtlas.js";
 import { createPlayerRenderer, type PlayerRenderer } from "./render/PlayerRenderer.js";
+import { actorOf, fxForEvents, type FxWorld } from "./viewmodel/fx.js";
 import { hazardsToRects } from "./viewmodel/hazardsToRects.js";
-import { playersToRects } from "./viewmodel/playersToRects.js";
+import { playersToRects, type KnightRect } from "./viewmodel/playersToRects.js";
 
 const FIXED_DT_MS = 1000 / TICK_RATE;
 
@@ -117,6 +120,8 @@ interface Resources {
   readonly view: PlayerRenderer;
   readonly arenaView: ArenaView;
   readonly hazardView: HazardView;
+  readonly markers: PlayerMarkers;
+  readonly fx: Fx;
   readonly localId: PlayerId;
   readonly rngSeed: number;
 }
@@ -156,6 +161,8 @@ export class GameClient {
    *  independently of (and usually before) the local player's own schema
    *  entry, so this doesn't reuse `#ensureReconciler`'s seeding path. */
   #resolvedArena: ArenaDefinition | null = null;
+  /** The knights as of the last drawn frame; `fx` events are aimed against these. */
+  #lastRects: KnightRect[] = [];
   #camera: Camera | null = null;
 
   readonly #frameStats = new FrameStats();
@@ -163,6 +170,12 @@ export class GameClient {
   /** Rolling frame-time summary, for the `VITE_E2E` hook (Phase 13 step 12's perf budget). */
   get frameSummary(): FrameSummary | null {
     return this.#frameStats.summary();
+  }
+
+  /** Live effect particles, for the `VITE_E2E` hook (0 until the room is connected). */
+  get fxActive(): number {
+    const phase = this.#getPhase();
+    return phase.tag === "connected" || phase.tag === "predicting" ? phase.resources.fx.active : 0;
   }
 
   /** Whether the room's socket is up. `reconnecting` while the SDK retries a dropped socket (a
@@ -397,10 +410,23 @@ export class GameClient {
     // view already relies on internally.
     const arenaLayer = new Container();
     const hazardLayer = new Container();
+    // Ground markers sit on the floor, under the knights.
+    const groundLayer = new Container();
     const playerLayer = new Container();
     // Cosmetic indicators draw over the knights, not among them.
     const cosmeticLayer = new Container();
-    app.stage.addChild(arenaLayer, hazardLayer, playerLayer, cosmeticLayer);
+    const fxLayer = new Container();
+    // Name plates float over everything else.
+    const plateLayer = new Container();
+    app.stage.addChild(
+      arenaLayer,
+      hazardLayer,
+      groundLayer,
+      playerLayer,
+      cosmeticLayer,
+      fxLayer,
+      plateLayer,
+    );
 
     // The art loads alongside the join and is never awaited here: the room's message handlers
     // must be registered the moment `joinRoom` resolves. A failed load falls back to rects.
@@ -413,6 +439,8 @@ export class GameClient {
     const worldAtlas = WorldAtlas.load().catch(() => null);
     const arenaView = new ArenaView(arenaLayer, worldAtlas, container);
     const hazardView = new HazardView(hazardLayer, worldAtlas);
+    const markers = new PlayerMarkers(groundLayer, plateLayer);
+    const fx = new Fx(fxLayer);
     const client = new Client(roomUrl);
     if (accessToken) {
       client.auth.token = accessToken;
@@ -422,6 +450,8 @@ export class GameClient {
       view.destroy();
       arenaView.destroy();
       hazardView.destroy();
+      markers.destroy();
+      fx.destroy();
       await room.leave();
       app.destroy(true, { children: true });
       return;
@@ -443,7 +473,10 @@ export class GameClient {
     room.onMessage(MESSAGE_TYPES.PROFILE_UNLOCKS, (itemIds: string[]) =>
       this.#profileUnlocks.emit(itemIds),
     );
-    room.onMessage(MESSAGE_TYPES.FX, (events: SimEvent[]) => this.#shakeForEvents(events));
+    room.onMessage(MESSAGE_TYPES.FX, (events: SimEvent[]) => {
+      this.#shakeForEvents(events);
+      fx.spawn(fxForEvents(events, this.#fxWorld()));
+    });
     room.onMessage(
       MESSAGE_TYPES.DRAFT_OFFER,
       (payload: { offers: string[]; endsAtTick: number }) => {
@@ -471,6 +504,8 @@ export class GameClient {
       view,
       arenaView,
       hazardView,
+      markers,
+      fx,
       localId: playerId(room.sessionId),
       rngSeed: hashSeed(room.roomId),
     };
@@ -564,6 +599,10 @@ export class GameClient {
           : undefined,
       );
       view.sync(rects, ticker.deltaMS);
+      markers.sync(rects);
+      this.#lastRects = rects;
+      fx.ambient(rects, ticker.deltaMS);
+      fx.update(ticker.deltaMS);
 
       if (this.#resolvedArena) {
         hazardView.sync(hazardsToRects(room.state, this.#resolvedArena.hazards));
@@ -592,6 +631,8 @@ export class GameClient {
     // The views free their painted textures first; `app.destroy` then takes the display objects.
     resources.arenaView.destroy();
     resources.hazardView.destroy();
+    resources.markers.destroy();
+    resources.fx.destroy();
     resources.app.destroy(true, { children: true });
     resources.view.destroy();
   }
@@ -672,6 +713,23 @@ export class GameClient {
     if (intensity > 0) {
       this.#camera?.shake(intensity);
     }
+  }
+
+  /** Where knights and hazards are, as of the last drawn frame, for aiming `fx` events (which name
+   *  players and hazards by id and carry no positions). */
+  #fxWorld(): FxWorld {
+    const rects = this.#lastRects;
+    const hazards = this.#resolvedArena?.hazards ?? [];
+    return {
+      actor: (id) => {
+        const rect = rects.find((r) => r.id === id);
+        return rect ? actorOf(rect) : undefined;
+      },
+      hazardCenter: (id) => {
+        const box = hazards.find((h) => h.id === id)?.box;
+        return box ? { x: box.x + box.w / 2, y: box.y + box.h / 2 } : undefined;
+      },
+    };
   }
 
   /** Places the stage for this frame: the arena centered on the integer-scale surface, plus any

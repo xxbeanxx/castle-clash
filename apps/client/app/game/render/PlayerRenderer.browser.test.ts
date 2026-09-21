@@ -15,6 +15,8 @@ const rect: KnightRect = {
   weapon: "sword",
   facing: 1,
   vy: 0,
+  name: "Guest-1",
+  isLocal: false,
 };
 
 describe("createPlayerRenderer", () => {

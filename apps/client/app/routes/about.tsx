@@ -33,8 +33,24 @@ export default function About() {
 
       <h2>Where it is going</h2>
       <p>
-        The game is a work in progress. Knights are still simple shapes, touch controls, sound and
-        solo play against bots are on the way, and so is proper art.
+        The game is a work in progress. The knights, arenas and hazards have pixel art now, and you
+        can play alone against bots or on a phone; effects, menus and sound are still on the way.
+      </p>
+
+      <h2>Credits</h2>
+      <p>
+        The knight is the{" "}
+        <a
+          href="https://aamatniekss.itch.io/fantasy-knight-free-pixelart-animated-character"
+          rel="noreferrer"
+        >
+          Fantasy Knight
+        </a>{" "}
+        by aamatniekss, recoloured for each player. Arena tiles and props come from{" "}
+        <a href="https://kenney.nl/assets/tiny-dungeon" rel="noreferrer">
+          Tiny Dungeon
+        </a>{" "}
+        by Kenney (CC0). The fire, spikes and a few more frames were drawn for this game.
       </p>
 
       <h2>Get involved</h2>

@@ -13,7 +13,8 @@
     "test": "vitest run && sh docker/entrypoint.test.sh",
     "test:browser": "vitest run --config vitest.browser.config.ts",
     "typecheck": "react-router typegen && tsc",
-    "check:landing": "node scripts/web-quality.mjs bundle build/client"
+    "check:landing": "node scripts/web-quality.mjs bundle build/client",
+    "assets:check": "vitest run app/assetsCheck.test.ts"
   },
   "dependencies": {
     "@castle-clash/shared": "workspace:*",

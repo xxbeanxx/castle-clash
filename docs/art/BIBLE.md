@@ -2,7 +2,8 @@
 
 Status: **draft**. The knight is aamatniekss's Fantasy Knight (decision D1, 2026-09-20; licence and
 accepted risks in `art/LICENSES.md`, facts in `docs/research/phase15-art-sources-and-pipeline.md`).
-Rules marked _open_ still wait on a person; arena, hazard, FX and UI art are not chosen yet.
+Rules marked _open_ still wait on a person; FX and UI art are not chosen yet. Arena and hazard art (world atlas, Kenney's
+CC0 Tiny Dungeon plus frames drawn in `art/world/build_atlas.py`) landed on 2026-09-21: `art/world/README.md`.
 
 ## Fixed by the engine
 
@@ -28,7 +29,9 @@ Rules marked _open_ still wait on a person; arena, hazard, FX and UI art are not
   pack uses exactly **ten opaque colours** (outline `#1a0e13`, steel `#c7c7b0 #868273 #e6e6d4
   #3a3836`, leather `#69552a #9f803f #362917`, scarf `#833c22 #481a13`), so the world art should be
   drawn from that dark, muted range and the DOM tokens (`app/styles/tokens.css`) derived from it.
-  _open:_ the world palette (none chosen or checked for licence).
+  The world uses Kenney Tiny Dungeon's colours (dark browns, steel blues, one warm sand) with Kenney's outline
+  remapped to the knight's `#1a0e13`; terrain is dimmed per arena (`brightness`) and backgrounds much more, so the
+  knights keep the strongest contrast. _open:_ whether a person likes the combination.
 - Light comes from the **top-left**. Shadows fall down-right.
 - Outline: the knight uses the pack's `Outline` variant (1 px `#1a0e13`). Everything else matches it or
   is rejected; mixing outline styles is the fastest way to look incoherent.
@@ -73,7 +76,8 @@ The contract is `apps/client/app/game/viewmodel/knightAnimation.ts` (`LOOP_CLIPS
 
 - Packer scripts in `art/**`, output in `apps/client/public/assets/`. The pack's raw sheets are not
   committed (`art/knight/README.md` says how to rebuild).
-- Atlas frame names `<sheet>/<index>` (e.g. `swing1/2`); textures `arena/<id>/...`, `ui/...`, `fx/...`.
+- Knight atlas frame names `<sheet>/<index>` (e.g. `swing1/2`). World atlas names: `fill/<material>`,
+  `prop/<thing>`, `hazard/<kind>-<state>`; `ui/...` and `fx/...` are reserved for the skin and Fx.
 - Pixi does not read Aseprite `frameTags` (verified in 8.20.1); `art/knight/build_atlas.py` writes
   the `animations` table itself, and `KnightAtlas.ts` builds textures from it (Pixi's `Assets`
   spritesheet loader is not used, because it cannot recolour).

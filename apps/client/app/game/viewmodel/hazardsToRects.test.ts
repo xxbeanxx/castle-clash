@@ -2,7 +2,13 @@ import { HazardState, MatchState } from "@castle-clash/shared";
 import { describe, expect, it } from "vitest";
 import { hazardsToRects } from "./hazardsToRects.js";
 
-function addHazard(state: MatchState, id: string, kind: string, active: boolean, phase: string): void {
+function addHazard(
+  state: MatchState,
+  id: string,
+  kind: string,
+  active: boolean,
+  phase: string,
+): void {
   const hazard = new HazardState();
   hazard.id = id;
   hazard.kind = kind;
@@ -30,7 +36,18 @@ describe("hazardsToRects", () => {
     addHazard(state, "floor", "breakableFloor", true, "solid");
 
     expect(hazardsToRects(state, [FLOOR_DEF])).toEqual([
-      { id: "floor", kind: "breakableFloor", x: 10, y: 20, w: 100, h: 16, active: true, phase: "solid" },
+      {
+        id: "floor",
+        kind: "breakableFloor",
+        x: 10,
+        y: 20,
+        w: 100,
+        h: 16,
+        active: true,
+        phase: "solid",
+        hp: 0,
+        maxHp: 16,
+      },
     ]);
   });
 

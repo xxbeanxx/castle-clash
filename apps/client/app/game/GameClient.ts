@@ -38,6 +38,7 @@ import {
 } from "./render/SurfaceController.js";
 import type { SurfaceLayout } from "./render/surface.js";
 import { HazardView } from "./render/HazardView.js";
+import { WorldAtlas } from "./render/WorldAtlas.js";
 import { KnightAtlas } from "./render/KnightAtlas.js";
 import { createPlayerRenderer, type PlayerRenderer } from "./render/PlayerRenderer.js";
 import { hazardsToRects } from "./viewmodel/hazardsToRects.js";
@@ -408,8 +409,10 @@ export class GameClient {
       cosmeticLayer,
       KnightAtlas.load().catch(() => null),
     );
-    const arenaView = new ArenaView(arenaLayer);
-    const hazardView = new HazardView(hazardLayer);
+    // The world art is a promise for the same reason (one fetch, shared by both views).
+    const worldAtlas = WorldAtlas.load().catch(() => null);
+    const arenaView = new ArenaView(arenaLayer, worldAtlas);
+    const hazardView = new HazardView(hazardLayer, worldAtlas);
     const client = new Client(roomUrl);
     if (accessToken) {
       client.auth.token = accessToken;
@@ -417,6 +420,8 @@ export class GameClient {
     const room = await joinRoom(client, intent);
     if (this.#getPhase().tag === "destroyed") {
       view.destroy();
+      arenaView.destroy();
+      hazardView.destroy();
       await room.leave();
       app.destroy(true, { children: true });
       return;
@@ -584,6 +589,9 @@ export class GameClient {
     resources.input.detach();
     resources.surface.stop();
     await resources.room.leave();
+    // The views free their painted textures first; `app.destroy` then takes the display objects.
+    resources.arenaView.destroy();
+    resources.hazardView.destroy();
     resources.app.destroy(true, { children: true });
     resources.view.destroy();
   }
@@ -634,6 +642,7 @@ export class GameClient {
     this.#resolvedArena = arena;
     this.#camera = new Camera(arena.bounds);
     phase.resources.arenaView.setArena(arena);
+    phase.resources.hazardView.setArena(arena.id);
   }
 
   /** Shakes the camera for impactful `fx` events (plan step 5: "shakes on

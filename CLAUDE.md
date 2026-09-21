@@ -14,7 +14,7 @@ leaderboard), and a production deploy (live since 2026-09-19, currently `v1.1.0`
 next is `docs/IMPLEMENTATION_PLAN_V2.md`, Phases 11–17** (landing page and UI kit, Google login,
 mobile controls, bots, pixel art, audio, hardening); its section 0 lists verified findings about
 today's tree, and its Appendix A lists decisions still open. Everything a _player_ sees is still
-placeholder except the knight sprite (Phase 15 in progress): arenas, hazards, FX and UI are still
+placeholder except the knight, the arenas and the hazards (Phase 15 in progress): FX and UI are still
 rects, and there is no audio. (Touch input landed in Phase 13
 and bots, practice, backfill and a tutorial in Phase 14, so a lone visitor can play; neither phase's
 real-device or feel gate has been passed by a person.) `docs/adr/` records specific decisions;
@@ -425,7 +425,16 @@ and open questions. In short:
 - **`GameClient` must never await the atlas.** The room's message handlers have to be registered the
   moment `joinRoom` resolves (the server sends the match code on join); `PlayerRenderer` takes the atlas as
   a promise and draws nothing until it lands, or falls back to rects if it fails. Awaiting it broke private
-  rooms once, and only the e2e suite noticed.
+  rooms once, and only the e2e suite noticed. `ArenaView` and `HazardView` follow the same rule (world atlas as
+  a promise, flat rects until it lands).
+- **Arenas and hazards are painted from geometry, not laid out.** `viewmodel/arenaRaster.ts` tiles a fill over
+  the union of an arena's `solids` and `platforms` at art-pixel resolution and outlines exposed edges, so the
+  picture cannot disagree with collision (`arenaRaster.test.ts` asserts it per arena); `arenaThemes.ts` picks
+  materials and props per arena id; `hazardRaster.ts` maps a synced hazard's phase to an image. The world atlas
+  (`art/world/build_atlas.py`, Kenney CC0 plus frames drawn in the script) is a separate atlas from the knight's.
+  A new arena needs boxes on even unit values and a theme entry; a new hazard state needs a key in
+  `hazardVisual`/`paintHazard` (`hazardRaster.test.ts` fails on a frame name the atlas lacks). There is no
+  parallax: the camera does not move.
 - Pixi 8.20.1 does not read Aseprite `frameTags`, and the plan's claim that it does is wrong.
 
 ### Workspace layout and package boundaries

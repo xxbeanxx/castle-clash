@@ -395,17 +395,23 @@ plan.
   `KnightView.ts`, `PlayerRenderer.ts` (falls back to rects if the atlas fails), `art/knight/build_atlas.py`
   and a `knightAtlas.test.ts` that is the seed of `assets:check`. Verified on the built client behind
   the real nginx and CSP (24/24 e2e). `docs/art/BIBLE.md`, `art/LICENSES.md`, `art/knight/README.md`.
-- **Not built:** the slice's arena and hazard art (no world art source chosen), FX, UI skin, a real
-  `assets:check` in CI, visual-regression baselines, the name plate / ground marker, cosmetics as art
-  layers (the Phase 9 indicator squares still draw over the art), weapon art for mace and spear (they reuse
-  the sword swings), block/guard-broken frames (stand-ins), and the D6 ADR.
+- **Built (2026-09-21, world art):** owner chose Kenney's CC0 packs for the world. All six arenas and the
+  tutorial arena are painted from their geometry (`viewmodel/arenaRaster.ts`, `arenaThemes.ts`), and all five
+  hazard kinds have art for the states the sim exposes (`hazardRaster.ts`); atlas from
+  `art/world/build_atlas.py`. Deviations (no parallax, a per-pixel rasterizer instead of a tile grid, kill zones
+  drawn in code) and the not-verified list are in `docs/research/phase15-world-art.md`.
+- **Not built:** FX, UI skin, a real `assets:check` in CI (the atlas tests are its seed), visual-regression
+  baselines, the name plate / ground marker, cosmetics as art layers (the Phase 9 indicator squares still draw
+  over the art), weapon art for mace and spear (they reuse the sword swings), block/guard-broken frames
+  (stand-ins), the D6 ADR, and a credits page.
 - **Found and fixed on the way:** waiting for the atlas together with `joinRoom` made the room's
   `MATCH_CODE` message arrive before its handler existed (private rooms showed no code). The renderer now
   takes the atlas as a promise instead of `start()` awaiting it.
 - **Deviation:** step 3 below said Pixi v8 reads Aseprite tags natively. It does not in 8.20.1
   (`frameTags` is typed but never read), so the pipeline needs its own converter.
 - **Human gates still open:** confirm the knight-to-hitbox size (a 21x38 px pack knight against a 14x24 px
-  hitbox) by playing; choose world, hazard and UI art; get the knight author's written OK on the public-repo
+  hitbox) by playing; approve the world look (arena and hazard art, chosen 2026-09-21 but not yet judged by
+  a person), and choose UI art; get the knight author's written OK on the public-repo
   and AI-clause terms (or accept the risk on record, as done); add a credits page; sign off the look on a
   phone and a 4K monitor.
 

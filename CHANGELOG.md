@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.0](https://github.com/xxbeanxx/castle-clash/compare/v1.5.0...v1.6.0) (2026-09-21)
+
+
+### Features
+
+* **client:** power-up cards with icons and generated descriptions, pixel bar frames (Phase 15 UI skin, part 1) ([#83](https://github.com/xxbeanxx/castle-clash/issues/83)) ([375ed99](https://github.com/xxbeanxx/castle-clash/commit/375ed99b46d274ee1183ea48fa1ffd541267d021))
+
 ## [1.5.0](https://github.com/xxbeanxx/castle-clash/compare/v1.4.0...v1.5.0) (2026-09-21)
 
 

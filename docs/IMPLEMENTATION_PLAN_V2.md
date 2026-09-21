@@ -384,20 +384,30 @@ plan.
 
 - **D1 decided 2026-09-20: free Creative Commons packs**, no commission and no budget (the plan's
   hybrid recommendation was not taken). Packs have no tint masks or per-weapon clips, so D6 and the
-  weapon layers are harder than planned. Facts and candidates (LuizMelo's CC0 warrior, rgsdev's
+  weapon layers are harder than planned. **Knight chosen 2026-09-20: aamatniekss's Fantasy Knight**,
+  which is not Creative Commons (custom licence; owner accepted committing it to the public repo). Facts and candidates (LuizMelo's CC0 warrior, rgsdev's
   CC-BY-SA knights, Kenney's CC0 tiles), plus what is unverified, are in
   `docs/research/phase15-art-sources-and-pipeline.md`. No pack has been downloaded or chosen.
-- **Built (draft PR):** `docs/art/BIBLE.md` (draft; palette, outline and tint rules still open),
-  `art/LICENSES.md` (empty log), and `viewmodel/knightAnimation.ts`, the pure state-to-clip mapping
-  with tests that fail if combat frame data and animation timing drift apart.
-- **Not built:** the vertical slice (`KnightView`, atlas loader, one arena, one hazard), `assets:check`,
-  the Aseprite-tags-to-`animations` converter, the ADR for D6. The slice is meant to use generated
-  placeholder art so the plumbing can be proven before anyone picks a look.
+- **Built (draft PR #74):** the **knight half of the vertical slice**, in the real client. Idle, run,
+  jump/fall, two sword swings, hit, death and roll from the pack; per-player colour by exact palette
+  remap (D6: not a multiply tint, since the pack is ten unantialiased colours). `viewmodel/knightAnimation.ts`
+  (state to clip, tested against the combat frame data), `render/KnightAtlas.ts`, `paletteSwap.ts`,
+  `KnightView.ts`, `PlayerRenderer.ts` (falls back to rects if the atlas fails), `art/knight/build_atlas.py`
+  and a `knightAtlas.test.ts` that is the seed of `assets:check`. Verified on the built client behind
+  the real nginx and CSP (24/24 e2e). `docs/art/BIBLE.md`, `art/LICENSES.md`, `art/knight/README.md`.
+- **Not built:** the slice's arena and hazard art (no world art source chosen), FX, UI skin, a real
+  `assets:check` in CI, visual-regression baselines, the name plate / ground marker, cosmetics as art
+  layers (the Phase 9 indicator squares still draw over the art), weapon art for mace and spear (they reuse
+  the sword swings), block/guard-broken frames (stand-ins), and the D6 ADR.
+- **Found and fixed on the way:** waiting for the atlas together with `joinRoom` made the room's
+  `MATCH_CODE` message arrive before its handler existed (private rooms showed no code). The renderer now
+  takes the atlas as a promise instead of `start()` awaiting it.
 - **Deviation:** step 3 below said Pixi v8 reads Aseprite tags natively. It does not in 8.20.1
   (`frameTags` is typed but never read), so the pipeline needs its own converter.
-- **Human gates still open:** pick the packs after seeing them in engine; accept CC-BY/-SA terms and a
-  credits page; approve the knight-to-hitbox size (a 26x38 px pack knight against a 14x24 px hitbox);
-  sign off the look on a phone and a 4K monitor.
+- **Human gates still open:** confirm the knight-to-hitbox size (a 21x38 px pack knight against a 14x24 px
+  hitbox) by playing; choose world, hazard and UI art; get the knight author's written OK on the public-repo
+  and AI-clause terms (or accept the risk on record, as done); add a credits page; sign off the look on a
+  phone and a 4K monitor.
 
 ### 15.1 — Asset pipeline
 

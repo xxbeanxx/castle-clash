@@ -409,8 +409,9 @@ the facts (including what was found broken and what is unverified). In short:
 
 ### Pixel art (Phase 15, in progress)
 
-`docs/art/BIBLE.md` has the rules and `docs/research/phase15-art-sources-and-pipeline.md` the facts
-and open questions. In short:
+`docs/art/BIBLE.md` has the rules, `docs/adr/0004-art-pipeline-and-render-split.md` the decisions,
+`docs/research/phase15-art-sources-and-pipeline.md` and `phase15-world-art.md` the facts and open
+questions. In short:
 
 - **The knight is a third-party pack** (aamatniekss's Fantasy Knight, a custom licence, not CC).
   `art/LICENSES.md` logs every third-party file and the risks the owner accepted; add a row in the

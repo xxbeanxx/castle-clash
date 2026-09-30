@@ -39,6 +39,14 @@ resource "render_web_service" "server" {
   custom_domains = [
     { name = "${var.game_host}.${var.dns_zone_name}" },
   ]
+
+  lifecycle {
+    # Render's API rejects any update that touches maintenance_mode at all
+    # on a free-plan service ("maintenance mode can only be configured for
+    # non-free tier services"), even to its own unchanged value - the
+    # provider always includes it, so every apply fails without this.
+    ignore_changes = [maintenance_mode]
+  }
 }
 
 resource "render_web_service" "client" {
@@ -64,4 +72,9 @@ resource "render_web_service" "client" {
   custom_domains = [
     { name = "${var.client_host}.${var.dns_zone_name}" },
   ]
+
+  lifecycle {
+    # See the server resource's identical block above for why.
+    ignore_changes = [maintenance_mode]
+  }
 }

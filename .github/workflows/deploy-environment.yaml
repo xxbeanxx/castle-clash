@@ -12,10 +12,11 @@ name: Deploy Environment - Migrate, Deploy & Smoke Test (reusable)
 #   5. if any of that failed and `auto_rollback` is set, put both apps back on
 #      the images they were running before this run started
 #
-# Both deploy steps are scoped `terraform apply -target=render_web_service.*`
-# rather than a full apply, so a run here only ever changes the one resource
-# it names - it never reconciles unrelated drift (e.g. in
-# supabase_settings.main) as a side effect of a release.
+# Both deploy steps go through `render deploys create --image`, not
+# `terraform apply` - infra/terraform/render.tf's top comment explains why:
+# the render-oss/render provider (as of v1.9.1) can't update a free-plan
+# service at all (a confirmed, unfixed upstream bug), so Terraform's job for
+# these two services is the one-time setup, not ongoing deploys.
 on:
   workflow_call:
     inputs:
@@ -44,7 +45,6 @@ on:
 
 permissions:
   contents: read
-  id-token: write
 
 jobs:
   deploy:
@@ -59,36 +59,15 @@ jobs:
       GAME_SERVER_URL: ${{ vars.GAME_SERVER_URL }}
       CLIENT_URL: ${{ vars.CLIENT_URL }}
       EXPECTED_VERSION: ${{ inputs.version }}
-      # The default Actions token has no `administration` scope (it isn't a
-      # valid permission at all - GitHub only grants real admin access, which
-      # infra/terraform/github.tf's repository/ruleset/environment resources
-      # need, to an actual PAT). Reuses the same RELEASE_PLEASE_TOKEN the
-      # release-please job already needs for the same reason.
-      GITHUB_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
-      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
-      RENDER_OWNER_ID: ${{ vars.RENDER_OWNER_ID }}
-      # Terraform's state lives in Azure Storage (infra/terraform/backend.tf,
-      # use_azuread_auth = true), and the azurerm/azuread providers still
-      # manage the Azure resources being decommissioned. ARM_USE_OIDC
-      # authenticates both the backend and the providers directly against
-      # the ambient GitHub Actions OIDC token (id-token: write, above) -
-      # azurerm's own "Azure CLI" auth mode explicitly refuses a Service
-      # Principal session, which is all `azure/login`'s OIDC login can ever
-      # produce, so there is no `az` login step here at all.
-      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      ARM_USE_OIDC: "true"
+      SERVER_SERVICE_ID: ${{ vars.RENDER_SERVER_SERVICE_ID }}
+      CLIENT_SERVICE_ID: ${{ vars.RENDER_CLIENT_SERVICE_ID }}
     steps:
       - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.version }}
           persist-credentials: false
 
-      # Dependencies are installed (and the smoke script's workspace dependency
-      # built) BEFORE any credential exists in this job, so a compromised
-      # package from the tag being deployed never runs with an Azure session.
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         with:
@@ -97,22 +76,21 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @castle-clash/shared run build
 
-      - uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: "1.9"
-      - name: Terraform init
-        working-directory: infra/terraform
-        run: terraform init
+      - name: Install Render CLI
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release download -R render-oss/cli --pattern '*_linux_amd64.zip' --output render.zip
+          unzip -o render.zip 'cli_*'
+          sudo mv cli_* /usr/local/bin/render
+          sudo chmod +x /usr/local/bin/render
 
       - name: Record the images currently running (rollback target)
         id: previous
-        working-directory: infra/terraform
         run: |
           for kind in server client; do
-            addr="render_web_service.${kind}"
-            image="$(terraform show -json | jq -r --arg a "$addr" '
-              .values.root_module.resources[] | select(.address == $a) |
-              .values.runtime_source.image | "\(.image_url)@\(.digest)"')"
+            id_var="${kind^^}_SERVICE_ID"
+            image="$(render services -o json | jq -r --arg id "${!id_var}" '.[] | select(.id == $id) | .imagePath')"
             echo "${kind}=${image}" >> "$GITHUB_OUTPUT"
             echo "previous ${kind}: ${image}"
           done
@@ -133,8 +111,7 @@ jobs:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
 
       - name: Deploy server (by digest)
-        working-directory: infra/terraform
-        run: terraform apply -auto-approve -target=render_web_service.server -var server_image="$SERVER_IMAGE"
+        run: render deploys create "$SERVER_SERVICE_ID" --image "$SERVER_IMAGE" --wait --confirm -o json
         env:
           SERVER_IMAGE: ${{ inputs.server_image }}
 
@@ -157,8 +134,7 @@ jobs:
           exit 1
 
       - name: Deploy client (by digest)
-        working-directory: infra/terraform
-        run: terraform apply -auto-approve -target=render_web_service.client -var client_image="$CLIENT_IMAGE"
+        run: render deploys create "$CLIENT_SERVICE_ID" --image "$CLIENT_IMAGE" --wait --confirm -o json
         env:
           CLIENT_IMAGE: ${{ inputs.client_image }}
 
@@ -171,21 +147,15 @@ jobs:
 
       - name: Roll the apps back to their previous images
         if: ${{ failure() && inputs.auto_rollback }}
-        working-directory: infra/terraform
         run: |
-          args=()
           for kind in server client; do
+            id_var="${kind^^}_SERVICE_ID"
             prev_var="PREVIOUS_${kind^^}"
             case "${!prev_var}" in
-              ghcr.io/*) args+=("-target=render_web_service.${kind}" "-var" "${kind}_image=${!prev_var}") ;;
+              ghcr.io/*) render deploys create "${!id_var}" --image "${!prev_var}" --wait --confirm -o json ;;
               *) echo "no previous release image for ${kind} (was '${!prev_var}'), leaving it" ;;
             esac
           done
-          if [ "${#args[@]}" -eq 0 ]; then
-            echo "no previous images recorded for either app; nothing to roll back"
-            exit 0
-          fi
-          terraform apply -auto-approve "${args[@]}"
           echo "::warning::rolled back to the previous images; the database was NOT rolled back"
         env:
           PREVIOUS_SERVER: ${{ steps.previous.outputs.server }}

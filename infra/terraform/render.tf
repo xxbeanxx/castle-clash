@@ -1,9 +1,23 @@
 # The Render counterparts of the two azurerm_container_app resources in
-# container-apps.tf. Unlike those, nothing here is `lifecycle.ignore_changes`d:
-# the deploy workflow (.github/workflows/deploy-environment.yaml) updates the
-# running image by running `terraform apply -var server_image=... -var
-# client_image=...` directly, so Terraform is the one thing that changes it on
-# every release rather than a side-channel imperative call.
+# container-apps.tf. `runtime_source` is `ignore_changes`d: the deploy
+# workflow (.github/workflows/deploy-environment.yaml) updates the running
+# image directly via `render deploys create --image`, not `terraform apply`.
+# This isn't a style choice - the render-oss/render provider (as of v1.9.1)
+# unconditionally sends `maintenance_mode` on every service *update*, which
+# Render's API rejects outright for any free-plan service regardless of the
+# field's value (confirmed upstream:
+# https://github.com/render-oss/terraform-provider-render/issues/80 - a fix
+# is written but unmerged as of this writing). `ignore_changes` on
+# `maintenance_mode` itself doesn't help, since the provider adds the field
+# regardless of what Terraform's own diff says - only *creates* work
+# reliably, so Terraform's job here is the one-time setup (custom domains,
+# env vars, health checks), not ongoing deploys. This bug blocks *any*
+# update to either resource, not just the image: rotating SMOKE_TOKEN or
+# supabase-secret-key (secrets.tf) via `terraform apply -replace=...` would
+# cascade into an env_vars update here and hit the same error. Until the
+# upstream fix ships, rotating either means updating the Render service's
+# env vars directly (dashboard or `render services update`), then updating
+# secrets.tf's state to match by hand.
 #
 # Both the Azure and Render resources exist side by side during the staged
 # cutover to Render; the Azure resources are removed in a later, separate
@@ -41,11 +55,8 @@ resource "render_web_service" "server" {
   ]
 
   lifecycle {
-    # Render's API rejects any update that touches maintenance_mode at all
-    # on a free-plan service ("maintenance mode can only be configured for
-    # non-free tier services"), even to its own unchanged value - the
-    # provider always includes it, so every apply fails without this.
-    ignore_changes = [maintenance_mode]
+    # See render.tf's top comment - the deploy workflow owns the image now.
+    ignore_changes = [maintenance_mode, runtime_source]
   }
 }
 
@@ -75,6 +86,6 @@ resource "render_web_service" "client" {
 
   lifecycle {
     # See the server resource's identical block above for why.
-    ignore_changes = [maintenance_mode]
+    ignore_changes = [maintenance_mode, runtime_source]
   }
 }

@@ -68,6 +68,18 @@ jobs:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
       RENDER_OWNER_ID: ${{ vars.RENDER_OWNER_ID }}
+      # Terraform's state lives in Azure Storage (infra/terraform/backend.tf,
+      # use_azuread_auth = true), and the azurerm/azuread providers still
+      # manage the Azure resources being decommissioned. ARM_USE_OIDC
+      # authenticates both the backend and the providers directly against
+      # the ambient GitHub Actions OIDC token (id-token: write, above) -
+      # azurerm's own "Azure CLI" auth mode explicitly refuses a Service
+      # Principal session, which is all `azure/login`'s OIDC login can ever
+      # produce, so there is no `az` login step here at all.
+      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      ARM_USE_OIDC: "true"
     steps:
       - uses: actions/checkout@v7
         with:
@@ -84,16 +96,6 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @castle-clash/shared run build
-
-      # Terraform's state lives in Azure Storage (infra/terraform/backend.tf);
-      # this identity only needs blob access to it, not the Container Apps
-      # Contributor role identity.tf also grants it for the Azure resources
-      # still being decommissioned.
-      - uses: azure/login@v3
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - uses: hashicorp/setup-terraform@v3
         with:

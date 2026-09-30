@@ -58,10 +58,13 @@ jobs:
     env:
       GAME_SERVER_URL: ${{ vars.GAME_SERVER_URL }}
       CLIENT_URL: ${{ vars.CLIENT_URL }}
+      SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+      SUPABASE_PUBLISHABLE_KEY: ${{ vars.SUPABASE_PUBLISHABLE_KEY }}
       EXPECTED_VERSION: ${{ inputs.version }}
       RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
       SERVER_SERVICE_ID: ${{ vars.RENDER_SERVER_SERVICE_ID }}
       CLIENT_SERVICE_ID: ${{ vars.RENDER_CLIENT_SERVICE_ID }}
+      RENDER_OWNER_ID: ${{ vars.RENDER_OWNER_ID }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -84,6 +87,13 @@ jobs:
           unzip -o render.zip 'cli_*'
           sudo mv cli_* /usr/local/bin/render
           sudo chmod +x /usr/local/bin/render
+
+      # RENDER_API_KEY alone authenticates `render deploys create <id>` fine
+      # (a known resource, addressed directly), but `render services` below
+      # lists across a workspace, which the CLI refuses without one
+      # explicitly set first - it doesn't infer it from RENDER_OWNER_ID.
+      - name: Set Render workspace
+        run: render workspace set "$RENDER_OWNER_ID" --confirm
 
       - name: Record the images currently running (rollback target)
         id: previous

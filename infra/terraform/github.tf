@@ -203,6 +203,8 @@ locals {
     # and `nonsensitive` is honest: the provider just marks all keys sensitive.
     SUPABASE_PUBLISHABLE_KEY = nonsensitive(data.supabase_apikeys.main.publishable_key)
     RENDER_OWNER_ID          = var.render_owner_id
+    RENDER_SERVER_SERVICE_ID = render_web_service.server.id
+    RENDER_CLIENT_SERVICE_ID = render_web_service.client.id
   }
 
   # Kept apart from the sensitive values below: `for_each` cannot iterate a

@@ -102,11 +102,9 @@ jobs:
     if: inputs.target != 'production'
     permissions:
       contents: read
-      id-token: write
     uses: ./.github/workflows/deploy-environment.yaml
     # An environment's secrets reach a called workflow only through the caller's
     # `secrets: inherit` (the job in deploy-environment.yaml sets `environment:`).
-    # Without it azure/login got empty client-id/tenant-id on the first deploy.
     secrets: inherit
     with:
       environment: staging
@@ -122,11 +120,9 @@ jobs:
     if: ${{ !cancelled() && !failure() && inputs.target != 'staging' }}
     permissions:
       contents: read
-      id-token: write
     uses: ./.github/workflows/deploy-environment.yaml
     # An environment's secrets reach a called workflow only through the caller's
     # `secrets: inherit` (the job in deploy-environment.yaml sets `environment:`).
-    # Without it azure/login got empty client-id/tenant-id on the first deploy.
     secrets: inherit
     with:
       environment: production

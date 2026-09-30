@@ -99,8 +99,10 @@ variable "client_min_replicas" {
 variable "server_image" {
   description = <<-EOT
     Server image pinned by digest: ghcr.io/<owner>/castle-clash-server@sha256:...
-    The deploy workflow sets this on every release (`terraform apply -var
-    server_image=...`); the default here is only a fallback for a first apply.
+    Only sets the image at create time - render.tf's `ignore_changes` means
+    a later apply never updates it. The deploy workflow moves the running
+    image with `render deploys create --image` instead (see render.tf's top
+    comment for why).
   EOT
   type        = string
   default     = "ghcr.io/xxbeanxx/castle-clash-server@sha256:cf4600aab3bc2aae739496b8ee252a8be3dc9d0e9145dcbfa89341a66caf1a9d"

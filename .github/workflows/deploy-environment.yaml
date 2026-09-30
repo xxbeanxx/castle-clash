@@ -100,7 +100,9 @@ jobs:
         run: |
           for kind in server client; do
             id_var="${kind^^}_SERVICE_ID"
-            image="$(render services -o json | jq -r --arg id "${!id_var}" '.[] | select(.id == $id) | .imagePath')"
+            # `render services` (list) wraps each entry under a `service` key,
+            # unlike `render services create`'s flat single-object output.
+            image="$(render services -o json | jq -r --arg id "${!id_var}" '.[].service | select(.id == $id) | .imagePath')"
             echo "${kind}=${image}" >> "$GITHUB_OUTPUT"
             echo "previous ${kind}: ${image}"
           done

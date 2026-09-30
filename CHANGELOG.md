@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.6.4](https://github.com/xxbeanxx/castle-clash/compare/v1.6.3...v1.6.4) (2026-09-30)
+
+
+### Bug Fixes
+
+* **deploy:** deploy via render CLI, not terraform apply ([#100](https://github.com/xxbeanxx/castle-clash/issues/100)) ([a31f981](https://github.com/xxbeanxx/castle-clash/commit/a31f9811fd46484afbad19750d8b767f3e97af3e))
+* **deploy:** restore SUPABASE_URL/PUBLISHABLE_KEY, set render workspace explicitly ([#101](https://github.com/xxbeanxx/castle-clash/issues/101)) ([a5efdeb](https://github.com/xxbeanxx/castle-clash/commit/a5efdeb75e31025076d6ea35338ff1e469fbacba))
+* **infra:** ignore maintenance_mode on free-plan render_web_service resources ([#98](https://github.com/xxbeanxx/castle-clash/issues/98)) ([1433534](https://github.com/xxbeanxx/castle-clash/commit/1433534eaeda4f6264d3c89454843b17cd8c74b4))
+* **smoke:** fail fast on room disconnect, retry the transient Supabase clock race ([#102](https://github.com/xxbeanxx/castle-clash/issues/102)) ([3bae15f](https://github.com/xxbeanxx/castle-clash/commit/3bae15f1131e27484b2f1353b4641e97d622c0df))
+
 ## [1.6.3](https://github.com/xxbeanxx/castle-clash/compare/v1.6.2...v1.6.3) (2026-09-30)
 
 

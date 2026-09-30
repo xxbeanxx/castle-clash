@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.2](https://github.com/xxbeanxx/castle-clash/compare/v1.6.1...v1.6.2) (2026-09-30)
+
+
+### Bug Fixes
+
+* **deploy:** authenticate azurerm/azuread natively via OIDC ([#94](https://github.com/xxbeanxx/castle-clash/issues/94)) ([9073b70](https://github.com/xxbeanxx/castle-clash/commit/9073b705faf4f18cb8554276cc550344a90b9ac0))
+
 ## [1.6.1](https://github.com/xxbeanxx/castle-clash/compare/v1.6.0...v1.6.1) (2026-09-30)
 
 

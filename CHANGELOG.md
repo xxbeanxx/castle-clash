@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.6.1](https://github.com/xxbeanxx/castle-clash/compare/v1.6.0...v1.6.1) (2026-09-30)
+
+
+### Bug Fixes
+
+* **deploy:** grant administration:read through the reusable-workflow chain ([#91](https://github.com/xxbeanxx/castle-clash/issues/91)) ([edf7444](https://github.com/xxbeanxx/castle-clash/commit/edf7444763a94497b7c27c5e9b84cc14a6720ded))
+* **deploy:** use RELEASE_PLEASE_TOKEN for the github provider ([#92](https://github.com/xxbeanxx/castle-clash/issues/92)) ([f3dbba0](https://github.com/xxbeanxx/castle-clash/commit/f3dbba0f7da459c3b1c4ab25128c68f52a8107ba))
+
 ## [1.6.0](https://github.com/xxbeanxx/castle-clash/compare/v1.5.0...v1.6.0) (2026-09-21)
 
 

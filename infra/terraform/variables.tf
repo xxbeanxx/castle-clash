@@ -96,6 +96,55 @@ variable "client_min_replicas" {
   default     = 1
 }
 
+variable "server_image" {
+  description = <<-EOT
+    Server image pinned by digest: ghcr.io/<owner>/castle-clash-server@sha256:...
+    The deploy workflow sets this on every release (`terraform apply -var
+    server_image=...`); the default here is only a fallback for a first apply.
+  EOT
+  type        = string
+  default     = "ghcr.io/xxbeanxx/castle-clash-server@sha256:cf4600aab3bc2aae739496b8ee252a8be3dc9d0e9145dcbfa89341a66caf1a9d"
+}
+
+variable "client_image" {
+  description = "Client image pinned by digest, same shape as server_image."
+  type        = string
+  default     = "ghcr.io/xxbeanxx/castle-clash-client@sha256:f503b49aed31a2b7ca1a81bb09f51c9b0f20f2c86eaec4c94d631ab954446ae8"
+}
+
+variable "render_owner_id" {
+  description = "Render workspace/owner id (Account or Team settings page, in the URL)."
+  type        = string
+  default     = "tea-datonbu0tbcc73en31r0"
+}
+
+variable "render_api_key" {
+  description = <<-EOT
+    Render API key CI uses to deploy (Render dashboard: Account Settings ->
+    API Keys). Pass it only when setting or rotating it, as
+    TF_VAR_render_api_key in the environment, never in a file - Terraform
+    writes it straight into the GitHub `production` environment secret. Left
+    null, the existing GitHub secret (if any) is left untouched.
+  EOT
+  type        = string
+  default     = null
+  sensitive   = true
+}
+
+variable "supabase_access_token_ci" {
+  description = <<-EOT
+    Supabase personal access token CI uses for its own `terraform apply` and
+    `supabase db push` (Supabase dashboard: Account -> Access Tokens - a
+    scoped token limited to this project is enough, see infra/terraform's
+    README). Pass it only when setting or rotating it, as
+    TF_VAR_supabase_access_token_ci in the environment, never in a file. Left
+    null, the existing GitHub secret (if any) is left untouched.
+  EOT
+  type        = string
+  default     = null
+  sensitive   = true
+}
+
 variable "github_oidc_subject_prefix" {
   description = <<-EOT
     Subject prefix GitHub puts in OIDC tokens for this repo. The repo has opted in to

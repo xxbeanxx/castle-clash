@@ -149,18 +149,33 @@ its matrix, so `build (server)`/`build (client)` would never report** and the PR
 "Expected". That's why `build` always runs and gates its *steps* on `IMAGES_CHANGED` instead. Keep
 any required matrix job that way.
 
-### Releases and deployment (Azure Container Apps)
+### Releases and deployment (Render)
 
-`docs/hosting.md` is the runbook; `docs/research/phase10-deploy-decisions.md` records the decisions,
-the facts checked, and what is still unproven. In short: `release.yaml` (release-please) → `docker.yaml`
-(multi-arch, provenance/SBOM, Trivy gate, then release tags) → `deploy.yaml` → `deploy-environment.yaml`
-for `staging`, then `production` behind a required reviewer, deploying by image digest and finishing
-with `pnpm --filter @castle-clash/server run deploy-smoke`. `infra/terraform/` manages the Azure
-resources, the `atomic-nucleus.com` DNS records, the Supabase project, and the GitHub repo (a
-`main` ruleset requires a PR plus the `verify`/`browser`/`build`/`smoke` checks, squash-only) and its
-`production` environment. It also generates every secret and wires each to its consumers, so nothing
-is set by hand; state is in an Azure storage account and is sensitive (its README says what Terraform
-leaves to the deploy workflow). **Production was first deployed 2026-09-19** (`v1.0.0`; server and client live, game verified in a real browser under the CSP) after several first-run fixes — see the "First production deploy" section of `docs/research/phase10-deploy-decisions.md`. Lessons that bite: re-running a failed run replays the _old_ workflow commit (dispatch a new run instead); environment secrets need `secrets: inherit` in a reusable-workflow chain; Turborepo strict env mode drops `VITE_E2E` unless `turbo.json` declares it; PixiJS needs `pixi.js/unsafe-eval` under the client's CSP. `SERVER_VERSION` is stamped into the server image by build-arg and shows up in
+`docs/hosting.md` is the runbook; `docs/research/phase10-deploy-decisions.md` records the original
+Azure decisions, the facts checked, and what is still unproven. In short: `release.yaml`
+(release-please) → `docker.yaml` (multi-arch, provenance/SBOM, Trivy gate, then release tags) →
+`deploy.yaml` → `deploy-environment.yaml` for `staging`, then `production` behind a required
+reviewer, deploying by image digest (`terraform apply -target=render_web_service.server` then
+`.client`, once each has its own new digest, so a run only ever touches the one resource it names)
+and finishing with `pnpm --filter @castle-clash/server run deploy-smoke`. `infra/terraform/`
+manages the Render services, the hosted Supabase project, and the GitHub repo (a `main` ruleset
+requires a PR plus the `verify`/`browser`/`build`/`smoke` checks, squash-only) and its `production`
+environment. It also generates every secret and wires each to its consumers - two, `RENDER_API_KEY`
+and `SUPABASE_ACCESS_TOKEN`, are externally-issued tokens Terraform cannot mint and are passed in
+only when rotating them, see `infra/terraform/README.md` "Secrets" - state is in an Azure storage
+account and is sensitive (its README says what Terraform leaves to the deploy workflow).
+**Production was first deployed 2026-09-19** (`v1.0.0`; server and client live, game verified in a
+real browser under the CSP) after several first-run fixes — see the "First production deploy"
+section of `docs/research/phase10-deploy-decisions.md`. **Hosting moved from Azure Container Apps
+to Render on 2026-09-29**: Render's free plan fixes the shutdown grace period at a non-configurable
+30s (Azure allowed up to 600s), so `DRAIN_TIMEOUT_MS` dropped from 540000 to 25000 - an in-progress
+match now gets ~25s to wrap up on a deploy or restart, not ~9 minutes; and a workspace needs a
+payment method on file to attach more than 2 custom domains, even on services that stay on the free
+compute plan. Lessons that bite: re-running a failed run replays the _old_ workflow commit (dispatch
+a new run instead); environment secrets need `secrets: inherit` in a reusable-workflow chain;
+Turborepo strict env mode drops `VITE_E2E` unless `turbo.json` declares it; PixiJS needs
+`pixi.js/unsafe-eval` under the client's CSP. `SERVER_VERSION` is stamped into the server image by
+build-arg and shows up in
 `/healthz` and `matches.server_version`. `POST /smoke/record-match` exists only when the server has a
 `SMOKE_TOKEN`; `record_match_result()` skips `player_stats` for `mode = 'smoke'`. Migrations follow
 expand/contract because rollbacks never revert the database.

@@ -11,6 +11,11 @@ name: Deploy Environment - Migrate, Deploy & Smoke Test (reusable)
 #   4. deploy smoke                  (scripts/deploy-smoke.ts)
 #   5. if any of that failed and `auto_rollback` is set, put both apps back on
 #      the images they were running before this run started
+#
+# Both deploy steps are scoped `terraform apply -target=render_web_service.*`
+# rather than a full apply, so a run here only ever changes the one resource
+# it names - it never reconciles unrelated drift (e.g. in
+# supabase_settings.main) as a side effect of a release.
 on:
   workflow_call:
     inputs:
@@ -40,6 +45,10 @@ on:
 permissions:
   contents: read
   id-token: write
+  # Read by the `github` Terraform provider for the repository/ruleset/
+  # environment resources in infra/terraform/github.tf - every apply here
+  # refreshes the whole resource graph, not just the two targeted resources.
+  administration: write
 
 jobs:
   deploy:
@@ -51,22 +60,13 @@ jobs:
       group: deploy-${{ inputs.environment }}
       cancel-in-progress: false
     env:
-      RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
-      SERVER_APP: ${{ vars.SERVER_APP }}
-      CLIENT_APP: ${{ vars.CLIENT_APP }}
       GAME_SERVER_URL: ${{ vars.GAME_SERVER_URL }}
       CLIENT_URL: ${{ vars.CLIENT_URL }}
-      SUPABASE_URL: ${{ vars.SUPABASE_URL }}
-      SUPABASE_PUBLISHABLE_KEY: ${{ vars.SUPABASE_PUBLISHABLE_KEY }}
-      SERVER_CPU: ${{ vars.SERVER_CPU || '1.0' }}
-      SERVER_MEMORY: ${{ vars.SERVER_MEMORY || '2Gi' }}
-      CLIENT_MIN_REPLICAS: ${{ vars.CLIENT_MIN_REPLICAS || '0' }}
-      # Colyseus's own drain timeout must expire before the platform's
-      # termination grace period (set to 600 s below; docs/hosting.md explains
-      # why that number is unverified) so it exits cleanly instead of being
-      # SIGKILLed mid-write.
-      DRAIN_TIMEOUT_MS: "540000"
       EXPECTED_VERSION: ${{ inputs.version }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+      RENDER_OWNER_ID: ${{ secrets.RENDER_OWNER_ID }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -84,19 +84,32 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @castle-clash/shared run build
 
+      # Terraform's state lives in Azure Storage (infra/terraform/backend.tf);
+      # this identity only needs blob access to it, not the Container Apps
+      # Contributor role identity.tf also grants it for the Azure resources
+      # still being decommissioned.
       - uses: azure/login@v3
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9"
+      - name: Terraform init
+        working-directory: infra/terraform
+        run: terraform init
+
       - name: Record the images currently running (rollback target)
         id: previous
+        working-directory: infra/terraform
         run: |
           for kind in server client; do
-            app_var="${kind^^}_APP"
-            image="$(az containerapp show --name "${!app_var}" --resource-group "$RESOURCE_GROUP" \
-              --query 'properties.template.containers[0].image' -o tsv)"
+            addr="render_web_service.${kind}"
+            image="$(terraform show -json | jq -r --arg a "$addr" '
+              .values.root_module.resources[] | select(.address == $a) |
+              .values.runtime_source.image | "\(.image_url)@\(.digest)"')"
             echo "${kind}=${image}" >> "$GITHUB_OUTPUT"
             echo "previous ${kind}: ${image}"
           done
@@ -117,28 +130,15 @@ jobs:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
 
       - name: Deploy server (by digest)
-        run: |
-          az containerapp ingress update --name "$SERVER_APP" --resource-group "$RESOURCE_GROUP" \
-            --target-port 2567 --output none
-          az containerapp update --name "$SERVER_APP" --resource-group "$RESOURCE_GROUP" \
-            --image "$SERVER_IMAGE" \
-            --revision-suffix "r${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
-            --cpu "$SERVER_CPU" --memory "$SERVER_MEMORY" \
-            --min-replicas 1 --max-replicas 1 \
-            --termination-grace-period 600 \
-            --set-env-vars \
-              "SUPABASE_URL=${SUPABASE_URL}" \
-              "SUPABASE_SECRET_KEY=secretref:supabase-secret-key" \
-              "SMOKE_TOKEN=secretref:smoke-token" \
-              "DRAIN_TIMEOUT_MS=${DRAIN_TIMEOUT_MS}" \
-            --output none
+        working-directory: infra/terraform
+        run: terraform apply -auto-approve -target=render_web_service.server -var server_image="$SERVER_IMAGE"
         env:
           SERVER_IMAGE: ${{ inputs.server_image }}
 
-      # Single-revision mode: the new revision takes traffic once it is up and
-      # the old one gets SIGTERM, which the server turns into a drain (running
-      # matches finish; /readyz answers 503). Wait until the *new* version is
-      # what answers before touching the client.
+      # Render replaces the running instance with the new one directly (no
+      # revision concept to wait behind, unlike Azure's single-revision mode),
+      # but the server still needs to finish booting - wait until the *new*
+      # version is what answers before touching the client.
       - name: Wait for the new server version
         run: |
           origin="${GAME_SERVER_URL/#wss:/https:}"
@@ -154,18 +154,8 @@ jobs:
           exit 1
 
       - name: Deploy client (by digest)
-        run: |
-          az containerapp ingress update --name "$CLIENT_APP" --resource-group "$RESOURCE_GROUP" \
-            --target-port 8080 --output none
-          az containerapp update --name "$CLIENT_APP" --resource-group "$RESOURCE_GROUP" \
-            --image "$CLIENT_IMAGE" \
-            --revision-suffix "r${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
-            --min-replicas "$CLIENT_MIN_REPLICAS" --max-replicas 2 \
-            --set-env-vars \
-              "GAME_SERVER_URL=${GAME_SERVER_URL}" \
-              "SUPABASE_URL=${SUPABASE_URL}" \
-              "SUPABASE_PUBLISHABLE_KEY=${SUPABASE_PUBLISHABLE_KEY}" \
-            --output none
+        working-directory: infra/terraform
+        run: terraform apply -auto-approve -target=render_web_service.client -var client_image="$CLIENT_IMAGE"
         env:
           CLIENT_IMAGE: ${{ inputs.client_image }}
 
@@ -178,18 +168,21 @@ jobs:
 
       - name: Roll the apps back to their previous images
         if: ${{ failure() && inputs.auto_rollback }}
+        working-directory: infra/terraform
         run: |
+          args=()
           for kind in server client; do
-            app_var="${kind^^}_APP"
             prev_var="PREVIOUS_${kind^^}"
             case "${!prev_var}" in
-              ghcr.io/*) ;;
-              *) echo "no previous release image for ${kind} (was '${!prev_var}'), leaving it"; continue ;;
+              ghcr.io/*) args+=("-target=render_web_service.${kind}" "-var" "${kind}_image=${!prev_var}") ;;
+              *) echo "no previous release image for ${kind} (was '${!prev_var}'), leaving it" ;;
             esac
-            az containerapp update --name "${!app_var}" --resource-group "$RESOURCE_GROUP" \
-              --image "${!prev_var}" \
-              --revision-suffix "rb${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" --output none
           done
+          if [ "${#args[@]}" -eq 0 ]; then
+            echo "no previous images recorded for either app; nothing to roll back"
+            exit 0
+          fi
+          terraform apply -auto-approve "${args[@]}"
           echo "::warning::rolled back to the previous images; the database was NOT rolled back"
         env:
           PREVIOUS_SERVER: ${{ steps.previous.outputs.server }}

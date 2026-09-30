@@ -1,21 +1,29 @@
 # Terraform: castle-clash cloud environment
 
-Manages `rg-castle-clash` and everything the game runs on, the
-`castle-clash[-game].atomic-nucleus.com` DNS records, the GitHub deploy identity, the hosted
-Supabase project, the GitHub repository itself (settings, branch and tag rules, the `production`
-environment), and every secret the pipeline uses. Terraform >= 1.9; providers `azurerm ~> 4.0`,
-`azuread ~> 3.0`, `integrations/github ~> 6.0`, `supabase/supabase ~> 1.0`, `hashicorp/random ~> 3.0`.
+Manages `rg-castle-clash` and everything the game runs on, the `ca-castle-clash-server` /
+`-client` Render services, the GitHub deploy identity, the hosted Supabase project, the GitHub
+repository itself (settings, branch and tag rules, the `production` environment), and every secret
+the pipeline uses. Terraform >= 1.9; providers `azurerm ~> 4.0`, `azuread ~> 3.0`,
+`integrations/github ~> 6.0`, `supabase/supabase ~> 1.0`, `hashicorp/random ~> 3.0`,
+`render-oss/render ~> 1.9`.
+
+Hosting is mid-migration from Azure Container Apps to Render: `render.tf`'s two
+`render_web_service` resources are what's actually live behind the game's custom domains now, and
+`main.tf` / `container-apps.tf` / `dns.tf` / `identity.tf`'s Azure resources still exist in state
+but serve no traffic, kept only as a rollback path for a short soak period before a later change
+removes them.
 
 | File                | Owns                                                                                                                                                                               |
 | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `main.tf`           | resource group, Log Analytics workspace, Container Apps environment                                                                                                                |
-| `container-apps.tf` | `ca-castle-clash-server` / `-client` (shape only, see below)                                                                                                                       |
-| `dns.tf`            | CNAME + `asuid` TXT records in the `atomic-nucleus.com` zone, managed certificates, custom domains                                                                                 |
-| `identity.tf`       | `castle-clash-deploy-prod` app registration, service principal, GitHub OIDC federated credential, RG-scoped `Container Apps Contributor`                                           |
+| `main.tf`           | resource group, Log Analytics workspace, Container Apps environment (Azure, pending removal)                                                                                       |
+| `container-apps.tf` | `ca-castle-clash-server` / `-client` Container Apps (shape only, see below; Azure, pending removal)                                                                                |
+| `render.tf`         | `ca-castle-clash-server` / `-client` Render web services - image, env vars, custom domains, health checks                                                                          |
+| `dns.tf`            | CNAME + `asuid` TXT records in the `atomic-nucleus.com` zone, managed certificates, custom domains (Azure, pending removal - DNS is manual at Namecheap now, see Hosting below)     |
+| `identity.tf`       | `castle-clash-deploy-prod` app registration, service principal, GitHub OIDC federated credential, RG-scoped `Container Apps Contributor` (pending removal with the Azure resources)|
 | `github.tf`         | the repository and its settings, the `main` and release-tag rulesets, Actions permissions, the `production` environment (reviewer, `main`-only deploys), its variables and secrets |
 | `supabase.tf`       | the Supabase project, the server's secret API key, the URLs/keys derived from them, and the auth settings the game needs (Google, guest linking; see below)                       |
 | `secrets.tf`        | the generated secrets and where each one goes                                                                                                                                      |
-| `backend.tf`        | remote state (below)                                                                                                                                                               |
+| `backend.tf`        | remote state (below) - stays on Azure Storage; state storage is out of scope for the Render migration                                                                             |
 
 ## Using it
 
@@ -23,6 +31,8 @@ environment), and every secret the pipeline uses. Terraform >= 1.9; providers `a
 az login
 export GITHUB_TOKEN="$(gh auth token)"        # for the GitHub provider
 export SUPABASE_ACCESS_TOKEN="$(secret-tool lookup service 'Supabase CLI' username supabase)"
+export RENDER_API_KEY="..."                   # for the render provider (dashboard: Account -> API Keys)
+export RENDER_OWNER_ID=tea-datonbu0tbcc73en31r0
 terraform -chdir=infra/terraform init         # first time on a machine
 terraform -chdir=infra/terraform plan
 terraform -chdir=infra/terraform apply
@@ -78,17 +88,21 @@ wired to that one source. Nothing is typed into a dashboard or `gh secret set`.
 
 | Secret                                                | Source                                                               | Consumers                                                     |
 | ----------------------------------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------- |
-| `SMOKE_TOKEN`                                         | `random_password.smoke_token`                                        | GitHub `production` env, server Container App (`smoke-token`) |
-| `supabase-secret-key`                                 | `supabase_apikey.server`                                             | server Container App                                          |
+| `SMOKE_TOKEN`                                         | `random_password.smoke_token`                                        | GitHub `production` env, server Render service (`SMOKE_TOKEN`) |
+| `supabase-secret-key`                                 | `supabase_apikey.server`                                             | server Render service (`SUPABASE_SECRET_KEY`)                 |
 | `SUPABASE_DB_URL`                                     | `supabase_project` + `random_password.supabase_db` + the pooler host | GitHub `production` env                                       |
 | `AZURE_CLIENT_ID` / `_TENANT_ID` / `_SUBSCRIPTION_ID` | the Entra app / variables                                            | GitHub `production` env (identifiers, not credentials)        |
+| `RENDER_API_KEY`                                      | `var.render_api_key` (TF_VAR only)                                   | GitHub `production` env (CI's own `terraform apply`)          |
+| `SUPABASE_ACCESS_TOKEN`                               | `var.supabase_access_token_ci` (TF_VAR only)                         | GitHub `production` env (CI's own `terraform apply`)          |
 
 Read one back with `terraform output -raw smoke_token | supabase_secret_key | supabase_db_url`.
 Rotate with `terraform apply -replace=random_password.smoke_token` (likewise
 `-replace=supabase_apikey.server`); the new value propagates to every consumer in the same apply.
-The credentials Terraform cannot mint are the optional `RELEASE_PLEASE_TOKEN` personal access token
-(GitHub has no API to mint one) and the Google OAuth client secret (Google has no API for it): the
-latter is passed in once as `TF_VAR_supabase_google_client_secret`, see "Supabase auth settings".
+`RENDER_API_KEY` and `SUPABASE_ACCESS_TOKEN` are set or rotated the same way as the Google OAuth
+client secret below: pass the new value once as `TF_VAR_render_api_key` /
+`TF_VAR_supabase_access_token_ci`, never in a file - left unset, a routine apply leaves whatever the
+GitHub secret already holds alone rather than clearing it. The one credential Terraform cannot mint
+at all is the optional `RELEASE_PLEASE_TOKEN` personal access token (GitHub has no API to mint one).
 
 Because Container App secrets are only read at container start, a rotated value reaches the running
 server on its next revision (the next deploy, or `az containerapp revision restart`).
@@ -140,9 +154,11 @@ finding 16): `site_url` (the client origin), `uri_allow_list`, `external_anonymo
 
 ## What Terraform does _not_ own
 
-The deploy workflow (`.github/workflows/deploy-environment.yaml`) changes these on every
-release, so `azurerm_container_app` ignores them (`lifecycle.ignore_changes`) rather than
-fight it:
+The `azurerm_container_app` resources below are vestigial: the deploy workflow no longer touches
+Azure at all (it runs `terraform apply -target=render_web_service.*` instead), so nothing exercises
+these `ignore_changes` blocks anymore. They're documented here because the resources - and this
+lifecycle block - still exist in state until the pending Azure removal. Before that, this is what
+_used to_ change on every release, so `azurerm_container_app` ignored it rather than fight it:
 
 - `template` (image, cpu/memory, replicas, env vars, revision suffix, termination grace period)
 - `ingress[0].target_port` (2567 / 8080, set with `az containerapp ingress update`)

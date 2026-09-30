@@ -141,7 +141,23 @@ export async function runDeploySmoke(config: DeploySmokeConfig): Promise<StepRes
     [
       "join and leave a private room",
       async () => {
-        await config.joinAndLeave(config.gameServerUrl, accessToken);
+        // A fresh anonymous token used within moments of minting can race a
+        // transient clock-skew rejection between Supabase's own services
+        // ("JWT issued at future") - retried with the same budget as every
+        // HTTP step, since a real, persistent failure still exhausts it.
+        let lastError: unknown;
+        for (let attempt = 1; attempt <= config.attempts; attempt += 1) {
+          try {
+            await config.joinAndLeave(config.gameServerUrl, accessToken);
+            return;
+          } catch (error) {
+            lastError = error;
+            if (attempt < config.attempts) {
+              await sleep(config.retryDelayMs);
+            }
+          }
+        }
+        throw lastError instanceof Error ? lastError : new Error(String(lastError));
       },
     ],
     [

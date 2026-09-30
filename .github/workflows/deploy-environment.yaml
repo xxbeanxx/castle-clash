@@ -45,14 +45,6 @@ on:
 permissions:
   contents: read
   id-token: write
-  # Read by the `github` Terraform provider for the repository/ruleset/
-  # environment resources in infra/terraform/github.tf - every apply here
-  # refreshes the whole resource graph, not just the two targeted resources.
-  # Read-only: this workflow never writes a github_* resource, only
-  # render_web_service ones (-target). Every caller in the chain
-  # (release.yaml -> deploy.yaml -> here) must grant this explicitly -
-  # a reusable workflow cannot escalate beyond what its caller granted.
-  administration: read
 
 jobs:
   deploy:
@@ -67,10 +59,15 @@ jobs:
       GAME_SERVER_URL: ${{ vars.GAME_SERVER_URL }}
       CLIENT_URL: ${{ vars.CLIENT_URL }}
       EXPECTED_VERSION: ${{ inputs.version }}
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # The default Actions token has no `administration` scope (it isn't a
+      # valid permission at all - GitHub only grants real admin access, which
+      # infra/terraform/github.tf's repository/ruleset/environment resources
+      # need, to an actual PAT). Reuses the same RELEASE_PLEASE_TOKEN the
+      # release-please job already needs for the same reason.
+      GITHUB_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
-      RENDER_OWNER_ID: ${{ secrets.RENDER_OWNER_ID }}
+      RENDER_OWNER_ID: ${{ vars.RENDER_OWNER_ID }}
     steps:
       - uses: actions/checkout@v7
         with:

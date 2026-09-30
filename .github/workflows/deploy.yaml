@@ -103,7 +103,6 @@ jobs:
     permissions:
       contents: read
       id-token: write
-      administration: read # passed through to deploy-environment.yaml's `github` provider refresh
     uses: ./.github/workflows/deploy-environment.yaml
     # An environment's secrets reach a called workflow only through the caller's
     # `secrets: inherit` (the job in deploy-environment.yaml sets `environment:`).
@@ -124,7 +123,6 @@ jobs:
     permissions:
       contents: read
       id-token: write
-      administration: read # passed through to deploy-environment.yaml's `github` provider refresh
     uses: ./.github/workflows/deploy-environment.yaml
     # An environment's secrets reach a called workflow only through the caller's
     # `secrets: inherit` (the job in deploy-environment.yaml sets `environment:`).

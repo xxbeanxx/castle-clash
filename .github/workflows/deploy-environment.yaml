@@ -48,7 +48,11 @@ permissions:
   # Read by the `github` Terraform provider for the repository/ruleset/
   # environment resources in infra/terraform/github.tf - every apply here
   # refreshes the whole resource graph, not just the two targeted resources.
-  administration: write
+  # Read-only: this workflow never writes a github_* resource, only
+  # render_web_service ones (-target). Every caller in the chain
+  # (release.yaml -> deploy.yaml -> here) must grant this explicitly -
+  # a reusable workflow cannot escalate beyond what its caller granted.
+  administration: read
 
 jobs:
   deploy:

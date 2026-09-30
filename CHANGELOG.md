@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.3](https://github.com/xxbeanxx/castle-clash/compare/v1.6.2...v1.6.3) (2026-09-30)
+
+
+### Bug Fixes
+
+* **infra:** grant the deploy identity Storage Blob Data Contributor on tfstate ([#96](https://github.com/xxbeanxx/castle-clash/issues/96)) ([cadedc5](https://github.com/xxbeanxx/castle-clash/commit/cadedc5443ecaf0db0b294b60ab1c5fc1adc27c5))
+
 ## [1.6.2](https://github.com/xxbeanxx/castle-clash/compare/v1.6.1...v1.6.2) (2026-09-30)
 
 

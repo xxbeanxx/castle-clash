@@ -18,6 +18,13 @@ async function joinAndLeave(gameServerUrl: string, accessToken: string): Promise
   const client = new Client(gameServerUrl);
   client.auth.token = accessToken;
   const room = await client.create<MatchState>(MATCH_ROOM_NAME, { mode: "private" }, MatchState);
+  // The SDK's automatic reconnection (up to 15 attempts, exponential backoff
+  // capped at 5s - a minute-plus) exists for a real player's transient
+  // network blip. A smoke run wants the opposite: a disconnect should fail
+  // this attempt immediately, so the retry loop in deploySmoke.ts's "join
+  // and leave" step controls the actual retry policy, once, on its own
+  // fast, bounded budget.
+  room.reconnection.enabled = false;
   // A private room announces its join code on connect; nobody needs it here,
   // but an unhandled message type makes the SDK warn.
   room.onMessage(MESSAGE_TYPES.MATCH_CODE, () => {});
@@ -26,10 +33,25 @@ async function joinAndLeave(gameServerUrl: string, accessToken: string): Promise
       () => reject(new Error(`no state arrived from ${gameServerUrl} in ${STATE_TIMEOUT_MS} ms`)),
       STATE_TIMEOUT_MS,
     );
-    room.onStateChange.once(() => {
+    const settle = (error?: Error) => {
       clearTimeout(timeout);
-      resolve();
-    });
+      room.onLeave.remove(onLeave);
+      room.onError.remove(onError);
+      if (error) {
+        reject(error);
+      } else {
+        resolve();
+      }
+    };
+    const onLeave = (code: number, reason?: string) => {
+      settle(new Error(`room left unexpectedly (code ${code}): ${reason ?? "no reason given"}`));
+    };
+    const onError = (code: number, message?: string) => {
+      settle(new Error(`room error (code ${code}): ${message ?? "no message given"}`));
+    };
+    room.onLeave.once(onLeave);
+    room.onError.once(onError);
+    room.onStateChange.once(() => settle());
   });
   await room.leave();
 }

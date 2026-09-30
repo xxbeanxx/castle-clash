@@ -26,3 +26,19 @@ resource "azurerm_role_assignment" "deploy" {
   role_definition_name = "Container Apps Contributor"
   principal_id         = azuread_service_principal.deploy.object_id
 }
+
+# backend.tf's state storage account (bootstrapped by hand, per its own
+# comment - not managed here, only read).
+data "azurerm_storage_account" "tfstate" {
+  name                = "stcastleclashtfstate"
+  resource_group_name = "DefaultResourceGroup-CCAN"
+}
+
+resource "azurerm_role_assignment" "deploy_tfstate" {
+  # The deploy workflow's own `terraform apply` (deploy-environment.yaml)
+  # needs to read and write the state blob directly, same as a human
+  # operator running it locally (infra/terraform/README.md's "Using it").
+  scope                = data.azurerm_storage_account.tfstate.id
+  role_definition_name = "Storage Blob Data Contributor"
+  principal_id         = azuread_service_principal.deploy.object_id
+}

@@ -22,5 +22,9 @@ terraform {
       source  = "hashicorp/random"
       version = "~> 3.0"
     }
+    render = {
+      source  = "render-oss/render"
+      version = "~> 1.9"
+    }
   }
 }

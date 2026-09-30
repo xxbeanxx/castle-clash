@@ -202,28 +202,40 @@ locals {
     # Designed to ship in every browser bundle, so it is a variable, not a secret,
     # and `nonsensitive` is honest: the provider just marks all keys sensitive.
     SUPABASE_PUBLISHABLE_KEY = nonsensitive(data.supabase_apikeys.main.publishable_key)
+    RENDER_OWNER_ID          = var.render_owner_id
   }
 
   # Kept apart from the sensitive values below: `for_each` cannot iterate a
   # collection holding one, so the resource iterates these names and looks values up.
-  production_secret_names = toset([
-    "AZURE_CLIENT_ID",
-    "AZURE_TENANT_ID",
-    "AZURE_SUBSCRIPTION_ID",
-    "SMOKE_TOKEN",
-    "SUPABASE_DB_URL",
-  ])
+  production_secret_names = toset(concat(
+    [
+      "AZURE_CLIENT_ID",
+      "AZURE_TENANT_ID",
+      "AZURE_SUBSCRIPTION_ID",
+      "SMOKE_TOKEN",
+      "SUPABASE_DB_URL",
+    ],
+    # Externally-issued tokens Terraform cannot mint: passed as TF_VAR_* only
+    # when setting or rotating them (variables.tf), so a routine apply that
+    # doesn't pass them leaves whatever the GitHub secret already holds alone.
+    nonsensitive(var.render_api_key != null) ? ["RENDER_API_KEY"] : [],
+    nonsensitive(var.supabase_access_token_ci != null) ? ["SUPABASE_ACCESS_TOKEN"] : [],
+  ))
 
-  production_secrets = {
-    # Not credentials (OIDC has no client secret), but the workflow reads them as
-    # secrets so they stay out of logs.
-    AZURE_CLIENT_ID       = azuread_application.deploy.client_id
-    AZURE_TENANT_ID       = var.tenant_id
-    AZURE_SUBSCRIPTION_ID = var.subscription_id
-    # Credentials: generated in secrets.tf / supabase.tf.
-    SMOKE_TOKEN     = random_password.smoke_token.result
-    SUPABASE_DB_URL = local.supabase_db_url
-  }
+  production_secrets = merge(
+    {
+      # Not credentials (OIDC has no client secret), but the workflow reads them as
+      # secrets so they stay out of logs.
+      AZURE_CLIENT_ID       = azuread_application.deploy.client_id
+      AZURE_TENANT_ID       = var.tenant_id
+      AZURE_SUBSCRIPTION_ID = var.subscription_id
+      # Credentials: generated in secrets.tf / supabase.tf.
+      SMOKE_TOKEN     = random_password.smoke_token.result
+      SUPABASE_DB_URL = local.supabase_db_url
+    },
+    var.render_api_key != null ? { RENDER_API_KEY = var.render_api_key } : {},
+    var.supabase_access_token_ci != null ? { SUPABASE_ACCESS_TOKEN = var.supabase_access_token_ci } : {},
+  )
 }
 
 resource "github_actions_environment_variable" "production" {

@@ -4,13 +4,18 @@
 #
 #   secret                 source                            consumers
 #   ---------------------  --------------------------------  ---------------------------------------
-#   SMOKE_TOKEN            random_password.smoke_token       GitHub `production` env + Container App
-#   supabase-secret-key    supabase_apikey.server            Container App (server)
+#   SMOKE_TOKEN            random_password.smoke_token       GitHub `production` env + Render (server)
+#   supabase-secret-key    supabase_apikey.server            Render (server)
 #   SUPABASE_DB_URL        supabase_project + random pw      GitHub `production` env
 #   AZURE_* ids            azuread_application / variables   GitHub `production` env (not credentials)
 #
-# The one credential outside Terraform is RELEASE_PLEASE_TOKEN, an optional
-# personal access token: GitHub offers no API to mint one.
+# Two credentials Terraform cannot mint, since they're issued by services with
+# no Terraform resource for that: RENDER_API_KEY and SUPABASE_ACCESS_TOKEN
+# (variables.tf). Both are passed only as TF_VAR_* when setting or rotating
+# them, never stored in a file, same as supabase_google_client_secret below -
+# see those variables' descriptions. RELEASE_PLEASE_TOKEN is the one secret
+# outside Terraform entirely: an optional personal access token, since GitHub
+# offers no API to mint one.
 
 # Presented by the deploy smoke to POST /smoke/record-match. Rotate with
 # `terraform apply -replace=random_password.smoke_token`.

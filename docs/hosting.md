@@ -1,8 +1,11 @@
 # Hosting and releases
 
-castle-clash runs on **Azure Container Apps** (Canada Central), one resource group per environment,
-images from GHCR, database and auth on Supabase. This is the runbook; the reasoning and the facts it
-rests on are in `docs/research/phase10-deploy-decisions.md`.
+castle-clash runs on **Render** (free plan, Ohio region), images from GHCR, database and auth on
+Supabase. This is the runbook; the reasoning and the facts it rests on are in
+`docs/research/phase10-deploy-decisions.md` (Azure-era) and `infra/terraform/README.md` (current
+hosting). The diagram and per-environment table below describe the Azure-era shape (resource groups,
+environments) that production is migrating off of — see "What deploys, and how it drains" for
+current Render behavior.
 
 ```
                         ┌──────────── staging ────────────┐   ┌────────── production ──────────┐
@@ -101,26 +104,29 @@ a safe change: a body-only `create or replace` that behaves identically for ever
 
 ## What deploys, and how it drains
 
-Both apps run in **single-revision mode**. A deploy is `az containerapp update --image <repo>@sha256:…`,
-which creates a new revision; when it is up, traffic moves and the old revision gets `SIGTERM`. The
-server turns that into a drain (`shutdown.ts`): `/readyz` answers 503, no new rooms are created,
-running matches finish, and it exits after at most `DRAIN_TIMEOUT_MS` (540 s here). Container Apps
-sends `SIGKILL` after the termination grace period (default 30 s), so the deploy raises it to 600 s
-(`--termination-grace-period 600`) to let the drain finish. **Unverified:** Microsoft's docs I could
-reach state the 30 s default but not a maximum; 600 is from memory. If Azure rejects it the first
-deploy fails loudly at that step — lower `--termination-grace-period` and `DRAIN_TIMEOUT_MS` together.
+**As of 2026-09-29, hosting is Render, not Azure Container Apps** — this section describes current
+(Render) behavior; see `infra/terraform/README.md` for the migration's status. A deploy is
+`terraform apply -target=render_web_service.server -var server_image=<repo>@sha256:…` (client
+analogous); Render replaces the running instance directly and sends it `SIGTERM`. The server turns
+that into a drain (`shutdown.ts`): `/readyz` answers 503, no new rooms are created, running matches
+finish, and it exits after at most `DRAIN_TIMEOUT_MS`. Render's free plan fixes the shutdown grace
+period at a **non-configurable 30 s** before it sends `SIGKILL` (a paid plan can raise it to 300 s;
+`max_shutdown_delay_seconds` in `render.tf`) — Azure allowed 600 s, so `DRAIN_TIMEOUT_MS` dropped
+from 540000 to 25000. An in-progress match now gets ~25 s to wrap up on a deploy or restart, not ~9
+minutes: a real, accepted regression from Azure, not an oversight.
 
-The server is deliberately **one replica** (`min=max=1`): rooms live in process memory and there is
-no Redis presence/driver, so a second replica could not see the first's rooms. Scale it vertically
-(`SERVER_CPU`/`SERVER_MEMORY` environment variables), not horizontally, until `@colyseus/redis-presence`
-and `publicAddress` are added (the plan's "only when more than one process is needed").
+The server is deliberately **one instance**: rooms live in process memory and there is no Redis
+presence/driver, so a second instance could not see the first's rooms. Render's free plan enforces
+this anyway (no horizontal scaling); scale vertically by moving to a paid compute plan, not by
+raising instance count, until `@colyseus/redis-presence` and `publicAddress` are added (the plan's
+"only when more than one process is needed").
 
-Ingress: HTTP ingress supports WebSockets out of the box (documented request timeout: 240 s; Colyseus
-pings every 3 s by default — `WebSocketTransport`'s `pingInterval`). Container Apps runs only `linux/amd64` images — the release build is
-amd64-only (the arm64 half was OOM-killed under QEMU emulation on the first release run; restore it with a native arm64 build, not emulation). Clients already connected to a draining server stay connected until
-their match ends or the drain timeout, but a _reconnect_ — or a join by private-room code — after
-traffic has moved lands on the new revision, which has no such room. An accepted limitation of the
-single-process design.
+Render's free plan also spins the server down after ~15 minutes with no open connections (a real
+behavior change from Azure's always-on `min=max=1`), cold-starting (~1 minute) on the next
+connection — accepted for a low-traffic pet project. Clients already connected to a draining server
+stay connected until their match ends or the drain timeout, but a _reconnect_ — or a join by
+private-room code — after traffic has moved lands on the new instance, which has no such room. An
+accepted limitation of the single-process design, unchanged from Azure.
 
 ## One-time setup
 

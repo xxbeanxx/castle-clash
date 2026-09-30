@@ -15,3 +15,6 @@ provider "github" {
 
 # Authenticates from the SUPABASE_ACCESS_TOKEN environment variable.
 provider "supabase" {}
+
+# Authenticates from the RENDER_API_KEY / RENDER_OWNER_ID environment variables.
+provider "render" {}

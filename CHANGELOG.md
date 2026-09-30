@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.5](https://github.com/xxbeanxx/castle-clash/compare/v1.6.4...v1.6.5) (2026-09-30)
+
+
+### Bug Fixes
+
+* **server:** force cache invalidation on SERVER_VERSION build-arg changes ([#103](https://github.com/xxbeanxx/castle-clash/issues/103)) ([2e765ec](https://github.com/xxbeanxx/castle-clash/commit/2e765ecfcdf82476c9e4873166ff3f57682c0e4f))
+
 ## [1.6.4](https://github.com/xxbeanxx/castle-clash/compare/v1.6.3...v1.6.4) (2026-09-30)
 
 
